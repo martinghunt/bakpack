@@ -125,9 +125,16 @@ func toyBaktaJSON(product string) []byte {
   "sequences": [
     {
       "id": "contig1",
+      "length": 9,
       "sequence": "ATGAAATAA"
     }
   ],
+  "stats": {
+    "no_sequences": 1,
+    "size": 9,
+    "n_ratio": 0.0,
+    "n50": 9
+  },
   "features": [
     {
       "type": "cds",
@@ -137,7 +144,9 @@ func toyBaktaJSON(product string) []byte {
       "strand": "+",
       "product": "` + product + `",
       "nt": "ATGAAATAA",
-      "aa": "MK"
+      "aa": "MK",
+      "aa_hexdigest": "fbd1e7ba9564863b88d5c43cb833afaf",
+      "start_type": "ATG"
     }
   ]
 }

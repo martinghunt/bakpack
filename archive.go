@@ -22,11 +22,17 @@ const (
 )
 
 type ArchiveIndex struct {
-	Format    string        `json:"format"`
-	Version   int           `json:"version"`
-	ChunkSize int           `json:"chunk_size"`
-	Chunks    []ChunkIndex  `json:"chunks"`
-	Samples   []SampleIndex `json:"samples"`
+	Format         string             `json:"format"`
+	Version        int                `json:"version"`
+	PayloadFormat  string             `json:"payload_format"`
+	ChunkSize      int                `json:"chunk_size"`
+	TopKeys        []string           `json:"top_keys,omitempty"`
+	ValueSchemas   []SchemaIndexEntry `json:"value_schemas,omitempty"`
+	FeatureSchemas []SchemaIndexEntry `json:"feature_schemas,omitempty"`
+	FeatureFields  []string           `json:"feature_fields,omitempty"`
+	FieldCodecs    []FieldCodec       `json:"field_codecs,omitempty"`
+	Chunks         []ChunkIndex       `json:"chunks"`
+	Samples        []SampleIndex      `json:"samples"`
 }
 
 type ChunkIndex struct {
@@ -137,18 +143,28 @@ func BuildArchive(ctx context.Context, opts BuildOptions) error {
 		})
 	}
 
-	chunks, samples, chunkPayloads, err := makeArchiveChunks(packed, chunkSize, opts)
+	chunks, samples, chunkPayloads, codec, err := makeArchiveChunks(packed, chunkSize, opts)
 	if err != nil {
 		return err
 	}
 	index := ArchiveIndex{
-		Format:    "bakpack",
-		Version:   ArchiveVersion,
-		ChunkSize: chunkSize,
-		Chunks:    chunks,
-		Samples:   samples,
+		Format:         "bakpack",
+		Version:        ArchiveVersion,
+		PayloadFormat:  optimizedPayloadFormat,
+		ChunkSize:      chunkSize,
+		TopKeys:        codec.TopKeys,
+		ValueSchemas:   codec.ValueSchemas,
+		FeatureSchemas: codec.FeatureSchemas,
+		FeatureFields:  codec.FeatureFields,
+		FieldCodecs:    codec.FieldCodecs,
+		Chunks:         chunks,
+		Samples:        samples,
 	}
 	indexBytes, err := json.Marshal(index)
+	if err != nil {
+		return err
+	}
+	indexBytes, err = xzCompress(indexBytes, opts)
 	if err != nil {
 		return err
 	}
@@ -226,7 +242,7 @@ func ExtractArchive(ctx context.Context, opts ExtractOptions) error {
 		if !ok {
 			return fmt.Errorf("chunk %d missing from index", chunkID)
 		}
-		reducedBySample, err := readChunk(file, chunkStart, chunk)
+		reducedBySample, err := readChunk(file, chunkStart, chunk, index, samples)
 		if err != nil {
 			return err
 		}
@@ -286,7 +302,11 @@ func ReadArchiveIndex(path string) (ArchiveIndex, error) {
 	return index, nil
 }
 
-func makeArchiveChunks(packed []packedSampleForArchive, chunkSize int, opts BuildOptions) ([]ChunkIndex, []SampleIndex, [][]byte, error) {
+func makeArchiveChunks(packed []packedSampleForArchive, chunkSize int, opts BuildOptions) ([]ChunkIndex, []SampleIndex, [][]byte, *optimizedArchiveCodec, error) {
+	codec, err := newOptimizedArchiveCodec(packed)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
 	var chunks []ChunkIndex
 	var samples []SampleIndex
 	var payloads [][]byte
@@ -296,13 +316,13 @@ func makeArchiveChunks(packed []packedSampleForArchive, chunkSize int, opts Buil
 		if end > len(packed) {
 			end = len(packed)
 		}
-		uncompressed, sampleIndexes, err := encodeChunk(chunkID, packed[start:end])
+		uncompressed, sampleIndexes, err := codec.encodeChunk(chunkID, packed[start:end])
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 		compressed, err := xzCompress(uncompressed, opts)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 		chunks = append(chunks, ChunkIndex{
 			ID:               chunkID,
@@ -314,29 +334,16 @@ func makeArchiveChunks(packed []packedSampleForArchive, chunkSize int, opts Buil
 		samples = append(samples, sampleIndexes...)
 		payloads = append(payloads, compressed)
 	}
-	return chunks, samples, payloads, nil
+	return chunks, samples, payloads, codec, nil
 }
 
 type packedSampleForArchive struct {
-	index   SampleIndex
-	reduced []byte
+	index       SampleIndex
+	reduced     []byte
+	reducedRoot map[string]any
 }
 
-func encodeChunk(chunkID int, packed []packedSampleForArchive) ([]byte, []SampleIndex, error) {
-	var buf bytes.Buffer
-	writeUvarint(&buf, uint64(len(packed)))
-	var samples []SampleIndex
-	for _, sample := range packed {
-		entry := sample.index
-		entry.ChunkID = chunkID
-		samples = append(samples, entry)
-		writeString(&buf, entry.SampleID)
-		writeBytes(&buf, sample.reduced)
-	}
-	return buf.Bytes(), samples, nil
-}
-
-func readChunk(file *os.File, chunkStart int64, chunk ChunkIndex) (map[string][]byte, error) {
+func readChunk(file *os.File, chunkStart int64, chunk ChunkIndex, index ArchiveIndex, wanted []string) (map[string][]byte, error) {
 	compressed := make([]byte, chunk.CompressedSize)
 	if _, err := file.ReadAt(compressed, chunkStart+chunk.Offset); err != nil {
 		return nil, err
@@ -348,6 +355,20 @@ func readChunk(file *os.File, chunkStart int64, chunk ChunkIndex) (map[string][]
 	if int64(len(uncompressed)) != chunk.UncompressedSize {
 		return nil, fmt.Errorf("chunk %d uncompressed size mismatch", chunk.ID)
 	}
+	if index.PayloadFormat == optimizedPayloadFormat {
+		codec, err := optimizedCodecFromIndex(index)
+		if err != nil {
+			return nil, err
+		}
+		return codec.decodeChunk(uncompressed, wanted)
+	}
+	if index.PayloadFormat != "" {
+		return nil, fmt.Errorf("unsupported bakpack payload format %q", index.PayloadFormat)
+	}
+	return decodeLegacyChunk(chunk.ID, uncompressed)
+}
+
+func decodeLegacyChunk(chunkID int, uncompressed []byte) (map[string][]byte, error) {
 	reader := bytes.NewReader(uncompressed)
 	count, err := readUvarint(reader)
 	if err != nil {
@@ -366,7 +387,7 @@ func readChunk(file *os.File, chunkStart int64, chunk ChunkIndex) (map[string][]
 		out[sample] = data
 	}
 	if reader.Len() != 0 {
-		return nil, fmt.Errorf("chunk %d has trailing bytes", chunk.ID)
+		return nil, fmt.Errorf("chunk %d has trailing bytes", chunkID)
 	}
 	return out, nil
 }
@@ -394,6 +415,14 @@ func openArchive(path string) (*os.File, ArchiveIndex, int64, error) {
 	if _, err := io.ReadFull(file, indexBytes); err != nil {
 		file.Close()
 		return nil, ArchiveIndex{}, 0, err
+	}
+	if isXZ(indexBytes) {
+		decompressed, err := xzDecompress(indexBytes)
+		if err != nil {
+			file.Close()
+			return nil, ArchiveIndex{}, 0, err
+		}
+		indexBytes = decompressed
 	}
 	var index ArchiveIndex
 	if err := json.Unmarshal(indexBytes, &index); err != nil {
@@ -528,6 +557,10 @@ func xzDecompress(data []byte) ([]byte, error) {
 		return nil, err
 	}
 	return io.ReadAll(reader)
+}
+
+func isXZ(data []byte) bool {
+	return len(data) >= 6 && bytes.Equal(data[:6], []byte{0xfd, '7', 'z', 'X', 'Z', 0x00})
 }
 
 func writeUvarint(w io.Writer, value uint64) {

@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"encoding/binary"
 	"io"
 	"os"
 	"path/filepath"
@@ -30,6 +31,11 @@ func TestReduceAndRestoreBaktaJSONChecksCanonicalContent(t *testing.T) {
 	}
 	if bytes.Contains(reduced.ReducedJSON, []byte(`"sequence"`)) {
 		t.Fatalf("reduced JSON still contains sequence: %s", reduced.ReducedJSON)
+	}
+	for _, key := range []string{`"aa_hexdigest"`, `"start_type"`, `"length"`, `"no_sequences"`, `"n50"`} {
+		if bytes.Contains(reduced.ReducedJSON, []byte(key)) {
+			t.Fatalf("reduced JSON still contains derivable field %s: %s", key, reduced.ReducedJSON)
+		}
 	}
 	if reduced.Original.BytesSHA256 != SHA256Hex(original) {
 		t.Fatalf("original byte SHA mismatch")
@@ -81,6 +87,15 @@ func TestBuildAndExtractArchiveFromTarXZUsesGenomeArchiveOrder(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("BuildArchive() error = %v", err)
 	}
+	archiveBytes, err := os.ReadFile(archivePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	indexLen := binary.LittleEndian.Uint64(archiveBytes[len(ArchiveMagic) : len(ArchiveMagic)+8])
+	indexStart := len(ArchiveMagic) + 8
+	if !isXZ(archiveBytes[indexStart : indexStart+int(indexLen)]) {
+		t.Fatalf("archive index is not xz-compressed")
+	}
 
 	index, err := ReadArchiveIndex(archivePath)
 	if err != nil {
@@ -91,6 +106,22 @@ func TestBuildAndExtractArchiveFromTarXZUsesGenomeArchiveOrder(t *testing.T) {
 	}
 	if index.Samples[0].OriginalJSONCanonicalSHA256 == "" || index.Samples[0].ReducedJSONCanonicalSHA256 == "" {
 		t.Fatalf("index missing JSON checksums: %#v", index.Samples[0])
+	}
+	if index.PayloadFormat != optimizedPayloadFormat {
+		t.Fatalf("payload format = %q, want %q", index.PayloadFormat, optimizedPayloadFormat)
+	}
+	codecs := map[string]string{}
+	for _, codec := range index.FieldCodecs {
+		codecs[codec.Field] = codec.Kind
+	}
+	if codecs["contig"] != "sequence_index" {
+		t.Fatalf("contig codec = %q, want sequence_index", codecs["contig"])
+	}
+	if codecs["id"] != "sample_prefix_uint_string" {
+		t.Fatalf("id codec = %q, want sample_prefix_uint_string", codecs["id"])
+	}
+	if codecs["start"] != "uint" || codecs["stop"] != "uint" {
+		t.Fatalf("coordinate codecs = start:%q stop:%q, want uint", codecs["start"], codecs["stop"])
 	}
 
 	if err := ExtractArchive(ctx, ExtractOptions{
@@ -281,9 +312,17 @@ func toyBaktaJSON(sample, product string) []byte {
     {
       "id": "contig1",
       "description": "toy contig",
+      "length": 9,
       "sequence": "ATGAAATAA"
     }
   ],
+  "stats": {
+    "no_sequences": 1,
+    "size": 9,
+    "gc": 33.333333333333336,
+    "n_ratio": 0.0,
+    "n50": 9
+  },
   "features": [
     {
       "type": "cds",
@@ -294,6 +333,8 @@ func toyBaktaJSON(sample, product string) []byte {
       "product": "` + product + `",
       "nt": "ATGAAATAA",
       "aa": "MK",
+      "aa_hexdigest": "fbd1e7ba9564863b88d5c43cb833afaf",
+      "start_type": "ATG",
       "id": "toy_00001"
     }
   ]

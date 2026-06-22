@@ -86,12 +86,27 @@ func FeatureNT(feature map[string]any, genome Genome) (string, bool) {
 		return "", false
 	}
 	contig, ok := genome.Contig(contigName)
-	if !ok || start < 1 || stop < start || stop > len(contig) {
+	if !ok || start < 1 || stop < 1 {
 		return "", false
 	}
-	nt := append([]byte(nil), contig[start-1:stop]...)
-	if strand, _ := feature["strand"].(string); strand == "-" {
+	var nt []byte
+	if start <= stop {
+		if stop > len(contig) {
+			return "", false
+		}
+		nt = append([]byte(nil), contig[start-1:stop]...)
+	} else {
+		if start > len(contig) {
+			return "", false
+		}
+		nt = append([]byte(nil), contig[start-1:]...)
+		nt = append(nt, contig[:stop]...)
+	}
+	strand, _ := feature["strand"].(string)
+	if strand == "-" {
 		nt = seq.ReverseComplement(nt)
+	} else if strand != "" && strand != "+" && strand != "?" {
+		return "", false
 	}
 	return strings.ToUpper(string(nt)), true
 }

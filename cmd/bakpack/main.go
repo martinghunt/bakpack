@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/martinghunt/bakpack"
+	"github.com/martinghunt/bakpack/internal/buildinfo"
 	"github.com/spf13/cobra"
 )
 
@@ -18,8 +19,9 @@ func main() {
 
 func newRootCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "bakpack",
-		Short: "Compress and retrieve Bakta annotation JSON files",
+		Use:     "bakpack",
+		Short:   "Compress and retrieve Bakta annotation JSON files",
+		Version: buildinfo.Version,
 	}
 	cmd.AddCommand(newReduceCommand())
 	cmd.AddCommand(newRestoreCommand())

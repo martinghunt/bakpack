@@ -54,6 +54,7 @@ func ReduceBaktaJSON(original []byte, genome Genome) (ReduceResult, error) {
 			}
 		}
 	}
+	stripDerivableFields(data, genome)
 
 	reduced, err := PrettyJSON(data)
 	if err != nil {
@@ -90,6 +91,7 @@ func RestoreBaktaJSON(reduced []byte, genome Genome) (RestoreResult, error) {
 		return RestoreResult{}, fmt.Errorf("Bakta JSON root is not an object")
 	}
 
+	restoreDerivableFields(data, genome)
 	restoreContigSequences(data, genome)
 	table := translationTable(data)
 	features, _ := data["features"].([]any)
@@ -174,6 +176,251 @@ func restoreContigSequences(data map[string]any, genome Genome) {
 	}
 }
 
+func stripDerivableFields(data map[string]any, genome Genome) {
+	stripDerivedStats(data, genome)
+	stripSequenceLengths(data, genome)
+	stripFeatureDerivableFields(data, genome)
+}
+
+func restoreDerivableFields(data map[string]any, genome Genome) {
+	restoreDerivedStats(data, genome)
+	restoreSequenceLengths(data, genome)
+	restoreFeatureDerivableFields(data, genome)
+}
+
+func stripDerivedStats(data map[string]any, genome Genome) {
+	statsObj, _ := data["stats"].(map[string]any)
+	if statsObj == nil {
+		return
+	}
+	for key, value := range derivedStats(genome) {
+		if existing, ok := statsObj[key]; ok && jsonValuesEqual(existing, value) {
+			delete(statsObj, key)
+		}
+	}
+}
+
+func restoreDerivedStats(data map[string]any, genome Genome) {
+	statsObj, _ := data["stats"].(map[string]any)
+	if statsObj == nil {
+		return
+	}
+	for key, value := range derivedStats(genome) {
+		if _, ok := statsObj[key]; !ok {
+			statsObj[key] = value
+		}
+	}
+}
+
+func stripSequenceLengths(data map[string]any, genome Genome) {
+	sequences, _ := data["sequences"].([]any)
+	for _, item := range sequences {
+		entry, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		existing, exists := entry["length"]
+		if !exists {
+			continue
+		}
+		id, _ := entry["id"].(string)
+		if contig, ok := genome.Contig(id); ok && jsonValuesEqual(existing, len(contig)) {
+			delete(entry, "length")
+		}
+	}
+}
+
+func restoreSequenceLengths(data map[string]any, genome Genome) {
+	sequences, _ := data["sequences"].([]any)
+	for _, item := range sequences {
+		entry, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if _, exists := entry["length"]; exists {
+			continue
+		}
+		id, _ := entry["id"].(string)
+		if contig, ok := genome.Contig(id); ok {
+			entry["length"] = len(contig)
+		}
+	}
+}
+
+func stripFeatureDerivableFields(data map[string]any, genome Genome) {
+	table := translationTable(data)
+	features, _ := data["features"].([]any)
+	for _, item := range features {
+		feature, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		var nt string
+		haveNT := false
+		if existing, exists := feature["aa_hexdigest"]; exists {
+			if isProteinFeature(feature) {
+				nt, haveNT = FeatureNT(feature, genome)
+				if haveNT {
+					aa := translateNT(nt, table, true)
+					if digest, ok := existing.(string); ok && md5Hex([]byte(aa)) == digest {
+						delete(feature, "aa_hexdigest")
+					}
+				}
+			}
+		}
+
+		if existing, exists := feature["start_type"]; exists {
+			featureType, _ := feature["type"].(string)
+			if featureType == "cds" {
+				if !haveNT {
+					nt, haveNT = FeatureNT(feature, genome)
+				}
+				if haveNT {
+					if startType, ok := existing.(string); ok && startType == firstCodon(nt) {
+						delete(feature, "start_type")
+					}
+				}
+			}
+		}
+
+		if existing, exists := feature["hypothetical"]; exists {
+			product, _ := feature["product"].(string)
+			if existing == true && product == "hypothetical protein" {
+				delete(feature, "hypothetical")
+			}
+		}
+
+		if existing, exists := feature["length"]; exists {
+			featureType, _ := feature["type"].(string)
+			if span, ok := featureSpan(feature, genome); ok && featureType == "gap" && jsonValuesEqual(existing, span) {
+				delete(feature, "length")
+			}
+		}
+	}
+}
+
+func restoreFeatureDerivableFields(data map[string]any, genome Genome) {
+	table := translationTable(data)
+	features, _ := data["features"].([]any)
+	for _, item := range features {
+		feature, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		var nt string
+		haveNT := false
+		if _, exists := feature["aa_hexdigest"]; !exists && isProteinFeature(feature) && hasFeatureCoords(feature) {
+			nt, haveNT = FeatureNT(feature, genome)
+			if haveNT {
+				aa := translateNT(nt, table, true)
+				feature["aa_hexdigest"] = md5Hex([]byte(aa))
+			}
+		}
+
+		featureType, _ := feature["type"].(string)
+		if _, exists := feature["start_type"]; !exists && featureType == "cds" {
+			if !haveNT {
+				nt, haveNT = FeatureNT(feature, genome)
+			}
+			if haveNT {
+				feature["start_type"] = firstCodon(nt)
+			}
+		}
+
+		if _, exists := feature["hypothetical"]; !exists {
+			product, _ := feature["product"].(string)
+			if product == "hypothetical protein" {
+				feature["hypothetical"] = true
+			}
+		}
+
+		if _, exists := feature["length"]; !exists && featureType == "gap" {
+			if span, ok := featureSpan(feature, genome); ok {
+				feature["length"] = span
+			}
+		}
+	}
+}
+
+func derivedStats(genome Genome) map[string]any {
+	lengths := make([]int, 0, len(genome.Contigs))
+	totalSize := 0
+	nCount := 0
+	for _, contig := range genome.Contigs {
+		length := len(contig.Seq)
+		lengths = append(lengths, length)
+		totalSize += length
+		nCount += strings.Count(string(contig.Seq), "N")
+	}
+	nRatio := 0.0
+	if totalSize > 0 {
+		nRatio = float64(nCount) / float64(totalSize)
+	}
+	return map[string]any{
+		"no_sequences": len(genome.Contigs),
+		"size":         totalSize,
+		"n_ratio":      nRatio,
+		"n50":          n50(lengths),
+	}
+}
+
+func n50(lengths []int) int {
+	total := 0
+	for _, length := range lengths {
+		total += length
+	}
+	cumulative := 0
+	sorted := append([]int(nil), lengths...)
+	for i := 0; i < len(sorted); i++ {
+		for j := i + 1; j < len(sorted); j++ {
+			if sorted[j] > sorted[i] {
+				sorted[i], sorted[j] = sorted[j], sorted[i]
+			}
+		}
+	}
+	for _, length := range sorted {
+		cumulative += length
+		if float64(cumulative) >= float64(total)/2 {
+			return length
+		}
+	}
+	return 0
+}
+
+func isProteinFeature(feature map[string]any) bool {
+	featureType, _ := feature["type"].(string)
+	return featureType == "cds" || featureType == "sorf"
+}
+
+func firstCodon(nt string) string {
+	if len(nt) < 3 {
+		return strings.ToUpper(nt)
+	}
+	return strings.ToUpper(nt[:3])
+}
+
+func featureSpan(feature map[string]any, genome Genome) (int, bool) {
+	start, ok := jsonInt(feature["start"])
+	if !ok {
+		return 0, false
+	}
+	stop, ok := jsonInt(feature["stop"])
+	if !ok {
+		return 0, false
+	}
+	if start <= stop {
+		return stop - start + 1, true
+	}
+	contigName, _ := feature["contig"].(string)
+	contig, ok := genome.Contig(contigName)
+	if !ok {
+		return 0, false
+	}
+	return len(contig) - start + 1 + stop, true
+}
+
 func translationTable(data map[string]any) int {
 	genome, _ := data["genome"].(map[string]any)
 	table, ok := jsonInt(genome["translation_table"])
@@ -237,6 +484,36 @@ func jsonInt(value any) (int, bool) {
 	default:
 		return 0, false
 	}
+}
+
+func jsonFloat(value any) (float64, bool) {
+	switch v := value.(type) {
+	case json.Number:
+		f, err := v.Float64()
+		return f, err == nil
+	case float64:
+		return v, true
+	case int:
+		return float64(v), true
+	case int64:
+		return float64(v), true
+	default:
+		return 0, false
+	}
+}
+
+func jsonValuesEqual(left, right any) bool {
+	if li, ok := jsonInt(left); ok {
+		if ri, ok := jsonInt(right); ok {
+			return li == ri
+		}
+	}
+	lf, lok := jsonFloat(left)
+	rf, rok := jsonFloat(right)
+	if lok && rok {
+		return lf == rf
+	}
+	return left == right
 }
 
 func md5Hex(data []byte) string {

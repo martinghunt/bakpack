@@ -1,32 +1,68 @@
 # bakpack
 
-`bakpack` is a Go library and command line tool for compressing Bakta JSON annotations while keeping them recoverable and checkable against the original JSON content.
+`bakpack` is a Go command line tool and library for compressing Bakta JSON annotation files while keeping them reconstructable and checkable against the original JSON content.
 
-The current implementation is the first clean Go version. It prioritizes correctness, source handling, and a stable API. The archive payload is chunked reduced JSON compressed with xz; the columnar/specialized codecs from the Python prototype can replace that payload later without changing the user-facing workflows.
+This repository was developed with substantial coding assistance from [OpenAI Codex](https://openai.com/codex), which helped with implementation, refactoring, tests, documentation, and benchmarking under human direction and review.
 
-Archive creation uses the command-line `xz` program by default:
+## Install
+
+The simplest way to install `bakpack` is to download the latest prebuilt binary from the GitHub releases page:
+
+- https://github.com/martinghunt/bakpack/releases/latest
+
+Choose the archive or binary matching your OS and CPU architecture.
+Release pages also include a SHA-256 checksum file named like `bakpack-v0.1.0-checksums.txt`.
+Use it to verify downloaded archives before installing.
+
+After installing, check the version with:
+
+```bash
+bakpack --version
+```
+
+If you want to build locally instead:
+
+```bash
+git clone https://github.com/martinghunt/bakpack.git
+cd bakpack
+./build.sh
+```
+
+The binary is written to:
+
+```text
+build/bakpack
+```
+
+With Go directly:
+
+```bash
+go install github.com/martinghunt/bakpack/cmd/bakpack@latest
+```
+
+Archive creation uses the command line `xz` program by default:
 
 ```text
 xz -9e -T1 -c
 ```
 
-This matches the high-compression setting used in the Python prototype. Decompression is handled in Go. If a pure-Go build path is required, pass `--go-xz`; this uses `github.com/ulikunitz/xz`, which is portable but is expected to compress worse than the command-line `xz` implementation.
+Put `xz` in `PATH` for best compression. Passing `--go-xz` uses the pure-Go xz implementation instead, but it is expected to compress worse. AGC genome input requires `agc` in `PATH`.
 
-## Commands
+## Quick Start
 
-Reduce one Bakta JSON file using its matching genome FASTA:
+Make one reduced JSON file:
 
 ```bash
 bakpack reduce sample.bakta.json sample.fa -o sample.reduced.bakta.json
 ```
 
-Restore original JSON content from reduced JSON and genome FASTA:
+Reconstruct original JSON content:
 
 ```bash
 bakpack restore sample.reduced.bakta.json sample.fa -o sample.bakta.json
 ```
 
-Build an archive:
+Build a compressed archive:
 
 ```bash
 bakpack build \
@@ -35,38 +71,7 @@ bakpack build \
   --output annotations.bakpack
 ```
 
-Set xz thread count if needed:
-
-```bash
-bakpack build \
-  --annotations annotations \
-  --genomes genomes \
-  --xz-threads 4 \
-  --output annotations.bakpack
-```
-
-Override the xz command and full argument list if needed:
-
-```bash
-bakpack build \
-  --annotations annotations \
-  --genomes genomes \
-  --xz-command /path/to/xz \
-  --xz-arg -9e \
-  --xz-arg -T4 \
-  --xz-arg -c \
-  --output annotations.bakpack
-```
-
-`--xz-threads` controls the `-T` value when using the default xz arguments. Supplying any `--xz-arg` values replaces the default xz argument list completely.
-
-Extract reduced JSON for one or more samples:
-
-```bash
-bakpack extract annotations.bakpack SAMN1 SAMN2 --output-dir out
-```
-
-Extract reconstructed original JSON and the matching genome FASTA:
+Extract one reconstructed annotation and its genome FASTA:
 
 ```bash
 bakpack extract annotations.bakpack SAMN1 \
@@ -76,13 +81,133 @@ bakpack extract annotations.bakpack SAMN1 \
   --output-dir out
 ```
 
-Print the archive index:
+Extract several reduced annotations efficiently:
+
+```bash
+bakpack extract annotations.bakpack SAMN1 SAMN2 SAMN3 \
+  --reduced \
+  --output-dir out
+```
+
+## What Gets Removed
+
+`bakpack reduce` removes fields that can be reconstructed from the matching genome sequence:
+
+- feature `nt`
+- feature `aa`
+- `sequences[].sequence`
+- selected derived `stats` values: `no_sequences`, `size`, `n_ratio`, `n50`
+- `sequences[].length`
+- protein `aa_hexdigest`
+- CDS `start_type`
+- `hypothetical` when the product is `hypothetical protein`
+- gap feature `length`
+
+The archive stores enough checksums to verify extracted reduced JSON and reconstructed original JSON.
+
+## Archive Format
+
+The current `.bakpack` archive uses:
+
+- a small fixed magic and front index length
+- an xz-compressed JSON index
+- xz-compressed chunks
+- 25 samples per chunk by default
+- a specialized columnar chunk payload derived from the Python v8 prototype
+
+Within each chunk, Bakta feature values are stored as typed streams instead of repeated JSON objects. High-volume fields get specialized codecs, including contig indexes and sample-local numeric suffix encoding for `id` and `locus`.
+
+Extraction reads the front index and only decompresses chunks containing requested samples.
+
+## Command Line
+
+### `reduce`
+
+```bash
+bakpack reduce BAKTA_JSON GENOME_FASTA -o REDUCED_JSON
+```
+
+Writes reduced JSON and prints original/reduced SHA-256 values to stderr.
+
+### `restore`
+
+```bash
+bakpack restore REDUCED_JSON GENOME_FASTA -o BAKTA_JSON
+```
+
+Useful option:
+
+```bash
+--expect-original-canonical-sha256 HASH
+```
+
+This fails if reconstructed original JSON content does not match the expected canonical SHA-256.
+
+### `build`
+
+```bash
+bakpack build \
+  --annotations ANNOTATION_SOURCE \
+  --genomes GENOME_SOURCE \
+  --output annotations.bakpack
+```
+
+Common options:
+
+```text
+--annotations-format auto|dir|list|tar.xz
+--genomes-format     auto|dir|list|tar.xz|agc
+--chunk-size         samples per compressed chunk, default 25
+--order              file of sample IDs defining archive order
+--xz-threads         threads passed as xz -T, default 1
+--xz-command         xz command path, default xz
+--xz-arg             repeat to replace default xz args
+--go-xz              use pure-Go xz compression
+```
+
+Default sample order is the genome source order. For AllTheBacteria batches this is useful because genome archives can be similarity ordered by miniphy, and that order also improves annotation compression.
+
+### `extract`
+
+```bash
+bakpack extract ARCHIVE SAMPLE... [flags]
+```
+
+Output modes:
+
+```text
+--reduced    write SAMPLE.reduced.bakta.json
+--original   write SAMPLE.bakta.json
+--genome     write SAMPLE.fa
+```
+
+If no output mode is selected, `--reduced` is used.
+
+Use a sample list file:
+
+```bash
+bakpack extract annotations.bakpack \
+  --samples-file samples.txt \
+  --reduced \
+  --output-dir out
+```
+
+Original JSON and genome FASTA extraction require a genome source:
+
+```bash
+--genomes genomes.tar.xz
+--genomes-format auto|dir|list|tar.xz|agc
+```
+
+### `index`
 
 ```bash
 bakpack index annotations.bakpack
 ```
 
-## Inputs
+Prints the archive index JSON.
+
+## Input Sources
 
 Annotation sources support:
 
@@ -97,14 +222,7 @@ Genome sources support:
 - `.tar.xz`
 - `.agc`
 
-Source format can be inferred from the path or set explicitly:
-
-```bash
---annotations-format dir|list|tar.xz|auto
---genomes-format dir|list|tar.xz|agc|auto
-```
-
-For directories, sample IDs are inferred from filenames:
+Sample IDs are inferred from common names:
 
 ```text
 sample.bakta.json -> sample
@@ -114,34 +232,25 @@ sample.fasta      -> sample
 sample.fna        -> sample
 ```
 
-File lists can contain either one path per line or tab/space-separated sample/path pairs:
+File lists can contain one path per line:
+
+```text
+path/to/sampleA.bakta.json
+path/to/sampleB.bakta.json
+```
+
+Or explicit sample/path pairs:
 
 ```text
 sampleA path/to/sampleA.bakta.json
 sampleB path/to/sampleB.bakta.json
 ```
 
-Relative paths in file lists are resolved relative to the list file.
-
-## Sample Order
-
-When building an archive, default order is the genome source order. This matters for compression because genomes ordered by similarity usually give better annotation chunks too.
-
-You can override order explicitly:
-
-```bash
-bakpack build \
-  --annotations annotations \
-  --genomes genomes \
-  --order sample_order.txt \
-  --output annotations.bakpack
-```
-
-The order file contains one sample ID per line. It must contain every annotation sample exactly once.
+Relative paths are resolved relative to the list file.
 
 ## Checksums
 
-Each archive sample stores four SHA-256 values:
+Each archive sample stores:
 
 ```text
 original_json_bytes_sha256
@@ -150,45 +259,125 @@ reduced_json_bytes_sha256
 reduced_json_canonical_sha256
 ```
 
-The byte hashes are exact file-byte diagnostics. The canonical hashes are the correctness checks that matter: JSON object key order and whitespace do not matter, but array order and values do.
+Byte hashes are exact file-byte diagnostics. Canonical hashes ignore JSON object key order and whitespace but preserve array order and values.
 
-Extraction always verifies reduced JSON byte and canonical SHA-256. When reconstructing original JSON, extraction verifies the reconstructed original JSON canonical SHA-256.
+Extraction always verifies reduced JSON byte and canonical SHA-256. Reconstructed original JSON extraction verifies original canonical SHA-256.
 
-## Library
+## Library Usage
 
-The CLI is a thin wrapper around the `github.com/martinghunt/bakpack` package.
-
-Core API entry points:
+The CLI is a thin wrapper around `github.com/martinghunt/bakpack`.
 
 ```go
-result, err := bakpack.ReduceBaktaJSON(originalJSON, genome)
-restored, err := bakpack.RestoreBaktaJSON(reducedJSON, genome)
+package main
+
+import (
+	"context"
+
+	"github.com/martinghunt/bakpack"
+)
+
+func main() {
+	ctx := context.Background()
+
+	annotations, err := bakpack.OpenSource("annotations.tar.xz", "auto", "annotation")
+	if err != nil {
+		panic(err)
+	}
+	genomes, err := bakpack.OpenSource("genomes.tar.xz", "auto", "genome")
+	if err != nil {
+		panic(err)
+	}
+
+	err = bakpack.BuildArchive(ctx, bakpack.BuildOptions{
+		Annotations: annotations,
+		Genomes:     genomes,
+		ChunkSize:   25,
+		OutputPath:  "annotations.bakpack",
+		XZThreads:   1,
+	})
+	if err != nil {
+		panic(err)
+	}
+}
+```
+
+Core entry points:
+
+```go
+genome, err := bakpack.ReadGenome(sampleID, filename, fastaBytes)
+reduced, err := bakpack.ReduceBaktaJSON(originalJSON, genome)
+restored, err := bakpack.RestoreBaktaJSON(reduced.ReducedJSON, genome)
 err := bakpack.BuildArchive(ctx, bakpack.BuildOptions{...})
 err := bakpack.ExtractArchive(ctx, bakpack.ExtractOptions{...})
 ```
 
-Input sources use one interface:
+Input sources implement:
 
 ```go
 type FileSource interface {
-    Records(context.Context) ([]FileRecord, error)
-    Get(context.Context, sample string) (FileRecord, error)
-    Order(context.Context) ([]string, error)
+	Records(context.Context) ([]FileRecord, error)
+	Get(context.Context, sample string) (FileRecord, error)
+	Order(context.Context) ([]string, error)
 }
 ```
 
-`OpenSource(path, format, role)` returns directory, list, tar.xz, or AGC-backed implementations.
+## Development
 
-AGC support shells out to `agc` in `PATH` using `listset` for sample order and `getset` for FASTA retrieval.
+Run tests:
 
-## Tests
+```bash
+go test ./...
+```
 
-The tests use toy Bakta JSON and small genomes inside real `.tar.xz` archives. They cover:
+Use a local cache inside the repo if your environment blocks the default Go cache:
 
-- reducing and restoring JSON with canonical checksum validation
-- building from tar.xz annotation/genome archives
-- defaulting archive order to genome archive order
-- building from annotation directories and genome file lists
-- extracting multiple samples from an archive
-- extracting reconstructed original JSON and genome FASTA
-- Cobra CLI workflows
+```bash
+GOCACHE="$PWD/.cache/gocache" go test ./... -count=1
+```
+
+Build locally:
+
+```bash
+./build.sh
+```
+
+Build all release targets without packaging:
+
+```bash
+./build.sh --all
+```
+
+Build release artifacts:
+
+```bash
+./build.sh --release --version v0.1.0
+```
+
+Release artifacts go to `dist/` and include darwin/linux/windows builds for amd64 and arm64 plus a SHA-256 checksum file.
+
+GitHub Actions:
+
+- `.github/workflows/test.yml` runs `go test ./...` on pushes to `main` and pull requests.
+- `.github/workflows/release.yml` builds and publishes release artifacts when a tag matching `v*.*.*` is pushed.
+
+The build script injects the version with:
+
+```text
+-X github.com/martinghunt/bakpack/internal/buildinfo.Version=<version>
+```
+
+Check it with:
+
+```bash
+bakpack --version
+```
+
+## Batch 10 Reference
+
+On the batch 10 prototype data, direct Go build from original Bakta JSON and matching assembly FASTA produced:
+
+```text
+atb.bakta.r0.2.batch.10.bakpack.go-v7-specialized.c25.xz9e.bakpack  16,031,024 bytes
+```
+
+The comparable Python v7+v8 assembly/miniphy-order artifact is 15,907,359 bytes. The remaining 123,665 byte difference is mostly index/checksum overhead.
