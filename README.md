@@ -213,7 +213,7 @@ Original JSON and genome FASTA extraction require a genome source:
 bakpack index annotations.bakpack
 ```
 
-Prints the archive index JSON. The archive can be a local path or an HTTP(S) URL with byte-range support.
+Prints a bakpack archive's internal index as JSON. The archive can be a local path or an HTTP(S) URL with byte-range support.
 
 ## Input Sources
 

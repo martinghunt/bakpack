@@ -218,7 +218,7 @@ func newExtractCommand() *cobra.Command {
 func newIndexCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "index ARCHIVE",
-		Short: "Print archive index JSON",
+		Short: "Print a bakpack archive's internal index as JSON",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			index, err := bakpack.ReadArchiveIndex(args[0])
