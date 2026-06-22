@@ -175,7 +175,7 @@ Common options:
 --go-xz              use pure-Go xz compression
 ```
 
-Default sample order is the genome source order. For AllTheBacteria batches this is useful because genome archives can be similarity ordered by miniphy, and that order also improves annotation compression.
+Default sample order is the genome source order. This can improve compression when the genome source order groups similar genomes, because related annotations tend to share more structure and repeated values.
 
 ### `extract`
 
@@ -383,13 +383,3 @@ Check it with:
 ```bash
 bakpack --version
 ```
-
-## Batch 10 Reference
-
-On the batch 10 prototype data, direct Go build from original Bakta JSON and matching assembly FASTA produced:
-
-```text
-atb.bakta.r0.2.batch.10.bakpack.go-v7-specialized.c25.xz9e.bakpack  16,031,024 bytes
-```
-
-The comparable Python v7+v8 assembly/miniphy-order artifact is 15,907,359 bytes. The remaining 123,665 byte difference is mostly index/checksum overhead.
