@@ -60,14 +60,13 @@ header, index, and one chunk.
 
 The index and every chunk payload are independent xz streams.
 
-The command-line writer uses the external `xz` program by default:
+The writer uses the external `xz` program:
 
 ```text
 xz -9e -T1 -c
 ```
 
-The thread count is configurable. A pure-Go xz writer exists for portability,
-but command-line `xz -9e` is expected to compress better.
+The thread count is configurable.
 
 Readers only require xz decompression support.
 

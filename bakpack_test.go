@@ -323,8 +323,9 @@ func TestXZCompressDefaultsToOneThreadAndAllowsOverride(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("BAKPACK_XZ_ARGS", argsPath)
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	got, err := xzCompress([]byte("payload"), BuildOptions{XZCommand: fakeXZ})
+	got, err := xzCompress([]byte("payload"), BuildOptions{})
 	if err != nil {
 		t.Fatalf("xzCompress() error = %v", err)
 	}
@@ -339,7 +340,7 @@ func TestXZCompressDefaultsToOneThreadAndAllowsOverride(t *testing.T) {
 		t.Fatalf("default xz args = %q, want -9e -T1 -c", args)
 	}
 
-	if _, err := xzCompress([]byte("payload"), BuildOptions{XZCommand: fakeXZ, XZThreads: 4}); err != nil {
+	if _, err := xzCompress([]byte("payload"), BuildOptions{XZThreads: 4}); err != nil {
 		t.Fatalf("xzCompress() with XZThreads error = %v", err)
 	}
 	args, err = os.ReadFile(argsPath)

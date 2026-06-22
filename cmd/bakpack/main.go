@@ -114,9 +114,6 @@ func newBuildCommand() *cobra.Command {
 	var output string
 	var orderPath string
 	var chunkSize int
-	var useGoXZ bool
-	var xzCommand string
-	var xzArgs []string
 	var xzThreads int
 	cmd := &cobra.Command{
 		Use:   "build",
@@ -149,9 +146,6 @@ func newBuildCommand() *cobra.Command {
 				Order:       order,
 				ChunkSize:   chunkSize,
 				OutputPath:  output,
-				UseGoXZ:     useGoXZ,
-				XZCommand:   xzCommand,
-				XZArgs:      xzArgs,
 				XZThreads:   xzThreads,
 			})
 		},
@@ -163,10 +157,7 @@ func newBuildCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output archive path, default annotations.bakpack")
 	cmd.Flags().StringVar(&orderPath, "order", "", "Optional file of sample IDs defining archive order")
 	cmd.Flags().IntVar(&chunkSize, "chunk-size", 25, "Samples per compressed chunk")
-	cmd.Flags().BoolVar(&useGoXZ, "go-xz", false, "Use the pure-Go xz compressor instead of the xz command")
-	cmd.Flags().StringVar(&xzCommand, "xz-command", "xz", "xz command used for archive chunk compression")
-	cmd.Flags().IntVar(&xzThreads, "xz-threads", 1, "Threads passed to xz as -T when --xz-arg is not used")
-	cmd.Flags().StringArrayVar(&xzArgs, "xz-arg", nil, "Argument for xz command; repeat to override default -9e -T<threads> -c")
+	cmd.Flags().IntVar(&xzThreads, "xz-threads", 1, "Threads passed to xz as -T")
 	return cmd
 }
 

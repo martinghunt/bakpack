@@ -59,9 +59,6 @@ type BuildOptions struct {
 	Order       []string
 	ChunkSize   int
 	OutputPath  string
-	UseGoXZ     bool
-	XZCommand   string
-	XZArgs      []string
 	XZThreads   int
 }
 
@@ -577,46 +574,19 @@ func recordsBySample(records []FileRecord) (map[string]FileRecord, error) {
 }
 
 func xzCompress(data []byte, opts BuildOptions) ([]byte, error) {
-	if opts.UseGoXZ {
-		return xzCompressGo(data)
+	threads := opts.XZThreads
+	if threads <= 0 {
+		threads = 1
 	}
-	command := opts.XZCommand
-	if command == "" {
-		command = "xz"
-	}
-	args := opts.XZArgs
-	if len(args) == 0 {
-		threads := opts.XZThreads
-		if threads <= 0 {
-			threads = 1
-		}
-		args = []string{"-9e", fmt.Sprintf("-T%d", threads), "-c"}
-	}
-	cmd := exec.Command(command, args...)
+	cmd := exec.Command("xz", "-9e", fmt.Sprintf("-T%d", threads), "-c")
 	cmd.Stdin = bytes.NewReader(data)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("%s compression failed: %w: %s", command, err, strings.TrimSpace(stderr.String()))
+		return nil, fmt.Errorf("xz compression failed: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 	return stdout.Bytes(), nil
-}
-
-func xzCompressGo(data []byte) ([]byte, error) {
-	var buf bytes.Buffer
-	w, err := xz.NewWriter(&buf)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := w.Write(data); err != nil {
-		_ = w.Close()
-		return nil, err
-	}
-	if err := w.Close(); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
 }
 
 func xzDecompress(data []byte) ([]byte, error) {

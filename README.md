@@ -40,13 +40,13 @@ With Go directly:
 go install github.com/martinghunt/bakpack/cmd/bakpack@latest
 ```
 
-Archive creation uses the command line `xz` program by default:
+Archive creation uses the command line `xz` program:
 
 ```text
 xz -9e -T1 -c
 ```
 
-Put `xz` in `PATH` for best compression. Passing `--go-xz` uses the pure-Go xz implementation instead, but it is expected to compress worse. AGC genome input requires `agc` in `PATH`.
+Put `xz` in `PATH`. AGC genome input requires `agc` in `PATH`.
 
 ## Quick Start
 
@@ -166,9 +166,6 @@ Common options:
 --chunk-size         samples per compressed chunk, default 25
 --order              file of sample IDs defining archive order
 --xz-threads         threads passed as xz -T, default 1
---xz-command         xz command path, default xz
---xz-arg             repeat to replace default xz args
---go-xz              use pure-Go xz compression
 ```
 
 Default sample order is the genome source order. This can improve compression when the genome source order groups similar genomes, because related annotations tend to share more structure and repeated values.
