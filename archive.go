@@ -49,9 +49,7 @@ type SampleIndex struct {
 	AnnotationName              string `json:"annotation_name"`
 	GenomeName                  string `json:"genome_name"`
 	ChunkID                     int    `json:"chunk_id"`
-	OriginalJSONBytesSHA256     string `json:"original_json_bytes_sha256"`
 	OriginalJSONCanonicalSHA256 string `json:"original_json_canonical_sha256"`
-	ReducedJSONBytesSHA256      string `json:"reduced_json_bytes_sha256"`
 	ReducedJSONCanonicalSHA256  string `json:"reduced_json_canonical_sha256"`
 }
 
@@ -136,9 +134,7 @@ func BuildArchive(ctx context.Context, opts BuildOptions) error {
 				SampleID:                    sample,
 				AnnotationName:              annotation.Name,
 				GenomeName:                  genomeRecord.Name,
-				OriginalJSONBytesSHA256:     reduced.Original.BytesSHA256,
 				OriginalJSONCanonicalSHA256: reduced.Original.CanonicalSHA256,
-				ReducedJSONBytesSHA256:      reduced.Reduced.BytesSHA256,
 				ReducedJSONCanonicalSHA256:  reduced.Reduced.CanonicalSHA256,
 			},
 			reduced: reduced.ReducedJSON,
@@ -512,9 +508,6 @@ func isHTTPURL(source string) bool {
 }
 
 func verifyReduced(entry SampleIndex, reducedJSON []byte) error {
-	if SHA256Hex(reducedJSON) != entry.ReducedJSONBytesSHA256 {
-		return fmt.Errorf("sample %s reduced byte SHA-256 mismatch", entry.SampleID)
-	}
 	canonical, err := JSONBytesCanonicalSHA256(reducedJSON)
 	if err != nil {
 		return err

@@ -61,9 +61,7 @@ func newReduceCommand() *cobra.Command {
 			if err := os.WriteFile(output, result.ReducedJSON, 0o644); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.ErrOrStderr(), "original_json_bytes_sha256\t%s\n", result.Original.BytesSHA256)
 			fmt.Fprintf(cmd.ErrOrStderr(), "original_json_canonical_sha256\t%s\n", result.Original.CanonicalSHA256)
-			fmt.Fprintf(cmd.ErrOrStderr(), "reduced_json_bytes_sha256\t%s\n", result.Reduced.BytesSHA256)
 			fmt.Fprintf(cmd.ErrOrStderr(), "reduced_json_canonical_sha256\t%s\n", result.Reduced.CanonicalSHA256)
 			return nil
 		},
@@ -74,7 +72,6 @@ func newReduceCommand() *cobra.Command {
 
 func newRestoreCommand() *cobra.Command {
 	var output string
-	var expectedCanonical string
 	cmd := &cobra.Command{
 		Use:   "restore REDUCED_JSON GENOME_FASTA",
 		Short: "Recreate original Bakta JSON content from reduced JSON and genome FASTA",
@@ -100,19 +97,14 @@ func newRestoreCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if expectedCanonical != "" && result.Original.CanonicalSHA256 != expectedCanonical {
-				return fmt.Errorf("original_json_canonical_sha256 mismatch: expected %s, got %s", expectedCanonical, result.Original.CanonicalSHA256)
-			}
 			if err := os.WriteFile(output, result.OriginalJSON, 0o644); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.ErrOrStderr(), "original_json_bytes_sha256\t%s\n", result.Original.BytesSHA256)
 			fmt.Fprintf(cmd.ErrOrStderr(), "original_json_canonical_sha256\t%s\n", result.Original.CanonicalSHA256)
 			return nil
 		},
 	}
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output reconstructed JSON file")
-	cmd.Flags().StringVar(&expectedCanonical, "expect-original-canonical-sha256", "", "Expected canonical SHA-256 of reconstructed original JSON")
 	return cmd
 }
 

@@ -102,9 +102,9 @@ bakpack extract annotations.bakpack SAMN1 SAMN2 SAMN3 \
 
 `bakpack reduce` removes fields that can be reconstructed from the matching genome sequence:
 
+- `sequences[].sequence`
 - feature `nt`
 - feature `aa`
-- `sequences[].sequence`
 - selected derived `stats` values: `no_sequences`, `size`, `n_ratio`, `n50`
 - `sequences[].length`
 - protein `aa_hexdigest`
@@ -112,7 +112,7 @@ bakpack extract annotations.bakpack SAMN1 SAMN2 SAMN3 \
 - `hypothetical` when the product is `hypothetical protein`
 - gap feature `length`
 
-The archive stores enough checksums to verify extracted reduced JSON and reconstructed original JSON.
+Reduced JSON embeds the original canonical JSON checksum. Archives also store checksums in the index so extracted reduced JSON and reconstructed original JSON can be verified.
 
 ## Archive Format
 
@@ -122,12 +122,14 @@ The current `.bakpack` archive uses:
 - an xz-compressed JSON index
 - xz-compressed chunks
 - 25 samples per chunk by default
-- a specialized columnar chunk payload derived from the Python v8 prototype
+- a specialized columnar chunk payload
 
 Within each chunk, Bakta feature values are stored as typed streams instead of repeated JSON objects. High-volume fields get specialized codecs, including contig indexes and sample-local numeric suffix encoding for `id` and `locus`.
 
 Extraction reads the front index and only decompresses chunks containing requested samples.
 For HTTP(S) archive URLs, `bakpack` uses byte-range GET requests for the fixed header, compressed index, and requested chunks.
+
+The detailed binary format is documented in [FORMAT.md](FORMAT.md).
 
 ## Command Line
 
@@ -137,7 +139,7 @@ For HTTP(S) archive URLs, `bakpack` uses byte-range GET requests for the fixed h
 bakpack reduce BAKTA_JSON GENOME_FASTA -o REDUCED_JSON
 ```
 
-Writes reduced JSON and prints original/reduced SHA-256 values to stderr.
+Writes reduced JSON and prints original/reduced canonical SHA-256 values to stderr.
 
 ### `restore`
 
@@ -145,13 +147,7 @@ Writes reduced JSON and prints original/reduced SHA-256 values to stderr.
 bakpack restore REDUCED_JSON GENOME_FASTA -o BAKTA_JSON
 ```
 
-Useful option:
-
-```bash
---expect-original-canonical-sha256 HASH
-```
-
-This fails if reconstructed original JSON content does not match the expected canonical SHA-256.
+This verifies the reconstructed original JSON against the canonical SHA-256 embedded in the reduced JSON.
 
 ### `build`
 
@@ -265,15 +261,15 @@ Relative paths are resolved relative to the list file.
 Each archive sample stores:
 
 ```text
-original_json_bytes_sha256
 original_json_canonical_sha256
-reduced_json_bytes_sha256
 reduced_json_canonical_sha256
 ```
 
-Byte hashes are exact file-byte diagnostics. Canonical hashes ignore JSON object key order and whitespace but preserve array order and values.
+Canonical hashes ignore JSON object key order and whitespace but preserve array order and values.
 
-Extraction always verifies reduced JSON byte and canonical SHA-256. Reconstructed original JSON extraction verifies original canonical SHA-256.
+Reduced JSON files include a top-level `_bakpack` metadata object containing `original_json_canonical_sha256`. `restore` removes this metadata before reconstructing the original JSON and verifies the reconstructed canonical SHA-256 automatically.
+
+Archive extraction always verifies reduced JSON canonical SHA-256. Reconstructed original JSON extraction verifies original canonical SHA-256.
 
 ## Library Usage
 

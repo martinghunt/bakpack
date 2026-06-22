@@ -41,8 +41,11 @@ func TestReduceAndRestoreBaktaJSONChecksCanonicalContent(t *testing.T) {
 			t.Fatalf("reduced JSON still contains derivable field %s: %s", key, reduced.ReducedJSON)
 		}
 	}
-	if reduced.Original.BytesSHA256 != SHA256Hex(original) {
-		t.Fatalf("original byte SHA mismatch")
+	if !bytes.Contains(reduced.ReducedJSON, []byte(`"_bakpack"`)) {
+		t.Fatalf("reduced JSON missing bakpack metadata: %s", reduced.ReducedJSON)
+	}
+	if !bytes.Contains(reduced.ReducedJSON, []byte(reduced.Original.CanonicalSHA256)) {
+		t.Fatalf("reduced JSON missing original canonical checksum: %s", reduced.ReducedJSON)
 	}
 
 	restored, err := RestoreBaktaJSON(reduced.ReducedJSON, genome)
@@ -55,6 +58,11 @@ func TestReduceAndRestoreBaktaJSONChecksCanonicalContent(t *testing.T) {
 	}
 	if restored.Original.CanonicalSHA256 != wantCanonical {
 		t.Fatalf("restored canonical SHA = %s, want %s", restored.Original.CanonicalSHA256, wantCanonical)
+	}
+
+	tampered := bytes.Replace(reduced.ReducedJSON, []byte(reduced.Original.CanonicalSHA256), []byte(strings.Repeat("0", 64)), 1)
+	if _, err := RestoreBaktaJSON(tampered, genome); err == nil || !strings.Contains(err.Error(), "original_json_canonical_sha256 mismatch") {
+		t.Fatalf("RestoreBaktaJSON() with bad embedded checksum error = %v, want checksum mismatch", err)
 	}
 }
 

@@ -11,7 +11,6 @@ import (
 )
 
 type JSONChecksums struct {
-	BytesSHA256     string `json:"bytes_sha256"`
 	CanonicalSHA256 string `json:"canonical_sha256"`
 }
 
@@ -26,6 +25,12 @@ type RestoreResult struct {
 	Original     JSONChecksums
 }
 
+const (
+	reducedMetadataKey     = "_bakpack"
+	reducedMetadataFormat  = "bakpack_reduced_bakta_json"
+	reducedMetadataVersion = 1
+)
+
 func ReduceBaktaJSON(original []byte, genome Genome) (ReduceResult, error) {
 	root, err := DecodeJSON(original)
 	if err != nil {
@@ -34,6 +39,9 @@ func ReduceBaktaJSON(original []byte, genome Genome) (ReduceResult, error) {
 	data, ok := root.(map[string]any)
 	if !ok {
 		return ReduceResult{}, fmt.Errorf("Bakta JSON root is not an object")
+	}
+	if _, exists := data[reducedMetadataKey]; exists {
+		return ReduceResult{}, fmt.Errorf("Bakta JSON uses reserved top-level key %q", reducedMetadataKey)
 	}
 
 	stripContigSequences(data, genome)
@@ -56,11 +64,17 @@ func ReduceBaktaJSON(original []byte, genome Genome) (ReduceResult, error) {
 	}
 	stripDerivableFields(data, genome)
 
-	reduced, err := PrettyJSON(data)
+	originalCanonical, err := JSONBytesCanonicalSHA256(original)
 	if err != nil {
 		return ReduceResult{}, err
 	}
-	originalCanonical, err := JSONBytesCanonicalSHA256(original)
+	data[reducedMetadataKey] = map[string]any{
+		"format":                         reducedMetadataFormat,
+		"version":                        reducedMetadataVersion,
+		"original_json_canonical_sha256": originalCanonical,
+	}
+
+	reduced, err := PrettyJSON(data)
 	if err != nil {
 		return ReduceResult{}, err
 	}
@@ -71,11 +85,9 @@ func ReduceBaktaJSON(original []byte, genome Genome) (ReduceResult, error) {
 	return ReduceResult{
 		ReducedJSON: reduced,
 		Original: JSONChecksums{
-			BytesSHA256:     SHA256Hex(original),
 			CanonicalSHA256: originalCanonical,
 		},
 		Reduced: JSONChecksums{
-			BytesSHA256:     SHA256Hex(reduced),
 			CanonicalSHA256: reducedCanonical,
 		},
 	}, nil
@@ -90,6 +102,11 @@ func RestoreBaktaJSON(reduced []byte, genome Genome) (RestoreResult, error) {
 	if !ok {
 		return RestoreResult{}, fmt.Errorf("Bakta JSON root is not an object")
 	}
+	metadata, err := reducedMetadata(data)
+	if err != nil {
+		return RestoreResult{}, err
+	}
+	delete(data, reducedMetadataKey)
 
 	restoreDerivableFields(data, genome)
 	restoreContigSequences(data, genome)
@@ -130,13 +147,47 @@ func RestoreBaktaJSON(reduced []byte, genome Genome) (RestoreResult, error) {
 	if err != nil {
 		return RestoreResult{}, err
 	}
+	if metadata.OriginalJSONCanonicalSHA256 != "" && canonical != metadata.OriginalJSONCanonicalSHA256 {
+		return RestoreResult{}, fmt.Errorf("original_json_canonical_sha256 mismatch: expected %s, got %s", metadata.OriginalJSONCanonicalSHA256, canonical)
+	}
 	return RestoreResult{
 		OriginalJSON: original,
 		Original: JSONChecksums{
-			BytesSHA256:     SHA256Hex(original),
 			CanonicalSHA256: canonical,
 		},
 	}, nil
+}
+
+type reducedJSONMetadata struct {
+	OriginalJSONCanonicalSHA256 string
+}
+
+func reducedMetadata(data map[string]any) (reducedJSONMetadata, error) {
+	raw, ok := data[reducedMetadataKey]
+	if !ok {
+		return reducedJSONMetadata{}, fmt.Errorf("reduced JSON is missing %s metadata", reducedMetadataKey)
+	}
+	metadata, ok := raw.(map[string]any)
+	if !ok {
+		return reducedJSONMetadata{}, fmt.Errorf("reduced JSON %s metadata is not an object", reducedMetadataKey)
+	}
+	format, _ := metadata["format"].(string)
+	if format != reducedMetadataFormat {
+		return reducedJSONMetadata{}, fmt.Errorf("unsupported reduced JSON metadata format %q", format)
+	}
+	versionNumber, ok := metadata["version"].(json.Number)
+	if !ok {
+		return reducedJSONMetadata{}, fmt.Errorf("reduced JSON metadata version is missing or not a number")
+	}
+	version, err := versionNumber.Int64()
+	if err != nil || version != reducedMetadataVersion {
+		return reducedJSONMetadata{}, fmt.Errorf("unsupported reduced JSON metadata version %s", versionNumber.String())
+	}
+	canonical, _ := metadata["original_json_canonical_sha256"].(string)
+	if canonical == "" {
+		return reducedJSONMetadata{}, fmt.Errorf("reduced JSON metadata is missing original_json_canonical_sha256")
+	}
+	return reducedJSONMetadata{OriginalJSONCanonicalSHA256: canonical}, nil
 }
 
 func stripContigSequences(data map[string]any, genome Genome) {
