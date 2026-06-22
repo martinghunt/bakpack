@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -209,7 +211,7 @@ func ExtractArchive(ctx context.Context, opts ExtractOptions) error {
 		return err
 	}
 
-	file, index, chunkStart, err := openArchive(opts.ArchivePath)
+	file, index, chunkStart, err := openArchive(ctx, opts.ArchivePath)
 	if err != nil {
 		return err
 	}
@@ -294,7 +296,7 @@ func ExtractArchive(ctx context.Context, opts ExtractOptions) error {
 }
 
 func ReadArchiveIndex(path string) (ArchiveIndex, error) {
-	file, index, _, err := openArchive(path)
+	file, index, _, err := openArchive(context.Background(), path)
 	if err != nil {
 		return ArchiveIndex{}, err
 	}
@@ -343,9 +345,9 @@ type packedSampleForArchive struct {
 	reducedRoot map[string]any
 }
 
-func readChunk(file *os.File, chunkStart int64, chunk ChunkIndex, index ArchiveIndex, wanted []string) (map[string][]byte, error) {
+func readChunk(file archiveRangeReader, chunkStart int64, chunk ChunkIndex, index ArchiveIndex, wanted []string) (map[string][]byte, error) {
 	compressed := make([]byte, chunk.CompressedSize)
-	if _, err := file.ReadAt(compressed, chunkStart+chunk.Offset); err != nil {
+	if err := readFullAt(file, compressed, chunkStart+chunk.Offset); err != nil {
 		return nil, err
 	}
 	uncompressed, err := xzDecompress(compressed)
@@ -392,27 +394,71 @@ func decodeLegacyChunk(chunkID int, uncompressed []byte) (map[string][]byte, err
 	return out, nil
 }
 
-func openArchive(path string) (*os.File, ArchiveIndex, int64, error) {
-	file, err := os.Open(path)
+type archiveRangeReader interface {
+	ReadAt([]byte, int64) (int, error)
+	Close() error
+}
+
+type httpRangeReader struct {
+	ctx    context.Context
+	client *http.Client
+	url    string
+}
+
+func (r httpRangeReader) ReadAt(data []byte, offset int64) (int, error) {
+	if len(data) == 0 {
+		return 0, nil
+	}
+	end := offset + int64(len(data)) - 1
+	req, err := http.NewRequestWithContext(r.ctx, http.MethodGet, r.url, nil)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", offset, end))
+	resp, err := r.client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusPartialContent {
+		return 0, fmt.Errorf("%s did not honor Range request %q: HTTP %d", r.url, req.Header.Get("Range"), resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, err
+	}
+	n := copy(data, body)
+	if n != len(data) {
+		return n, io.ErrUnexpectedEOF
+	}
+	return n, nil
+}
+
+func (r httpRangeReader) Close() error {
+	return nil
+}
+
+func openArchive(ctx context.Context, path string) (archiveRangeReader, ArchiveIndex, int64, error) {
+	file, err := openArchiveRangeReader(ctx, path)
 	if err != nil {
 		return nil, ArchiveIndex{}, 0, err
 	}
-	header := make([]byte, len(ArchiveMagic))
-	if _, err := io.ReadFull(file, header); err != nil {
+	header := make([]byte, len(ArchiveMagic)+8)
+	if err := readFullAt(file, header, 0); err != nil {
 		file.Close()
 		return nil, ArchiveIndex{}, 0, err
 	}
-	if string(header) != ArchiveMagic {
+	if string(header[:len(ArchiveMagic)]) != ArchiveMagic {
 		file.Close()
 		return nil, ArchiveIndex{}, 0, fmt.Errorf("not a bakpack archive")
 	}
-	var indexLen uint64
-	if err := binary.Read(file, binary.LittleEndian, &indexLen); err != nil {
+	indexLen := binary.LittleEndian.Uint64(header[len(ArchiveMagic):])
+	if indexLen > uint64(int(^uint(0)>>1)) {
 		file.Close()
-		return nil, ArchiveIndex{}, 0, err
+		return nil, ArchiveIndex{}, 0, fmt.Errorf("archive index is too large")
 	}
 	indexBytes := make([]byte, indexLen)
-	if _, err := io.ReadFull(file, indexBytes); err != nil {
+	if err := readFullAt(file, indexBytes, int64(len(header))); err != nil {
 		file.Close()
 		return nil, ArchiveIndex{}, 0, err
 	}
@@ -434,6 +480,35 @@ func openArchive(path string) (*os.File, ArchiveIndex, int64, error) {
 		return nil, ArchiveIndex{}, 0, fmt.Errorf("unsupported bakpack archive version")
 	}
 	return file, index, int64(len(ArchiveMagic)) + 8 + int64(indexLen), nil
+}
+
+func openArchiveRangeReader(ctx context.Context, path string) (archiveRangeReader, error) {
+	if isHTTPURL(path) {
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		return httpRangeReader{ctx: ctx, client: http.DefaultClient, url: path}, nil
+	}
+	return os.Open(path)
+}
+
+func readFullAt(reader archiveRangeReader, data []byte, offset int64) error {
+	n, err := reader.ReadAt(data, offset)
+	if err != nil && err != io.EOF {
+		return err
+	}
+	if n != len(data) {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+
+func isHTTPURL(source string) bool {
+	parsed, err := url.Parse(source)
+	if err != nil {
+		return false
+	}
+	return parsed.Host != "" && (parsed.Scheme == "http" || parsed.Scheme == "https")
 }
 
 func verifyReduced(entry SampleIndex, reducedJSON []byte) error {

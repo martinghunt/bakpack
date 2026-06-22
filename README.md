@@ -81,6 +81,15 @@ bakpack extract annotations.bakpack SAMN1 \
   --output-dir out
 ```
 
+The archive path can also be an HTTP(S) URL when the server supports byte-range requests:
+
+```bash
+bakpack extract https://example.org/annotations.bakpack SAMN1 \
+  --genomes genomes.tar.xz \
+  --original \
+  --output-dir out
+```
+
 Extract several reduced annotations efficiently:
 
 ```bash
@@ -118,6 +127,7 @@ The current `.bakpack` archive uses:
 Within each chunk, Bakta feature values are stored as typed streams instead of repeated JSON objects. High-volume fields get specialized codecs, including contig indexes and sample-local numeric suffix encoding for `id` and `locus`.
 
 Extraction reads the front index and only decompresses chunks containing requested samples.
+For HTTP(S) archive URLs, `bakpack` uses byte-range GET requests for the fixed header, compressed index, and requested chunks.
 
 ## Command Line
 
@@ -173,6 +183,8 @@ Default sample order is the genome source order. For AllTheBacteria batches this
 bakpack extract ARCHIVE SAMPLE... [flags]
 ```
 
+`ARCHIVE` can be a local `.bakpack` path or an HTTP(S) URL. HTTP(S) servers must support byte-range requests.
+
 Output modes:
 
 ```text
@@ -205,7 +217,7 @@ Original JSON and genome FASTA extraction require a genome source:
 bakpack index annotations.bakpack
 ```
 
-Prints the archive index JSON.
+Prints the archive index JSON. The archive can be a local path or an HTTP(S) URL with byte-range support.
 
 ## Input Sources
 

@@ -6,10 +6,14 @@ import (
 	"context"
 	"encoding/binary"
 	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/ulikunitz/xz"
@@ -206,6 +210,99 @@ func TestBuildArchiveFromDirectoryAnnotationsAndGenomeList(t *testing.T) {
 	}
 }
 
+func TestExtractArchiveFromHTTPRangeURL(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	annotationsDir := filepath.Join(dir, "annotations")
+	genomesDir := filepath.Join(dir, "genomes")
+	outDir := filepath.Join(dir, "out")
+	if err := os.Mkdir(annotationsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(genomesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(annotationsDir, "sampleA.bakta.json"), toyBaktaJSON("sampleA", "gene A"))
+	writeFile(t, filepath.Join(annotationsDir, "sampleB.bakta.json"), toyBaktaJSON("sampleB", "gene B"))
+	writeFile(t, filepath.Join(genomesDir, "sampleA.fa"), toyFASTA("sampleA"))
+	writeFile(t, filepath.Join(genomesDir, "sampleB.fa"), toyFASTA("sampleB"))
+
+	annotations, err := OpenSource(annotationsDir, "dir", "annotation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	genomes, err := OpenSource(genomesDir, "dir", "genome")
+	if err != nil {
+		t.Fatal(err)
+	}
+	archivePath := filepath.Join(dir, "http.bakpack")
+	if err := BuildArchive(ctx, BuildOptions{
+		Annotations: annotations,
+		Genomes:     genomes,
+		Order:       []string{"sampleA", "sampleB"},
+		ChunkSize:   1,
+		OutputPath:  archivePath,
+	}); err != nil {
+		t.Fatalf("BuildArchive() error = %v", err)
+	}
+
+	var mu sync.Mutex
+	var ranges []string
+	nonRangeRequests := 0
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Skipf("local HTTP listener unavailable: %v", err)
+	}
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		rangeHeader := r.Header.Get("Range")
+		if rangeHeader == "" {
+			nonRangeRequests++
+		} else {
+			ranges = append(ranges, rangeHeader)
+		}
+		mu.Unlock()
+		http.ServeFile(w, r, archivePath)
+	}))
+	server.Listener = listener
+	server.Start()
+	defer server.Close()
+
+	index, err := ReadArchiveIndex(server.URL)
+	if err != nil {
+		t.Fatalf("ReadArchiveIndex(%q) error = %v", server.URL, err)
+	}
+	if len(index.Samples) != 2 {
+		t.Fatalf("HTTP archive index sample count = %d, want 2", len(index.Samples))
+	}
+
+	if err := ExtractArchive(ctx, ExtractOptions{
+		ArchivePath: server.URL,
+		Genomes:     genomes,
+		Samples:     []string{"sampleB"},
+		OutputDir:   outDir,
+		Reduced:     true,
+		Original:    true,
+	}); err != nil {
+		t.Fatalf("ExtractArchive() from HTTP URL error = %v", err)
+	}
+	assertCanonicalFileEqual(t, filepath.Join(outDir, "sampleB.bakta.json"), toyBaktaJSON("sampleB", "gene B"))
+
+	mu.Lock()
+	defer mu.Unlock()
+	if nonRangeRequests != 0 {
+		t.Fatalf("HTTP archive reader made %d non-range requests", nonRangeRequests)
+	}
+	if len(ranges) < 5 {
+		t.Fatalf("HTTP archive reader made %d range requests, want at least 5; ranges=%v", len(ranges), ranges)
+	}
+	for _, rangeHeader := range ranges {
+		if !strings.HasPrefix(rangeHeader, "bytes=") {
+			t.Fatalf("bad range header %q", rangeHeader)
+		}
+	}
+}
+
 func TestXZCompressDefaultsToOneThreadAndAllowsOverride(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("test uses a POSIX shell script")
@@ -243,6 +340,25 @@ func TestXZCompressDefaultsToOneThreadAndAllowsOverride(t *testing.T) {
 	}
 	if strings.TrimSpace(string(args)) != "-9e\n-T4\n-c" {
 		t.Fatalf("thread override xz args = %q, want -9e -T4 -c", args)
+	}
+}
+
+func assertCanonicalFileEqual(t *testing.T, gotPath string, want []byte) {
+	t.Helper()
+	got, err := os.ReadFile(gotPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotCanonical, err := JSONBytesCanonicalSHA256(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantCanonical, err := JSONBytesCanonicalSHA256(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotCanonical != wantCanonical {
+		t.Fatalf("%s canonical SHA = %s, want %s", gotPath, gotCanonical, wantCanonical)
 	}
 }
 
