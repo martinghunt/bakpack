@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/ulikunitz/xz"
@@ -573,6 +574,7 @@ func (s *tarXZRecordStream) NextSampleID(ctx context.Context) (string, bool, err
 type AGCGenomeSource struct {
 	Path    string
 	Command string
+	Threads int
 }
 
 func (s AGCGenomeSource) Records(ctx context.Context) ([]FileRecord, error) {
@@ -592,11 +594,7 @@ func (s AGCGenomeSource) Records(ctx context.Context) ([]FileRecord, error) {
 }
 
 func (s AGCGenomeSource) Get(ctx context.Context, sample string) (FileRecord, error) {
-	command := s.Command
-	if command == "" {
-		command = "agc"
-	}
-	cmd := exec.CommandContext(ctx, command, "getset", s.Path, sample)
+	cmd := exec.CommandContext(ctx, s.commandName(), s.getsetArgs(sample)...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
@@ -607,11 +605,7 @@ func (s AGCGenomeSource) Get(ctx context.Context, sample string) (FileRecord, er
 }
 
 func (s AGCGenomeSource) Order(ctx context.Context) ([]string, error) {
-	command := s.Command
-	if command == "" {
-		command = "agc"
-	}
-	cmd := exec.CommandContext(ctx, command, "listset", s.Path)
+	cmd := exec.CommandContext(ctx, s.commandName(), "listset", s.Path)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
@@ -626,6 +620,24 @@ func (s AGCGenomeSource) Order(ctx context.Context) ([]string, error) {
 		}
 	}
 	return order, nil
+}
+
+func (s AGCGenomeSource) commandName() string {
+	if s.Command == "" {
+		return "agc"
+	}
+	return s.Command
+}
+
+func (s AGCGenomeSource) threadCount() int {
+	if s.Threads <= 0 {
+		return 1
+	}
+	return s.Threads
+}
+
+func (s AGCGenomeSource) getsetArgs(sample string) []string {
+	return []string{"getset", "-t", strconv.Itoa(s.threadCount()), s.Path, sample}
 }
 
 func sampleIDFromName(name, role string) string {

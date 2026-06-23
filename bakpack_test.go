@@ -344,6 +344,18 @@ func TestListSourcePathOnlyLinesAllowSpacesInPaths(t *testing.T) {
 	}
 }
 
+func TestAGCGenomeSourceGetsetArgsUseOneThreadByDefault(t *testing.T) {
+	source := AGCGenomeSource{Path: "genomes.agc"}
+	if got, want := strings.Join(source.getsetArgs("sampleA"), " "), "getset -t 1 genomes.agc sampleA"; got != want {
+		t.Fatalf("default getset args = %q, want %q", got, want)
+	}
+
+	source.Threads = 4
+	if got, want := strings.Join(source.getsetArgs("sampleA"), " "), "getset -t 4 genomes.agc sampleA"; got != want {
+		t.Fatalf("overridden getset args = %q, want %q", got, want)
+	}
+}
+
 func TestBuildArchiveFromCombinedManifestUsesManifestOrderAndNames(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()

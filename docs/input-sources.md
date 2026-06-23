@@ -29,7 +29,7 @@ sample.fna        -> sample
 
 For `.tar.xz` sources, `bakpack` uses regular tar member basenames in tar order.
 For directories, it uses lexicographic file path order. For AGC genome sources,
-sample names come from `agc listset`.
+sample names come from `agc listset`, and genome extraction uses `agc getset -t 1`.
 
 ## File lists
 
