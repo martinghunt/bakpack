@@ -52,9 +52,9 @@ func ReadManifest(path string) (Manifest, error) {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		fields := strings.Fields(line)
+		fields := splitTabFields(line)
 		if len(fields) != 3 {
-			return Manifest{}, fmt.Errorf("%s:%d: expected 3 fields: sample_id annotation_json genome_fasta", path, lineNo+1)
+			return Manifest{}, fmt.Errorf("%s:%d: expected 3 tab-delimited fields: sample_id, annotation_json, genome_fasta", path, lineNo+1)
 		}
 		if !seenDataLine && isManifestHeader(fields) {
 			seenDataLine = true
@@ -112,6 +112,14 @@ func resolveManifestPath(base, path string) string {
 		return path
 	}
 	return filepath.Join(base, path)
+}
+
+func splitTabFields(line string) []string {
+	fields := strings.Split(line, "\t")
+	for i := range fields {
+		fields[i] = strings.TrimSpace(fields[i])
+	}
+	return fields
 }
 
 func OpenSource(path, kind, role string) (FileSource, error) {
@@ -312,43 +320,22 @@ type ListSource struct {
 }
 
 func (s ListSource) Records(ctx context.Context) ([]FileRecord, error) {
-	lines, err := os.ReadFile(s.Path)
+	entries, err := s.entries()
 	if err != nil {
 		return nil, err
 	}
-	base := filepath.Dir(s.Path)
-	var records []FileRecord
-	for lineNo, raw := range strings.Split(string(lines), "\n") {
-		line := strings.TrimSpace(raw)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		fields := strings.Fields(line)
-		var sampleID, path string
-		switch len(fields) {
-		case 1:
-			path = fields[0]
-			sampleID = sampleIDFromName(filepath.Base(path), s.Role)
-		default:
-			sampleID = fields[0]
-			path = fields[1]
-		}
-		if sampleID == "" {
-			return nil, fmt.Errorf("%s:%d: cannot infer sample ID", s.Path, lineNo+1)
-		}
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(base, path)
-		}
+	records := make([]FileRecord, 0, len(entries))
+	for _, entry := range entries {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
 		}
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(entry.Path)
 		if err != nil {
 			return nil, err
 		}
-		records = append(records, FileRecord{SampleID: sampleID, Name: filepath.Base(path), Bytes: data})
+		records = append(records, FileRecord{SampleID: entry.SampleID, Name: filepath.Base(entry.Path), Bytes: data})
 	}
 	return records, nil
 }
@@ -400,18 +387,23 @@ func (s ListSource) entries() ([]listEntry, error) {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		fields := strings.Fields(line)
 		var sampleID, path string
-		switch len(fields) {
-		case 1:
-			path = fields[0]
-			sampleID = sampleIDFromName(filepath.Base(path), s.Role)
-		default:
+		if strings.Contains(line, "\t") {
+			fields := splitTabFields(line)
+			if len(fields) != 2 {
+				return nil, fmt.Errorf("%s:%d: expected 2 tab-delimited fields: sample_id, path", s.Path, lineNo+1)
+			}
 			sampleID = fields[0]
 			path = fields[1]
+		} else {
+			path = line
+			sampleID = sampleIDFromName(filepath.Base(path), s.Role)
 		}
 		if sampleID == "" {
 			return nil, fmt.Errorf("%s:%d: cannot infer sample ID", s.Path, lineNo+1)
+		}
+		if path == "" {
+			return nil, fmt.Errorf("%s:%d: empty path", s.Path, lineNo+1)
 		}
 		if !filepath.IsAbs(path) {
 			path = filepath.Join(base, path)

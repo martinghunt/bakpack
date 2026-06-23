@@ -181,7 +181,7 @@ func TestBuildArchiveFromDirectoryAnnotationsAndGenomeList(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
 	annotationsDir := filepath.Join(dir, "annotations")
-	genomesDir := filepath.Join(dir, "genomes")
+	genomesDir := filepath.Join(dir, "genome files")
 	if err := os.Mkdir(annotationsDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -190,10 +190,10 @@ func TestBuildArchiveFromDirectoryAnnotationsAndGenomeList(t *testing.T) {
 	}
 	writeFile(t, filepath.Join(annotationsDir, "sampleA.bakta.json"), toyBaktaJSON("sampleA", "gene A"))
 	writeFile(t, filepath.Join(annotationsDir, "sampleB.bakta.json"), toyBaktaJSON("sampleB", "gene B"))
-	writeFile(t, filepath.Join(genomesDir, "sampleA.fa"), toyFASTA("sampleA"))
-	writeFile(t, filepath.Join(genomesDir, "sampleB.fa"), toyFASTA("sampleB"))
+	writeFile(t, filepath.Join(genomesDir, "sample A.fa"), toyFASTA("sampleA"))
+	writeFile(t, filepath.Join(genomesDir, "sample B.fa"), toyFASTA("sampleB"))
 	genomeList := filepath.Join(dir, "genomes.list")
-	writeFile(t, genomeList, []byte("sampleB\tgenomes/sampleB.fa\nsampleA\tgenomes/sampleA.fa\n"))
+	writeFile(t, genomeList, []byte("sampleB\tgenome files/sample B.fa\nsampleA\tgenome files/sample A.fa\n"))
 
 	annotations, err := OpenSource(annotationsDir, "dir", "annotation")
 	if err != nil {
@@ -221,11 +221,35 @@ func TestBuildArchiveFromDirectoryAnnotationsAndGenomeList(t *testing.T) {
 	}
 }
 
+func TestListSourcePathOnlyLinesAllowSpacesInPaths(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	genomesDir := filepath.Join(dir, "genome files")
+	if err := os.Mkdir(genomesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(genomesDir, "sampleA.fa"), toyFASTA("sampleA"))
+	genomeList := filepath.Join(dir, "genomes.list")
+	writeFile(t, genomeList, []byte("genome files/sampleA.fa\n"))
+
+	genomes, err := OpenSource(genomeList, "list", "genome")
+	if err != nil {
+		t.Fatal(err)
+	}
+	records, err := genomes.Records(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 1 || records[0].SampleID != "sampleA" || records[0].Name != "sampleA.fa" {
+		t.Fatalf("records = %#v, want sampleA from path with spaces", records)
+	}
+}
+
 func TestBuildArchiveFromCombinedManifestUsesManifestOrderAndNames(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
-	annotationsDir := filepath.Join(dir, "annotations")
-	genomesDir := filepath.Join(dir, "genomes")
+	annotationsDir := filepath.Join(dir, "annotation files")
+	genomesDir := filepath.Join(dir, "genome files")
 	outDir := filepath.Join(dir, "out")
 	if err := os.Mkdir(annotationsDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -233,15 +257,15 @@ func TestBuildArchiveFromCombinedManifestUsesManifestOrderAndNames(t *testing.T)
 	if err := os.Mkdir(genomesDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	writeFile(t, filepath.Join(annotationsDir, "first.json"), toyBaktaJSON("sampleA", "gene A"))
-	writeFile(t, filepath.Join(annotationsDir, "second.json"), toyBaktaJSON("sampleB", "gene B"))
-	writeFile(t, filepath.Join(genomesDir, "first.fasta"), toyFASTA("sampleA"))
-	writeFile(t, filepath.Join(genomesDir, "second.fasta"), toyFASTA("sampleB"))
+	writeFile(t, filepath.Join(annotationsDir, "first annotation.json"), toyBaktaJSON("sampleA", "gene A"))
+	writeFile(t, filepath.Join(annotationsDir, "second annotation.json"), toyBaktaJSON("sampleB", "gene B"))
+	writeFile(t, filepath.Join(genomesDir, "first genome.fasta"), toyFASTA("sampleA"))
+	writeFile(t, filepath.Join(genomesDir, "second genome.fasta"), toyFASTA("sampleB"))
 	manifestPath := filepath.Join(dir, "manifest.tsv")
 	writeFile(t, manifestPath, []byte(strings.Join([]string{
-		"sample_id annotation_json genome_fasta",
-		"sampleB annotations/second.json genomes/second.fasta",
-		"sampleA annotations/first.json genomes/first.fasta",
+		"sample_id\tannotation_json\tgenome_fasta",
+		"sampleB\tannotation files/second annotation.json\tgenome files/second genome.fasta",
+		"sampleA\tannotation files/first annotation.json\tgenome files/first genome.fasta",
 		"",
 	}, "\n")))
 
@@ -265,7 +289,7 @@ func TestBuildArchiveFromCombinedManifestUsesManifestOrderAndNames(t *testing.T)
 	if got := []string{index.Samples[0].SampleID, index.Samples[1].SampleID}; got[0] != "sampleB" || got[1] != "sampleA" {
 		t.Fatalf("archive sample order = %v, want manifest order", got)
 	}
-	if index.Samples[0].AnnotationName != "second.json" || index.Samples[0].GenomeName != "second.fasta" {
+	if index.Samples[0].AnnotationName != "second annotation.json" || index.Samples[0].GenomeName != "second genome.fasta" {
 		t.Fatalf("manifest filenames not stored in index: %#v", index.Samples[0])
 	}
 

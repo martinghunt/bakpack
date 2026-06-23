@@ -33,18 +33,19 @@ sample names come from `agc listset`.
 
 ## File lists
 
-File lists can contain one path per line:
+File lists can contain one path per line. In this form the whole non-comment
+line is used as the path, so spaces in paths are allowed:
 
 ```text
 path/to/sampleA.bakta.json
 path/to/sampleB.bakta.json
 ```
 
-Or explicit sample/path pairs:
+Or explicit sample/path pairs, separated by one tab:
 
 ```text
-sampleA path/to/sampleA.bakta.json
-sampleB path/to/sampleB.bakta.json
+sampleA	path/to/sampleA.bakta.json
+sampleB	path/to/sampleB.bakta.json
 ```
 
 Relative paths are resolved relative to the list file.
@@ -54,12 +55,12 @@ Relative paths are resolved relative to the list file.
 A combined manifest can be used with `bakpack build --manifest` or as a source
 with `--annotations-format manifest` / `--genomes-format manifest`.
 
-It has three whitespace-separated columns:
+It has three tab-delimited columns:
 
 ```text
-sample_id  annotation_json       genome_fasta
-sampleA    path/to/a.bakta.json  path/to/a.fa
-sampleB    path/to/b.bakta.json  path/to/b.fa
+sample_id	annotation_json	genome_fasta
+sampleA	path/to/a.bakta.json	path/to/a.fa
+sampleB	path/to/b.bakta.json	path/to/b.fa
 ```
 
 The header row is optional. Blank lines and lines starting with `#` are ignored.

@@ -13,7 +13,7 @@ bakpack build \
 Common options:
 
 ```text
---manifest           combined manifest with sample, annotation, and genome paths
+--manifest           tab-delimited manifest with sample, annotation, and genome paths
 --annotations-format auto|dir|list|manifest|tar.xz
 --genomes-format     auto|dir|list|manifest|tar.xz|agc
 --chunk-size         samples per compressed chunk, default 25
@@ -30,7 +30,7 @@ tend to share more structure and repeated values.
 When `--manifest` is used, the manifest row order is the default archive order.
 
 Use `--order` to override the source order. The order file has one sample ID per
-line:
+line. The whole non-comment line is used as the sample ID:
 
 ```text
 # comments are allowed

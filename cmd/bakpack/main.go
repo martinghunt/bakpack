@@ -170,7 +170,7 @@ func newBuildCommand() *cobra.Command {
 	cmd.Flags().StringVar(&annotationsFormat, "annotations-format", "auto", "Annotation source format: auto, dir, list, manifest, tar.xz")
 	cmd.Flags().StringVar(&genomesPath, "genomes", "", "Genome source: directory, file list, .tar.xz, or .agc")
 	cmd.Flags().StringVar(&genomesFormat, "genomes-format", "auto", "Genome source format: auto, dir, list, manifest, tar.xz, agc")
-	cmd.Flags().StringVar(&manifestPath, "manifest", "", "Combined manifest with columns: sample_id annotation_json genome_fasta")
+	cmd.Flags().StringVar(&manifestPath, "manifest", "", "Tab-delimited manifest with columns: sample_id, annotation_json, genome_fasta")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output archive path, default annotations.bakpack")
 	cmd.Flags().StringVar(&orderPath, "order", "", "Optional file of sample IDs defining archive order")
 	cmd.Flags().StringVar(&annotationSpoolCompression, "annotation-spool-compression", "gzip", "Temporary annotation spool compression: gzip or none")
@@ -259,8 +259,7 @@ func readNameFile(path string) ([]string, error) {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		fields := strings.Fields(line)
-		names = append(names, fields[0])
+		names = append(names, line)
 	}
 	return names, nil
 }

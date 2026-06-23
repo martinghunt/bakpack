@@ -172,7 +172,7 @@ bakpack build \
 Common options:
 
 ```text
---manifest           combined manifest with sample, annotation, and genome paths
+--manifest           tab-delimited manifest with sample, annotation, and genome paths
 --annotations-format auto|dir|list|manifest|tar.xz
 --genomes-format     auto|dir|list|manifest|tar.xz|agc
 --chunk-size         samples per compressed chunk, default 25
@@ -182,6 +182,7 @@ Common options:
 
 Default sample order is the genome source order. This can improve compression when the genome source order groups similar genomes, because related annotations tend to share more structure and repeated values.
 When `--manifest` is used, the manifest row order is the default archive order.
+If `--order` is used, the order file has one sample ID per line. The whole non-comment line is used as the sample ID.
 
 ### `extract`
 
@@ -209,6 +210,8 @@ bakpack extract annotations.bakpack \
   --reduced \
   --output-dir out
 ```
+
+The samples file has one sample ID per line. The whole non-comment line is used as the sample ID.
 
 Original JSON and genome FASTA extraction require a genome source:
 
@@ -252,30 +255,31 @@ sample.fasta      -> sample
 sample.fna        -> sample
 ```
 
-File lists can contain one path per line:
+File lists can contain one path per line. In this form the whole non-comment
+line is used as the path, so spaces in paths are allowed:
 
 ```text
 path/to/sampleA.bakta.json
 path/to/sampleB.bakta.json
 ```
 
-Or explicit sample/path pairs:
+Or explicit sample/path pairs, separated by one tab:
 
 ```text
-sampleA path/to/sampleA.bakta.json
-sampleB path/to/sampleB.bakta.json
+sampleA	path/to/sampleA.bakta.json
+sampleB	path/to/sampleB.bakta.json
 ```
 
 Relative paths are resolved relative to the list file.
 
 A combined manifest can be used with `bakpack build --manifest` or as a source
 with `--annotations-format manifest` / `--genomes-format manifest`. It has three
-whitespace-separated columns:
+tab-delimited columns:
 
 ```text
-sample_id  annotation_json  genome_fasta
-sampleA    path/to/a.bakta.json  path/to/a.fa
-sampleB    path/to/b.bakta.json  path/to/b.fa
+sample_id	annotation_json	genome_fasta
+sampleA	path/to/a.bakta.json	path/to/a.fa
+sampleB	path/to/b.bakta.json	path/to/b.fa
 ```
 
 The header row is optional. Blank lines and lines starting with `#` are ignored.

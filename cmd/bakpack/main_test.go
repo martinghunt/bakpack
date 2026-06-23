@@ -72,16 +72,16 @@ func TestCLIWorkflowWithDirectoryInputs(t *testing.T) {
 
 func TestCLIBuildWithCombinedManifest(t *testing.T) {
 	dir := t.TempDir()
-	annotationsDir := filepath.Join(dir, "annotations")
-	genomesDir := filepath.Join(dir, "genomes")
+	annotationsDir := filepath.Join(dir, "annotation files")
+	genomesDir := filepath.Join(dir, "genome files")
 	outDir := filepath.Join(dir, "out")
 	mustMkdir(t, annotationsDir)
 	mustMkdir(t, genomesDir)
 	originalJSON := toyBaktaJSON("manifest sample")
-	writeFile(t, filepath.Join(annotationsDir, "annotation.json"), originalJSON)
-	writeFile(t, filepath.Join(genomesDir, "genome.fa"), toyFASTA())
+	writeFile(t, filepath.Join(annotationsDir, "sample annotation.json"), originalJSON)
+	writeFile(t, filepath.Join(genomesDir, "sample genome.fa"), toyFASTA())
 	manifestPath := filepath.Join(dir, "manifest.tsv")
-	writeFile(t, manifestPath, []byte("sampleX\tannotations/annotation.json\tgenomes/genome.fa\n"))
+	writeFile(t, manifestPath, []byte("sampleX\tannotation files/sample annotation.json\tgenome files/sample genome.fa\n"))
 
 	archivePath := filepath.Join(dir, "manifest.bakpack")
 	_, stderr, err := executeCommand(

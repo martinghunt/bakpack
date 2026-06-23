@@ -64,6 +64,9 @@ bakpack extract annotations.bakpack \
   --output-dir out
 ```
 
+The samples file has one sample ID per line. The whole non-comment line is used
+as the sample ID.
+
 Extract over HTTP(S):
 
 ```
