@@ -50,7 +50,7 @@ offset  size        contents
 There is no footer. The front index makes HTTP range extraction predictable:
 
 1. Read bytes `0..15` to get the magic and index length.
-2. Read bytes `16..15+N` to get the compressed index.
+2. Read `N` bytes starting at offset `16` to get the compressed index.
 3. Read only the compressed chunk ranges needed for requested samples.
 
 For one sample in one chunk, this is normally three byte-range requests: fixed
