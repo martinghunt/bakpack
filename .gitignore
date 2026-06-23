@@ -32,6 +32,11 @@ go.work.sum
 build/
 dist/
 
+# Docs / local Python outputs
+docs/_build/
+__pycache__/
+*.pyc
+
 # Editor/IDE
 # .idea/
 # .vscode/

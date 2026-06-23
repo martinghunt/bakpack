@@ -4,6 +4,8 @@
 
 This repository was developed with substantial coding assistance from [OpenAI Codex](https://openai.com/codex), which helped with implementation, refactoring, tests, documentation, and benchmarking under human direction and review.
 
+Documentation: [bakpack.readthedocs.io](https://bakpack.readthedocs.io/en/)
+
 ## Install
 
 The simplest way to install `bakpack` is to download the latest prebuilt binary from the GitHub releases page:
@@ -400,6 +402,20 @@ Build release artifacts:
 ```
 
 Release artifacts go to `dist/` and include darwin/linux/windows builds for amd64 and arm64 plus a SHA-256 checksum file.
+
+Build the documentation locally with:
+
+```bash
+python3 -m pip install -r docs/requirements.txt
+python3 -m sphinx -b html docs docs/_build/html
+```
+
+Then open `docs/_build/html/index.html` in a browser. For live rebuilds while
+editing docs, run:
+
+```bash
+python3 -m sphinx_autobuild docs docs/_build/html
+```
 
 GitHub Actions:
 
