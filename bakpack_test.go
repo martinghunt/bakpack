@@ -247,13 +247,21 @@ func TestArchiveExtractReturnsBytesInRequestedOrder(t *testing.T) {
 	}
 
 	var callbackSamples []string
+	countingGenomes := &countingGenomeSource{records: map[string]FileRecord{
+		"sampleA": {SampleID: "sampleA", Name: "sampleA.fa", Bytes: toyFASTA("sampleA")},
+		"sampleB": {SampleID: "sampleB", Name: "sampleB.fa", Bytes: toyFASTA("sampleB")},
+	}}
 	if _, err := archive.Extract(ctx, ExtractRequest{
-		Samples: []string{"sampleB", "sampleA"},
-		Reduced: true,
+		Genomes:  countingGenomes,
+		Samples:  []string{"sampleB", "sampleA"},
+		Original: true,
 		OnSample: func(sample ExtractedSample) error {
 			callbackSamples = append(callbackSamples, sample.SampleID)
-			if len(sample.ReducedJSON) == 0 {
-				return fmt.Errorf("missing reduced JSON for %s", sample.SampleID)
+			if len(sample.OriginalJSON) == 0 {
+				return fmt.Errorf("missing original JSON for %s", sample.SampleID)
+			}
+			if got, want := len(countingGenomes.calls), len(callbackSamples); got != want {
+				return fmt.Errorf("genome fetches before callback %d = %d, want %d", len(callbackSamples), got, want)
 			}
 			return nil
 		},
@@ -262,6 +270,9 @@ func TestArchiveExtractReturnsBytesInRequestedOrder(t *testing.T) {
 	}
 	if len(callbackSamples) != 2 {
 		t.Fatalf("callback sample count = %d, want 2", len(callbackSamples))
+	}
+	if got := countingGenomes.calls; len(got) != 2 {
+		t.Fatalf("genome fetches = %v, want two lazy fetches", got)
 	}
 }
 
@@ -560,6 +571,36 @@ func assertCanonicalBytesEqual(t *testing.T, got, want []byte) {
 type tarEntry struct {
 	Name string
 	Data []byte
+}
+
+type countingGenomeSource struct {
+	records map[string]FileRecord
+	calls   []string
+}
+
+func (s *countingGenomeSource) Records(context.Context) ([]FileRecord, error) {
+	records := make([]FileRecord, 0, len(s.records))
+	for _, record := range s.records {
+		records = append(records, record)
+	}
+	return records, nil
+}
+
+func (s *countingGenomeSource) Get(_ context.Context, sample string) (FileRecord, error) {
+	s.calls = append(s.calls, sample)
+	record, ok := s.records[sample]
+	if !ok {
+		return FileRecord{}, fmt.Errorf("sample %q not found", sample)
+	}
+	return record, nil
+}
+
+func (s *countingGenomeSource) Order(context.Context) ([]string, error) {
+	order := make([]string, 0, len(s.records))
+	for sample := range s.records {
+		order = append(order, sample)
+	}
+	return order, nil
 }
 
 func writeTarXZ(t *testing.T, path string, entries []tarEntry) {

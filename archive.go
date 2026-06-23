@@ -834,6 +834,46 @@ func getGenomeRecords(ctx context.Context, source FileSource, samples []string) 
 	return records, nil
 }
 
+type genomeRecordProvider interface {
+	Get(context.Context, string) (FileRecord, error)
+}
+
+type mapGenomeRecordProvider map[string]FileRecord
+
+func (p mapGenomeRecordProvider) Get(_ context.Context, sample string) (FileRecord, error) {
+	record, ok := p[sample]
+	if !ok {
+		return FileRecord{}, fmt.Errorf("genome for sample %q not found", sample)
+	}
+	return record, nil
+}
+
+type sourceGenomeRecordProvider struct {
+	source FileSource
+}
+
+func (p sourceGenomeRecordProvider) Get(ctx context.Context, sample string) (FileRecord, error) {
+	record, err := p.source.Get(ctx, sample)
+	if err != nil {
+		return FileRecord{}, err
+	}
+	if record.SampleID == "" {
+		record.SampleID = sample
+	}
+	return record, nil
+}
+
+func newGenomeRecordProvider(ctx context.Context, source FileSource, samples []string) (genomeRecordProvider, error) {
+	if genomesTar, ok := asTarXZSource(source); ok {
+		records, err := getGenomeRecords(ctx, genomesTar, samples)
+		if err != nil {
+			return nil, err
+		}
+		return mapGenomeRecordProvider(records), nil
+	}
+	return sourceGenomeRecordProvider{source: source}, nil
+}
+
 // OpenArchive opens a local or HTTP(S) bakpack archive and reads its front
 // index. HTTP(S) archives are accessed with byte-range requests.
 func OpenArchive(ctx context.Context, path string, opts ...OpenArchiveOptions) (*Archive, error) {
@@ -927,10 +967,10 @@ func (a *Archive) Extract(ctx context.Context, req ExtractRequest) ([]ExtractedS
 	}
 	sort.Ints(chunkOrder)
 
-	genomeRecords := map[string]FileRecord{}
+	var genomes genomeRecordProvider
 	var err error
 	if req.Original || req.Genome {
-		genomeRecords, err = getGenomeRecords(ctx, req.Genomes, req.Samples)
+		genomes, err = newGenomeRecordProvider(ctx, req.Genomes, req.Samples)
 		if err != nil {
 			return nil, err
 		}
@@ -973,7 +1013,10 @@ func (a *Archive) Extract(ctx context.Context, req ExtractRequest) ([]ExtractedS
 			}
 			var genome Genome
 			if req.Original || req.Genome {
-				record := genomeRecords[sample]
+				record, err := genomes.Get(ctx, sample)
+				if err != nil {
+					return nil, err
+				}
 				genome, err = ReadGenome(sample, record.Name, record.Bytes)
 				if err != nil {
 					return nil, err

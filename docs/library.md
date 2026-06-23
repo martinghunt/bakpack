@@ -60,6 +60,11 @@ _, err = archive.Extract(ctx, bakpack.ExtractRequest{
 })
 ```
 
+During extraction, non-tar genome sources such as `.agc`, directories, manifests,
+and file lists are fetched one sample at a time. `.tar.xz` genome sources are
+streamed once and selected genomes are kept in memory, which avoids repeatedly
+decompressing the same tar archive.
+
 Pass a custom HTTP client when the remote archive needs specific timeouts,
 headers, transport settings, or authentication:
 
