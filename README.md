@@ -71,6 +71,14 @@ bakpack build \
   --output annotations.bakpack
 ```
 
+Build from a combined manifest:
+
+```bash
+bakpack build \
+  --manifest samples.tsv \
+  --output annotations.bakpack
+```
+
 Extract one reconstructed annotation and its genome FASTA:
 
 ```bash
@@ -162,14 +170,16 @@ bakpack build \
 Common options:
 
 ```text
---annotations-format auto|dir|list|tar.xz
---genomes-format     auto|dir|list|tar.xz|agc
+--manifest           combined manifest with sample, annotation, and genome paths
+--annotations-format auto|dir|list|manifest|tar.xz
+--genomes-format     auto|dir|list|manifest|tar.xz|agc
 --chunk-size         samples per compressed chunk, default 25
 --order              file of sample IDs defining archive order
 --xz-threads         threads passed as xz -T, default 1
 ```
 
 Default sample order is the genome source order. This can improve compression when the genome source order groups similar genomes, because related annotations tend to share more structure and repeated values.
+When `--manifest` is used, the manifest row order is the default archive order.
 
 ### `extract`
 
@@ -202,7 +212,7 @@ Original JSON and genome FASTA extraction require a genome source:
 
 ```bash
 --genomes genomes.tar.xz
---genomes-format auto|dir|list|tar.xz|agc
+--genomes-format auto|dir|list|manifest|tar.xz|agc
 ```
 
 ### `index`
@@ -219,12 +229,14 @@ Annotation sources support:
 
 - directory
 - file list
+- combined manifest
 - `.tar.xz`
 
 Genome sources support:
 
 - directory
 - file list
+- combined manifest
 - `.tar.xz`
 - `.agc`
 
@@ -253,6 +265,20 @@ sampleB path/to/sampleB.bakta.json
 ```
 
 Relative paths are resolved relative to the list file.
+
+A combined manifest can be used with `bakpack build --manifest` or as a source
+with `--annotations-format manifest` / `--genomes-format manifest`. It has three
+whitespace-separated columns:
+
+```text
+sample_id  annotation_json  genome_fasta
+sampleA    path/to/a.bakta.json  path/to/a.fa
+sampleB    path/to/b.bakta.json  path/to/b.fa
+```
+
+The header row is optional. Blank lines and lines starting with `#` are ignored.
+Relative paths are resolved relative to the manifest file. The row order is used
+as the source order.
 
 ## Checksums
 
@@ -305,6 +331,20 @@ func main() {
 		panic(err)
 	}
 }
+```
+
+Or with a combined manifest:
+
+```go
+annotations, genomes, err := bakpack.OpenManifestSources("samples.tsv")
+if err != nil {
+	panic(err)
+}
+err = bakpack.BuildArchive(ctx, bakpack.BuildOptions{
+	Annotations: annotations,
+	Genomes:     genomes,
+	OutputPath:  "annotations.bakpack",
+})
 ```
 
 Core entry points:

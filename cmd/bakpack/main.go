@@ -111,6 +111,7 @@ func newRestoreCommand() *cobra.Command {
 func newBuildCommand() *cobra.Command {
 	var annotationsPath, annotationsFormat string
 	var genomesPath, genomesFormat string
+	var manifestPath string
 	var output string
 	var orderPath string
 	var annotationSpoolCompression string
@@ -120,22 +121,35 @@ func newBuildCommand() *cobra.Command {
 		Use:   "build",
 		Short: "Build a .bakpack archive from Bakta JSON and genome sources",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if annotationsPath == "" {
-				return fmt.Errorf("--annotations is required")
-			}
-			if genomesPath == "" {
-				return fmt.Errorf("--genomes is required")
-			}
 			if output == "" {
 				output = "annotations.bakpack"
 			}
-			annotations, err := bakpack.OpenSource(annotationsPath, annotationsFormat, "annotation")
-			if err != nil {
-				return err
-			}
-			genomes, err := bakpack.OpenSource(genomesPath, genomesFormat, "genome")
-			if err != nil {
-				return err
+			var annotations, genomes bakpack.FileSource
+			if manifestPath != "" {
+				if annotationsPath != "" || genomesPath != "" {
+					return fmt.Errorf("--manifest cannot be used with --annotations or --genomes")
+				}
+				var err error
+				annotations, genomes, err = bakpack.OpenManifestSources(manifestPath)
+				if err != nil {
+					return err
+				}
+			} else {
+				if annotationsPath == "" {
+					return fmt.Errorf("--annotations is required")
+				}
+				if genomesPath == "" {
+					return fmt.Errorf("--genomes is required")
+				}
+				var err error
+				annotations, err = bakpack.OpenSource(annotationsPath, annotationsFormat, "annotation")
+				if err != nil {
+					return err
+				}
+				genomes, err = bakpack.OpenSource(genomesPath, genomesFormat, "genome")
+				if err != nil {
+					return err
+				}
 			}
 			order, err := readNameFile(orderPath)
 			if err != nil {
@@ -153,9 +167,10 @@ func newBuildCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&annotationsPath, "annotations", "", "Annotation source: directory, file list, or .tar.xz")
-	cmd.Flags().StringVar(&annotationsFormat, "annotations-format", "auto", "Annotation source format: auto, dir, list, tar.xz")
+	cmd.Flags().StringVar(&annotationsFormat, "annotations-format", "auto", "Annotation source format: auto, dir, list, manifest, tar.xz")
 	cmd.Flags().StringVar(&genomesPath, "genomes", "", "Genome source: directory, file list, .tar.xz, or .agc")
-	cmd.Flags().StringVar(&genomesFormat, "genomes-format", "auto", "Genome source format: auto, dir, list, tar.xz, agc")
+	cmd.Flags().StringVar(&genomesFormat, "genomes-format", "auto", "Genome source format: auto, dir, list, manifest, tar.xz, agc")
+	cmd.Flags().StringVar(&manifestPath, "manifest", "", "Combined manifest with columns: sample_id annotation_json genome_fasta")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output archive path, default annotations.bakpack")
 	cmd.Flags().StringVar(&orderPath, "order", "", "Optional file of sample IDs defining archive order")
 	cmd.Flags().StringVar(&annotationSpoolCompression, "annotation-spool-compression", "gzip", "Temporary annotation spool compression: gzip or none")
@@ -200,7 +215,7 @@ func newExtractCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&genomesPath, "genomes", "", "Genome source for original JSON/FASTA extraction")
-	cmd.Flags().StringVar(&genomesFormat, "genomes-format", "auto", "Genome source format: auto, dir, list, tar.xz, agc")
+	cmd.Flags().StringVar(&genomesFormat, "genomes-format", "auto", "Genome source format: auto, dir, list, manifest, tar.xz, agc")
 	cmd.Flags().StringVarP(&outputDir, "output-dir", "o", ".", "Output directory")
 	cmd.Flags().StringVar(&samplesFile, "samples-file", "", "File of sample IDs to extract")
 	cmd.Flags().BoolVar(&reduced, "reduced", false, "Write reduced JSON")

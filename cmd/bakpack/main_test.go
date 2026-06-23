@@ -70,6 +70,45 @@ func TestCLIWorkflowWithDirectoryInputs(t *testing.T) {
 	}
 }
 
+func TestCLIBuildWithCombinedManifest(t *testing.T) {
+	dir := t.TempDir()
+	annotationsDir := filepath.Join(dir, "annotations")
+	genomesDir := filepath.Join(dir, "genomes")
+	outDir := filepath.Join(dir, "out")
+	mustMkdir(t, annotationsDir)
+	mustMkdir(t, genomesDir)
+	originalJSON := toyBaktaJSON("manifest sample")
+	writeFile(t, filepath.Join(annotationsDir, "annotation.json"), originalJSON)
+	writeFile(t, filepath.Join(genomesDir, "genome.fa"), toyFASTA())
+	manifestPath := filepath.Join(dir, "manifest.tsv")
+	writeFile(t, manifestPath, []byte("sampleX\tannotations/annotation.json\tgenomes/genome.fa\n"))
+
+	archivePath := filepath.Join(dir, "manifest.bakpack")
+	_, stderr, err := executeCommand(
+		"build",
+		"--manifest", manifestPath,
+		"--output", archivePath,
+		"--chunk-size", "1",
+	)
+	if err != nil {
+		t.Fatalf("build --manifest command error = %v, stderr = %s", err, stderr)
+	}
+
+	_, stderr, err = executeCommand(
+		"extract",
+		archivePath,
+		"sampleX",
+		"--genomes", manifestPath,
+		"--genomes-format", "manifest",
+		"--output-dir", outDir,
+		"--original",
+	)
+	if err != nil {
+		t.Fatalf("extract command error = %v, stderr = %s", err, stderr)
+	}
+	assertCanonicalEqual(t, filepath.Join(outDir, "sampleX.bakta.json"), originalJSON)
+}
+
 func executeCommand(args ...string) ([]byte, []byte, error) {
 	cmd := newRootCommand()
 	var stdout, stderr bytes.Buffer

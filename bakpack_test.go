@@ -221,6 +221,66 @@ func TestBuildArchiveFromDirectoryAnnotationsAndGenomeList(t *testing.T) {
 	}
 }
 
+func TestBuildArchiveFromCombinedManifestUsesManifestOrderAndNames(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	annotationsDir := filepath.Join(dir, "annotations")
+	genomesDir := filepath.Join(dir, "genomes")
+	outDir := filepath.Join(dir, "out")
+	if err := os.Mkdir(annotationsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(genomesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(annotationsDir, "first.json"), toyBaktaJSON("sampleA", "gene A"))
+	writeFile(t, filepath.Join(annotationsDir, "second.json"), toyBaktaJSON("sampleB", "gene B"))
+	writeFile(t, filepath.Join(genomesDir, "first.fasta"), toyFASTA("sampleA"))
+	writeFile(t, filepath.Join(genomesDir, "second.fasta"), toyFASTA("sampleB"))
+	manifestPath := filepath.Join(dir, "manifest.tsv")
+	writeFile(t, manifestPath, []byte(strings.Join([]string{
+		"sample_id annotation_json genome_fasta",
+		"sampleB annotations/second.json genomes/second.fasta",
+		"sampleA annotations/first.json genomes/first.fasta",
+		"",
+	}, "\n")))
+
+	annotations, genomes, err := OpenManifestSources(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	archivePath := filepath.Join(dir, "manifest.bakpack")
+	if err := BuildArchive(ctx, BuildOptions{
+		Annotations: annotations,
+		Genomes:     genomes,
+		ChunkSize:   1,
+		OutputPath:  archivePath,
+	}); err != nil {
+		t.Fatalf("BuildArchive() error = %v", err)
+	}
+	index, err := ReadArchiveIndex(archivePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := []string{index.Samples[0].SampleID, index.Samples[1].SampleID}; got[0] != "sampleB" || got[1] != "sampleA" {
+		t.Fatalf("archive sample order = %v, want manifest order", got)
+	}
+	if index.Samples[0].AnnotationName != "second.json" || index.Samples[0].GenomeName != "second.fasta" {
+		t.Fatalf("manifest filenames not stored in index: %#v", index.Samples[0])
+	}
+
+	if err := ExtractArchive(ctx, ExtractOptions{
+		ArchivePath: archivePath,
+		Genomes:     genomes,
+		Samples:     []string{"sampleA"},
+		OutputDir:   outDir,
+		Original:    true,
+	}); err != nil {
+		t.Fatalf("ExtractArchive() error = %v", err)
+	}
+	assertCanonicalFileEqual(t, filepath.Join(outDir, "sampleA.bakta.json"), toyBaktaJSON("sampleA", "gene A"))
+}
+
 func TestExtractArchiveFromHTTPRangeURL(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
