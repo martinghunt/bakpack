@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -177,6 +178,93 @@ func TestBuildAndExtractArchiveFromTarXZUsesGenomeArchiveOrder(t *testing.T) {
 	}
 }
 
+func TestArchiveExtractReturnsBytesInRequestedOrder(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	annotationsDir := filepath.Join(dir, "annotations")
+	genomesDir := filepath.Join(dir, "genomes")
+	if err := os.Mkdir(annotationsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(genomesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(annotationsDir, "sampleA.bakta.json"), toyBaktaJSON("sampleA", "gene A"))
+	writeFile(t, filepath.Join(annotationsDir, "sampleB.bakta.json"), toyBaktaJSON("sampleB", "gene B"))
+	writeFile(t, filepath.Join(genomesDir, "sampleA.fa"), toyFASTA("sampleA"))
+	writeFile(t, filepath.Join(genomesDir, "sampleB.fa"), toyFASTA("sampleB"))
+	annotations, err := OpenSource(annotationsDir, "dir", "annotation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	genomes, err := OpenSource(genomesDir, "dir", "genome")
+	if err != nil {
+		t.Fatal(err)
+	}
+	archivePath := filepath.Join(dir, "library.bakpack")
+	if err := BuildArchive(ctx, BuildOptions{
+		Annotations: annotations,
+		Genomes:     genomes,
+		ChunkSize:   1,
+		OutputPath:  archivePath,
+	}); err != nil {
+		t.Fatalf("BuildArchive() error = %v", err)
+	}
+
+	archive, err := OpenArchive(ctx, archivePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer archive.Close()
+	if got := archive.SampleIDs(); len(got) != 2 || got[0] != "sampleA" || got[1] != "sampleB" {
+		t.Fatalf("SampleIDs() = %v, want [sampleA sampleB]", got)
+	}
+	index := archive.Index()
+	index.Samples[0].SampleID = "mutated"
+	if got := archive.SampleIDs()[0]; got != "sampleA" {
+		t.Fatalf("Index() returned mutable archive state; first sample = %q", got)
+	}
+
+	results, err := archive.Extract(ctx, ExtractRequest{
+		Genomes:  genomes,
+		Samples:  []string{"sampleB", "sampleA"},
+		Reduced:  true,
+		Original: true,
+		Genome:   true,
+	})
+	if err != nil {
+		t.Fatalf("Archive.Extract() error = %v", err)
+	}
+	if len(results) != 2 || results[0].SampleID != "sampleB" || results[1].SampleID != "sampleA" {
+		t.Fatalf("Archive.Extract() result order = %#v, want requested order", results)
+	}
+	if len(results[0].ReducedJSON) == 0 {
+		t.Fatalf("Archive.Extract() missing reduced JSON")
+	}
+	assertCanonicalBytesEqual(t, results[0].OriginalJSON, toyBaktaJSON("sampleB", "gene B"))
+	if !bytes.Contains(results[0].GenomeFASTA, []byte(">contig1")) || !bytes.Contains(results[0].GenomeFASTA, []byte("ATGAAATAA")) {
+		t.Fatalf("Archive.Extract() genome FASTA not written correctly: %s", results[0].GenomeFASTA)
+	}
+
+	var callbackSamples []string
+	if _, err := archive.Extract(ctx, ExtractRequest{
+		Samples: []string{"sampleB", "sampleA"},
+		Reduced: true,
+		OnSample: func(sample ExtractedSample) error {
+			callbackSamples = append(callbackSamples, sample.SampleID)
+			if len(sample.ReducedJSON) == 0 {
+				return fmt.Errorf("missing reduced JSON for %s", sample.SampleID)
+			}
+			return nil
+		},
+	}); err != nil {
+		t.Fatalf("Archive.Extract() callback error = %v", err)
+	}
+	if len(callbackSamples) != 2 {
+		t.Fatalf("callback sample count = %d, want 2", len(callbackSamples))
+	}
+}
+
 func TestBuildArchiveFromDirectoryAnnotationsAndGenomeList(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
@@ -310,7 +398,6 @@ func TestExtractArchiveFromHTTPRangeURL(t *testing.T) {
 	dir := t.TempDir()
 	annotationsDir := filepath.Join(dir, "annotations")
 	genomesDir := filepath.Join(dir, "genomes")
-	outDir := filepath.Join(dir, "out")
 	if err := os.Mkdir(annotationsDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -371,17 +458,24 @@ func TestExtractArchiveFromHTTPRangeURL(t *testing.T) {
 		t.Fatalf("HTTP archive index sample count = %d, want 2", len(index.Samples))
 	}
 
-	if err := ExtractArchive(ctx, ExtractOptions{
-		ArchivePath: server.URL,
-		Genomes:     genomes,
-		Samples:     []string{"sampleB"},
-		OutputDir:   outDir,
-		Reduced:     true,
-		Original:    true,
-	}); err != nil {
-		t.Fatalf("ExtractArchive() from HTTP URL error = %v", err)
+	remoteArchive, err := OpenArchive(ctx, server.URL)
+	if err != nil {
+		t.Fatalf("OpenArchive(%q) error = %v", server.URL, err)
 	}
-	assertCanonicalFileEqual(t, filepath.Join(outDir, "sampleB.bakta.json"), toyBaktaJSON("sampleB", "gene B"))
+	defer remoteArchive.Close()
+	results, err := remoteArchive.Extract(ctx, ExtractRequest{
+		Genomes:  genomes,
+		Samples:  []string{"sampleB"},
+		Reduced:  true,
+		Original: true,
+	})
+	if err != nil {
+		t.Fatalf("Archive.Extract() from HTTP URL error = %v", err)
+	}
+	if len(results) != 1 || results[0].SampleID != "sampleB" {
+		t.Fatalf("Archive.Extract() from HTTP URL results = %#v, want sampleB", results)
+	}
+	assertCanonicalBytesEqual(t, results[0].OriginalJSON, toyBaktaJSON("sampleB", "gene B"))
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -445,6 +539,11 @@ func assertCanonicalFileEqual(t *testing.T, gotPath string, want []byte) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	assertCanonicalBytesEqual(t, got, want)
+}
+
+func assertCanonicalBytesEqual(t *testing.T, got, want []byte) {
+	t.Helper()
 	gotCanonical, err := JSONBytesCanonicalSHA256(got)
 	if err != nil {
 		t.Fatal(err)
@@ -454,7 +553,7 @@ func assertCanonicalFileEqual(t *testing.T, gotPath string, want []byte) {
 		t.Fatal(err)
 	}
 	if gotCanonical != wantCanonical {
-		t.Fatalf("%s canonical SHA = %s, want %s", gotPath, gotCanonical, wantCanonical)
+		t.Fatalf("canonical SHA = %s, want %s", gotCanonical, wantCanonical)
 	}
 }
 

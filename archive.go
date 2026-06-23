@@ -78,6 +78,52 @@ type ExtractOptions struct {
 	Genome      bool
 }
 
+// OpenArchiveOptions configures archive reads.
+type OpenArchiveOptions struct {
+	// HTTPClient is used for byte-range requests when the archive path is an
+	// HTTP(S) URL. A nil client uses http.DefaultClient.
+	HTTPClient *http.Client
+}
+
+// Archive is an opened bakpack archive. It keeps the archive index in memory
+// and can extract one or more samples without reopening the archive.
+type Archive struct {
+	reader      archiveRangeReader
+	index       ArchiveIndex
+	chunkStart  int64
+	sampleIndex map[string]SampleIndex
+	chunkIndex  map[int]ChunkIndex
+}
+
+// ExtractRequest configures extraction from an opened archive.
+type ExtractRequest struct {
+	// Genomes is required when Original or Genome output is requested.
+	Genomes FileSource
+	// Samples are the sample IDs to extract.
+	Samples []string
+	// Reduced returns reduced Bakta JSON.
+	Reduced bool
+	// Original reconstructs original Bakta JSON and verifies its canonical hash.
+	Original bool
+	// Genome returns matching genome FASTA.
+	Genome bool
+	// OnSample is called for each extracted sample. When nil, Extract returns
+	// accumulated results in the same order as Samples.
+	OnSample func(ExtractedSample) error
+}
+
+// ExtractedSample contains the bytes extracted or reconstructed for one sample.
+type ExtractedSample struct {
+	SampleID                    string
+	AnnotationName              string
+	GenomeName                  string
+	ReducedJSON                 []byte
+	OriginalJSON                []byte
+	GenomeFASTA                 []byte
+	OriginalJSONCanonicalSHA256 string
+	ReducedJSONCanonicalSHA256  string
+}
+
 func BuildArchive(ctx context.Context, opts BuildOptions) error {
 	if opts.Annotations == nil {
 		return fmt.Errorf("annotation source is required")
@@ -788,6 +834,183 @@ func getGenomeRecords(ctx context.Context, source FileSource, samples []string) 
 	return records, nil
 }
 
+// OpenArchive opens a local or HTTP(S) bakpack archive and reads its front
+// index. HTTP(S) archives are accessed with byte-range requests.
+func OpenArchive(ctx context.Context, path string, opts ...OpenArchiveOptions) (*Archive, error) {
+	openOpts, err := mergeOpenArchiveOptions(opts)
+	if err != nil {
+		return nil, err
+	}
+	reader, index, chunkStart, err := openArchive(ctx, path, openOpts)
+	if err != nil {
+		return nil, err
+	}
+	archive := &Archive{
+		reader:      reader,
+		index:       index,
+		chunkStart:  chunkStart,
+		sampleIndex: map[string]SampleIndex{},
+		chunkIndex:  map[int]ChunkIndex{},
+	}
+	for _, sample := range index.Samples {
+		archive.sampleIndex[sample.SampleID] = sample
+	}
+	for _, chunk := range index.Chunks {
+		archive.chunkIndex[chunk.ID] = chunk
+	}
+	return archive, nil
+}
+
+// Close closes the underlying archive reader.
+func (a *Archive) Close() error {
+	if a == nil || a.reader == nil {
+		return nil
+	}
+	err := a.reader.Close()
+	a.reader = nil
+	return err
+}
+
+// Index returns a copy of the archive index.
+func (a *Archive) Index() ArchiveIndex {
+	if a == nil {
+		return ArchiveIndex{}
+	}
+	return cloneArchiveIndex(a.index)
+}
+
+// SampleIDs returns sample IDs in archive order.
+func (a *Archive) SampleIDs() []string {
+	if a == nil {
+		return nil
+	}
+	samples := make([]string, 0, len(a.index.Samples))
+	for _, sample := range a.index.Samples {
+		samples = append(samples, sample.SampleID)
+	}
+	return samples
+}
+
+// Extract extracts one or more samples from the archive. Without OnSample,
+// results are returned in the same order as req.Samples. With OnSample, results
+// are delivered to the callback and the returned slice is nil.
+func (a *Archive) Extract(ctx context.Context, req ExtractRequest) ([]ExtractedSample, error) {
+	if a == nil || a.reader == nil {
+		return nil, fmt.Errorf("archive is closed or nil")
+	}
+	if !req.Reduced && !req.Original && !req.Genome {
+		req.Reduced = true
+	}
+	if len(req.Samples) == 0 {
+		return nil, nil
+	}
+	if (req.Original || req.Genome) && req.Genomes == nil {
+		return nil, fmt.Errorf("genome source is required for original JSON or FASTA extraction")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	samplesByChunk := map[int][]string{}
+	chunkOrderSet := map[int]bool{}
+	var chunkOrder []int
+	for _, sample := range req.Samples {
+		entry, ok := a.sampleIndex[sample]
+		if !ok {
+			return nil, fmt.Errorf("sample %q not found in archive", sample)
+		}
+		samplesByChunk[entry.ChunkID] = append(samplesByChunk[entry.ChunkID], sample)
+		if !chunkOrderSet[entry.ChunkID] {
+			chunkOrderSet[entry.ChunkID] = true
+			chunkOrder = append(chunkOrder, entry.ChunkID)
+		}
+	}
+	sort.Ints(chunkOrder)
+
+	genomeRecords := map[string]FileRecord{}
+	var err error
+	if req.Original || req.Genome {
+		genomeRecords, err = getGenomeRecords(ctx, req.Genomes, req.Samples)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	resultsBySample := map[string]ExtractedSample{}
+	for _, chunkID := range chunkOrder {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+		chunk, ok := a.chunkIndex[chunkID]
+		if !ok {
+			return nil, fmt.Errorf("chunk %d missing from index", chunkID)
+		}
+		samples := samplesByChunk[chunkID]
+		reducedBySample, err := readChunk(ctx, a.reader, a.chunkStart, chunk, a.index, samples)
+		if err != nil {
+			return nil, err
+		}
+		for _, sample := range samples {
+			entry := a.sampleIndex[sample]
+			reducedJSON, ok := reducedBySample[sample]
+			if !ok {
+				return nil, fmt.Errorf("sample %q missing from chunk %d", sample, chunkID)
+			}
+			if err := verifyReduced(entry, reducedJSON); err != nil {
+				return nil, err
+			}
+			result := ExtractedSample{
+				SampleID:                    sample,
+				AnnotationName:              entry.AnnotationName,
+				GenomeName:                  entry.GenomeName,
+				OriginalJSONCanonicalSHA256: entry.OriginalJSONCanonicalSHA256,
+				ReducedJSONCanonicalSHA256:  entry.ReducedJSONCanonicalSHA256,
+			}
+			if req.Reduced {
+				result.ReducedJSON = append([]byte(nil), reducedJSON...)
+			}
+			var genome Genome
+			if req.Original || req.Genome {
+				record := genomeRecords[sample]
+				genome, err = ReadGenome(sample, record.Name, record.Bytes)
+				if err != nil {
+					return nil, err
+				}
+				if req.Genome {
+					result.GenomeFASTA = genome.FASTABytes(80)
+				}
+			}
+			if req.Original {
+				restored, err := RestoreBaktaJSON(reducedJSON, genome)
+				if err != nil {
+					return nil, err
+				}
+				if restored.Original.CanonicalSHA256 != entry.OriginalJSONCanonicalSHA256 {
+					return nil, fmt.Errorf("sample %s original canonical SHA-256 mismatch", sample)
+				}
+				result.OriginalJSON = restored.OriginalJSON
+			}
+			if req.OnSample != nil {
+				if err := req.OnSample(result); err != nil {
+					return nil, err
+				}
+			} else {
+				resultsBySample[sample] = result
+			}
+		}
+	}
+	if req.OnSample != nil {
+		return nil, nil
+	}
+	results := make([]ExtractedSample, 0, len(req.Samples))
+	for _, sample := range req.Samples {
+		results = append(results, resultsBySample[sample])
+	}
+	return results, nil
+}
+
 func ExtractArchive(ctx context.Context, opts ExtractOptions) error {
 	if !opts.Reduced && !opts.Original && !opts.Genome {
 		opts.Reduced = true
@@ -806,102 +1029,94 @@ func ExtractArchive(ctx context.Context, opts ExtractOptions) error {
 		return err
 	}
 
-	file, index, chunkStart, err := openArchive(ctx, opts.ArchivePath)
+	archive, err := OpenArchive(ctx, opts.ArchivePath)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
-	sampleIndex := map[string]SampleIndex{}
-	for _, sample := range index.Samples {
-		sampleIndex[sample.SampleID] = sample
-	}
-	chunkIndex := map[int]ChunkIndex{}
-	for _, chunk := range index.Chunks {
-		chunkIndex[chunk.ID] = chunk
-	}
+	defer archive.Close()
 
-	samplesByChunk := map[int][]string{}
-	for _, sample := range opts.Samples {
-		entry, ok := sampleIndex[sample]
-		if !ok {
-			return fmt.Errorf("sample %q not found in archive", sample)
-		}
-		samplesByChunk[entry.ChunkID] = append(samplesByChunk[entry.ChunkID], sample)
-	}
-
-	genomeRecords := map[string]FileRecord{}
-	if opts.Original || opts.Genome {
-		genomeRecords, err = getGenomeRecords(ctx, opts.Genomes, opts.Samples)
-		if err != nil {
-			return err
-		}
-	}
-
-	for chunkID, samples := range samplesByChunk {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-		chunk, ok := chunkIndex[chunkID]
-		if !ok {
-			return fmt.Errorf("chunk %d missing from index", chunkID)
-		}
-		reducedBySample, err := readChunk(file, chunkStart, chunk, index, samples)
-		if err != nil {
-			return err
-		}
-		for _, sample := range samples {
-			entry := sampleIndex[sample]
-			reducedJSON, ok := reducedBySample[sample]
-			if !ok {
-				return fmt.Errorf("sample %q missing from chunk %d", sample, chunkID)
-			}
-			if err := verifyReduced(entry, reducedJSON); err != nil {
-				return err
-			}
-			var genome Genome
-			if opts.Original || opts.Genome {
-				record := genomeRecords[sample]
-				genome, err = ReadGenome(sample, record.Name, record.Bytes)
-				if err != nil {
+	_, err = archive.Extract(ctx, ExtractRequest{
+		Genomes:  opts.Genomes,
+		Samples:  opts.Samples,
+		Reduced:  opts.Reduced,
+		Original: opts.Original,
+		Genome:   opts.Genome,
+		OnSample: func(sample ExtractedSample) error {
+			if opts.Genome {
+				if err := os.WriteFile(filepath.Join(outputDir, sample.SampleID+".fa"), sample.GenomeFASTA, 0o644); err != nil {
 					return err
-				}
-				if opts.Genome {
-					if err := os.WriteFile(filepath.Join(outputDir, sample+".fa"), genome.FASTABytes(80), 0o644); err != nil {
-						return err
-					}
 				}
 			}
 			if opts.Reduced {
-				if err := os.WriteFile(filepath.Join(outputDir, sample+".reduced.bakta.json"), reducedJSON, 0o644); err != nil {
+				if err := os.WriteFile(filepath.Join(outputDir, sample.SampleID+".reduced.bakta.json"), sample.ReducedJSON, 0o644); err != nil {
 					return err
 				}
 			}
 			if opts.Original {
-				restored, err := RestoreBaktaJSON(reducedJSON, genome)
-				if err != nil {
-					return err
-				}
-				if restored.Original.CanonicalSHA256 != entry.OriginalJSONCanonicalSHA256 {
-					return fmt.Errorf("sample %s original canonical SHA-256 mismatch", sample)
-				}
-				if err := os.WriteFile(filepath.Join(outputDir, sample+".bakta.json"), restored.OriginalJSON, 0o644); err != nil {
+				if err := os.WriteFile(filepath.Join(outputDir, sample.SampleID+".bakta.json"), sample.OriginalJSON, 0o644); err != nil {
 					return err
 				}
 			}
-		}
-	}
-	return nil
+			return nil
+		},
+	})
+	return err
 }
 
 func ReadArchiveIndex(path string) (ArchiveIndex, error) {
-	file, index, _, err := openArchive(context.Background(), path)
+	return ReadArchiveIndexContext(context.Background(), path)
+}
+
+// ReadArchiveIndexContext reads the front index from a local or HTTP(S)
+// archive. HTTP(S) archives are accessed with byte-range requests.
+func ReadArchiveIndexContext(ctx context.Context, path string, opts ...OpenArchiveOptions) (ArchiveIndex, error) {
+	archive, err := OpenArchive(ctx, path, opts...)
 	if err != nil {
 		return ArchiveIndex{}, err
 	}
-	file.Close()
-	return index, nil
+	defer archive.Close()
+	return archive.Index(), nil
+}
+
+func mergeOpenArchiveOptions(opts []OpenArchiveOptions) (OpenArchiveOptions, error) {
+	switch len(opts) {
+	case 0:
+		return OpenArchiveOptions{}, nil
+	case 1:
+		return opts[0], nil
+	default:
+		return OpenArchiveOptions{}, fmt.Errorf("expected at most one OpenArchiveOptions value")
+	}
+}
+
+func cloneArchiveIndex(index ArchiveIndex) ArchiveIndex {
+	out := index
+	out.Chunks = append([]ChunkIndex(nil), index.Chunks...)
+	for i := range out.Chunks {
+		out.Chunks[i].TopKeys = append([]string(nil), out.Chunks[i].TopKeys...)
+		out.Chunks[i].FeatureFields = append([]string(nil), out.Chunks[i].FeatureFields...)
+		out.Chunks[i].ValueSchemas = cloneSchemaIndexEntries(out.Chunks[i].ValueSchemas)
+		out.Chunks[i].FeatureSchemas = cloneSchemaIndexEntries(out.Chunks[i].FeatureSchemas)
+		out.Chunks[i].FieldCodecs = cloneFieldCodecs(out.Chunks[i].FieldCodecs)
+	}
+	out.Samples = append([]SampleIndex(nil), index.Samples...)
+	return out
+}
+
+func cloneSchemaIndexEntries(entries []SchemaIndexEntry) []SchemaIndexEntry {
+	out := append([]SchemaIndexEntry(nil), entries...)
+	for i := range out {
+		out[i].Keys = append([]string(nil), out[i].Keys...)
+	}
+	return out
+}
+
+func cloneFieldCodecs(codecs []FieldCodec) []FieldCodec {
+	out := append([]FieldCodec(nil), codecs...)
+	for i := range out {
+		out[i].Values = append([]string(nil), out[i].Values...)
+	}
+	return out
 }
 
 func encodeArchiveChunk(chunkID int, batch []packedSampleForArchive, opts BuildOptions) (ChunkIndex, []SampleIndex, []byte, error) {
@@ -963,9 +1178,9 @@ type packedSampleForArchive struct {
 	reducedRoot map[string]any
 }
 
-func readChunk(file archiveRangeReader, chunkStart int64, chunk ChunkIndex, index ArchiveIndex, wanted []string) (map[string][]byte, error) {
+func readChunk(ctx context.Context, file archiveRangeReader, chunkStart int64, chunk ChunkIndex, index ArchiveIndex, wanted []string) (map[string][]byte, error) {
 	compressed := make([]byte, chunk.CompressedSize)
-	if err := readFullAt(file, compressed, chunkStart+chunk.Offset); err != nil {
+	if err := readFullAt(ctx, file, compressed, chunkStart+chunk.Offset); err != nil {
 		return nil, err
 	}
 	uncompressed, err := xzDecompress(compressed)
@@ -1013,22 +1228,44 @@ func decodeLegacyChunk(chunkID int, uncompressed []byte) (map[string][]byte, err
 }
 
 type archiveRangeReader interface {
-	ReadAt([]byte, int64) (int, error)
+	ReadAt(context.Context, []byte, int64) (int, error)
 	Close() error
 }
 
+type localRangeReader struct {
+	file *os.File
+}
+
+func (r localRangeReader) ReadAt(ctx context.Context, data []byte, offset int64) (int, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	default:
+	}
+	return r.file.ReadAt(data, offset)
+}
+
+func (r localRangeReader) Close() error {
+	return r.file.Close()
+}
+
 type httpRangeReader struct {
-	ctx    context.Context
 	client *http.Client
 	url    string
 }
 
-func (r httpRangeReader) ReadAt(data []byte, offset int64) (int, error) {
+func (r httpRangeReader) ReadAt(ctx context.Context, data []byte, offset int64) (int, error) {
 	if len(data) == 0 {
 		return 0, nil
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	end := offset + int64(len(data)) - 1
-	req, err := http.NewRequestWithContext(r.ctx, http.MethodGet, r.url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, r.url, nil)
 	if err != nil {
 		return 0, err
 	}
@@ -1056,13 +1293,13 @@ func (r httpRangeReader) Close() error {
 	return nil
 }
 
-func openArchive(ctx context.Context, path string) (archiveRangeReader, ArchiveIndex, int64, error) {
-	file, err := openArchiveRangeReader(ctx, path)
+func openArchive(ctx context.Context, path string, opts OpenArchiveOptions) (archiveRangeReader, ArchiveIndex, int64, error) {
+	file, err := openArchiveRangeReader(path, opts)
 	if err != nil {
 		return nil, ArchiveIndex{}, 0, err
 	}
 	header := make([]byte, len(ArchiveMagic)+8)
-	if err := readFullAt(file, header, 0); err != nil {
+	if err := readFullAt(ctx, file, header, 0); err != nil {
 		file.Close()
 		return nil, ArchiveIndex{}, 0, err
 	}
@@ -1076,7 +1313,7 @@ func openArchive(ctx context.Context, path string) (archiveRangeReader, ArchiveI
 		return nil, ArchiveIndex{}, 0, fmt.Errorf("archive index is too large")
 	}
 	indexBytes := make([]byte, indexLen)
-	if err := readFullAt(file, indexBytes, int64(len(header))); err != nil {
+	if err := readFullAt(ctx, file, indexBytes, int64(len(header))); err != nil {
 		file.Close()
 		return nil, ArchiveIndex{}, 0, err
 	}
@@ -1100,18 +1337,23 @@ func openArchive(ctx context.Context, path string) (archiveRangeReader, ArchiveI
 	return file, index, int64(len(ArchiveMagic)) + 8 + int64(indexLen), nil
 }
 
-func openArchiveRangeReader(ctx context.Context, path string) (archiveRangeReader, error) {
+func openArchiveRangeReader(path string, opts OpenArchiveOptions) (archiveRangeReader, error) {
 	if isHTTPURL(path) {
-		if ctx == nil {
-			ctx = context.Background()
+		client := opts.HTTPClient
+		if client == nil {
+			client = http.DefaultClient
 		}
-		return httpRangeReader{ctx: ctx, client: http.DefaultClient, url: path}, nil
+		return httpRangeReader{client: client, url: path}, nil
 	}
-	return os.Open(path)
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	return localRangeReader{file: file}, nil
 }
 
-func readFullAt(reader archiveRangeReader, data []byte, offset int64) error {
-	n, err := reader.ReadAt(data, offset)
+func readFullAt(ctx context.Context, reader archiveRangeReader, data []byte, offset int64) error {
+	n, err := reader.ReadAt(ctx, data, offset)
 	if err != nil && err != io.EOF {
 		return err
 	}

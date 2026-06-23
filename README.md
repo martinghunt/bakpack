@@ -305,6 +305,9 @@ Archive extraction always verifies reduced JSON canonical SHA-256. Reconstructed
 
 The CLI is a thin wrapper around `github.com/martinghunt/bakpack`.
 
+Extract from a local or remote `.bakpack` archive and a local `.agc` genome
+archive:
+
 ```go
 package main
 
@@ -317,25 +320,58 @@ import (
 func main() {
 	ctx := context.Background()
 
-	annotations, err := bakpack.OpenSource("annotations.tar.xz", "auto", "annotation")
+	genomes, err := bakpack.OpenSource("genomes.agc", "agc", "genome")
 	if err != nil {
 		panic(err)
 	}
-	genomes, err := bakpack.OpenSource("genomes.tar.xz", "auto", "genome")
+	archive, err := bakpack.OpenArchive(ctx, "annotations.bakpack")
 	if err != nil {
 		panic(err)
 	}
+	defer archive.Close()
 
-	err = bakpack.BuildArchive(ctx, bakpack.BuildOptions{
-		Annotations: annotations,
-		Genomes:     genomes,
-		ChunkSize:   25,
-		OutputPath:  "annotations.bakpack",
-		XZThreads:   1,
+	results, err := archive.Extract(ctx, bakpack.ExtractRequest{
+		Genomes:  genomes,
+		Samples:  []string{"sampleA", "sampleB"},
+		Original: true,
+		Genome:   true,
 	})
 	if err != nil {
 		panic(err)
 	}
+	for _, result := range results {
+		_ = result.OriginalJSON
+		_ = result.GenomeFASTA
+	}
+}
+```
+
+Use `OnSample` to stream results one sample at a time instead of accumulating
+all extracted bytes in memory.
+
+Build archives with the same source abstraction:
+
+```go
+ctx := context.Background()
+
+annotations, err := bakpack.OpenSource("annotations.tar.xz", "auto", "annotation")
+if err != nil {
+	panic(err)
+}
+genomes, err := bakpack.OpenSource("genomes.tar.xz", "auto", "genome")
+if err != nil {
+	panic(err)
+}
+
+err = bakpack.BuildArchive(ctx, bakpack.BuildOptions{
+	Annotations: annotations,
+	Genomes:     genomes,
+	ChunkSize:   25,
+	OutputPath:  "annotations.bakpack",
+	XZThreads:   1,
+})
+if err != nil {
+	panic(err)
 }
 ```
 
@@ -356,6 +392,9 @@ err = bakpack.BuildArchive(ctx, bakpack.BuildOptions{
 Core entry points:
 
 ```go
+archive, err := bakpack.OpenArchive(ctx, archivePath)
+results, err := archive.Extract(ctx, bakpack.ExtractRequest{...})
+index, err := bakpack.ReadArchiveIndexContext(ctx, archivePath)
 genome, err := bakpack.ReadGenome(sampleID, filename, fastaBytes)
 reduced, err := bakpack.ReduceBaktaJSON(originalJSON, genome)
 restored, err := bakpack.RestoreBaktaJSON(reduced.ReducedJSON, genome)
