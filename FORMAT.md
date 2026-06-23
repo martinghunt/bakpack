@@ -21,7 +21,7 @@ Current archives use:
 ```text
 archive magic:  BAKPACK1
 archive version: 1
-payload format: specialized_columnar_v8
+payload format: specialized_columnar_chunklocal_v9
 ```
 
 Readers must reject archives whose `format`, `version`, or `payload_format` they
@@ -78,25 +78,25 @@ After xz decompression, the index is JSON with this logical shape:
 {
   "format": "bakpack",
   "version": 1,
-  "payload_format": "specialized_columnar_v8",
+  "payload_format": "specialized_columnar_chunklocal_v9",
   "chunk_size": 25,
-  "top_keys": ["..."],
-  "value_schemas": [
-    {"schema_id": 0, "keys": ["..."]}
-  ],
-  "feature_schemas": [
-    {"schema_id": 0, "keys": ["..."]}
-  ],
-  "feature_fields": ["..."],
-  "field_codecs": [
-    {"field": "contig", "kind": "sequence_index"}
-  ],
   "chunks": [
     {
       "id": 0,
       "offset": 0,
       "compressed_size": 1234,
-      "uncompressed_size": 5678
+      "uncompressed_size": 5678,
+      "top_keys": ["..."],
+      "value_schemas": [
+        {"schema_id": 0, "keys": ["..."]}
+      ],
+      "feature_schemas": [
+        {"schema_id": 0, "keys": ["..."]}
+      ],
+      "feature_fields": ["..."],
+      "field_codecs": [
+        {"field": "contig", "kind": "sequence_index"}
+      ]
     }
   ],
   "samples": [
@@ -123,6 +123,11 @@ the beginning of the file. The absolute byte offset of a compressed chunk is:
 
 The sample order in the index is the build order. Samples are assigned to chunks
 in contiguous groups of `chunk_size`.
+
+Each chunk entry also stores the codec metadata required to decode that chunk.
+Codecs are chunk-local: schemas and field dictionaries are learned from only the
+samples in that chunk. This lets archive creation reduce and encode one chunk at
+a time without first scanning the whole archive.
 
 ## Checksums
 
@@ -199,7 +204,8 @@ checksum.
 
 ## Optimized Chunk Payload
 
-Each compressed chunk decompresses to a `specialized_columnar_v8` payload.
+Each compressed chunk decompresses to a `specialized_columnar_chunklocal_v9`
+payload.
 
 Strings are encoded as:
 
@@ -241,19 +247,19 @@ repeat n_fields:
   byte[field_stream_length] field stream
 ```
 
-`n_fields` must equal the index `feature_fields` length.
+`n_fields` must equal that chunk index entry's `feature_fields` length.
 
 The metadata stream contains each sample's top-level JSON object excluding the
 `features` array. Metadata values use the generic JSON value encoding described
 below.
 
 The feature schema stream contains one schema ID per feature, in feature order.
-Each schema ID indexes `feature_schemas` in the archive index. A feature schema
-is the sorted list of keys present in that feature object.
+Each schema ID indexes `chunks[].feature_schemas` for that chunk. A feature
+schema is the sorted list of keys present in that feature object.
 
-Each field stream contains values for one feature field, in `feature_fields`
-order. For a given sample, the directory gives the slice of every stream that
-belongs to that sample.
+Each field stream contains values for one feature field, in that chunk's
+`feature_fields` order. For a given sample, the directory gives the slice of
+every stream that belongs to that sample.
 
 To decode one sample:
 
@@ -261,23 +267,24 @@ To decode one sample:
 2. Decode its feature schema IDs.
 3. Count how many values are needed for each feature field.
 4. Decode that sample's slice from each field stream.
-5. Reassemble features by walking feature schemas in feature order.
-6. Reassemble the top-level object in `top_keys` order, inserting the restored
-   `features` array at the `features` key.
+5. Reassemble features by walking that chunk's feature schemas in feature order.
+6. Reassemble the top-level object in that chunk's `top_keys` order, inserting
+   the restored `features` array at the `features` key.
 
-## Index Codec Metadata
+## Chunk Codec Metadata
 
-The index stores the codec metadata needed to decode every optimized chunk:
+Each chunk index entry stores the codec metadata needed to decode that optimized
+chunk:
 
 ```text
 top_keys         sorted top-level keys for reduced JSON objects
 value_schemas   object schemas used by generic JSON value encoding
 feature_schemas feature-object key sets used by the schema stream
-feature_fields  sorted union of feature keys across the archive
+feature_fields  sorted union of feature keys across the chunk
 field_codecs    one codec descriptor per feature field
 ```
 
-All samples in an archive must have the same top-level reduced JSON key set.
+All samples in a chunk must have the same top-level reduced JSON key set.
 
 ## Field Codecs
 
@@ -343,5 +350,5 @@ Each value starts with a one-byte tag:
 8 number   JSON number text as string
 ```
 
-Object values refer to `value_schemas` in the archive index. The schema gives
-the sorted key order, so object keys are not repeated in the chunk payload.
+Object values refer to that chunk's `value_schemas`. The schema gives the sorted
+key order, so object keys are not repeated in the chunk payload.

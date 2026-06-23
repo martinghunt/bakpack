@@ -101,19 +101,48 @@ func (s DirSource) Records(ctx context.Context) ([]FileRecord, error) {
 }
 
 func (s DirSource) Get(ctx context.Context, sample string) (FileRecord, error) {
-	records, err := s.Records(ctx)
+	entries, err := os.ReadDir(s.Dir)
 	if err != nil {
 		return FileRecord{}, err
 	}
-	return findRecord(records, sample)
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if sampleIDFromName(entry.Name(), s.Role) != sample {
+			continue
+		}
+		path := filepath.Join(s.Dir, entry.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return FileRecord{}, err
+		}
+		return FileRecord{SampleID: sample, Name: entry.Name(), Bytes: data}, nil
+	}
+	return FileRecord{}, fmt.Errorf("sample %q not found", sample)
 }
 
 func (s DirSource) Order(ctx context.Context) ([]string, error) {
-	records, err := s.Records(ctx)
+	entries, err := os.ReadDir(s.Dir)
 	if err != nil {
 		return nil, err
 	}
-	return recordOrder(records), nil
+	var paths []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if sampleIDFromName(entry.Name(), s.Role) == "" {
+			continue
+		}
+		paths = append(paths, filepath.Join(s.Dir, entry.Name()))
+	}
+	sort.Strings(paths)
+	order := make([]string, 0, len(paths))
+	for _, path := range paths {
+		order = append(order, sampleIDFromName(filepath.Base(path), s.Role))
+	}
+	return order, nil
 }
 
 type ListSource struct {
@@ -164,19 +193,71 @@ func (s ListSource) Records(ctx context.Context) ([]FileRecord, error) {
 }
 
 func (s ListSource) Get(ctx context.Context, sample string) (FileRecord, error) {
-	records, err := s.Records(ctx)
+	entries, err := s.entries()
 	if err != nil {
 		return FileRecord{}, err
 	}
-	return findRecord(records, sample)
+	for _, entry := range entries {
+		if entry.SampleID != sample {
+			continue
+		}
+		data, err := os.ReadFile(entry.Path)
+		if err != nil {
+			return FileRecord{}, err
+		}
+		return FileRecord{SampleID: sample, Name: filepath.Base(entry.Path), Bytes: data}, nil
+	}
+	return FileRecord{}, fmt.Errorf("sample %q not found", sample)
 }
 
 func (s ListSource) Order(ctx context.Context) ([]string, error) {
-	records, err := s.Records(ctx)
+	entries, err := s.entries()
 	if err != nil {
 		return nil, err
 	}
-	return recordOrder(records), nil
+	order := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		order = append(order, entry.SampleID)
+	}
+	return order, nil
+}
+
+type listEntry struct {
+	SampleID string
+	Path     string
+}
+
+func (s ListSource) entries() ([]listEntry, error) {
+	lines, err := os.ReadFile(s.Path)
+	if err != nil {
+		return nil, err
+	}
+	base := filepath.Dir(s.Path)
+	var entries []listEntry
+	for lineNo, raw := range strings.Split(string(lines), "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Fields(line)
+		var sampleID, path string
+		switch len(fields) {
+		case 1:
+			path = fields[0]
+			sampleID = sampleIDFromName(filepath.Base(path), s.Role)
+		default:
+			sampleID = fields[0]
+			path = fields[1]
+		}
+		if sampleID == "" {
+			return nil, fmt.Errorf("%s:%d: cannot infer sample ID", s.Path, lineNo+1)
+		}
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(base, path)
+		}
+		entries = append(entries, listEntry{SampleID: sampleID, Path: path})
+	}
+	return entries, nil
 }
 
 type TarXZSource struct {
@@ -185,60 +266,155 @@ type TarXZSource struct {
 }
 
 func (s TarXZSource) Records(ctx context.Context) ([]FileRecord, error) {
-	file, err := os.Open(s.Path)
+	var records []FileRecord
+	err := streamTarXZRecords(ctx, s, func(record FileRecord) error {
+		records = append(records, record)
+		return nil
+	})
+	return records, err
+}
+
+func (s TarXZSource) Get(ctx context.Context, sample string) (FileRecord, error) {
+	stream, err := newTarXZRecordStream(s)
+	if err != nil {
+		return FileRecord{}, err
+	}
+	defer stream.Close()
+	for {
+		record, ok, err := stream.Next(ctx)
+		if err != nil {
+			return FileRecord{}, err
+		}
+		if !ok {
+			break
+		}
+		if record.SampleID == sample {
+			return record, nil
+		}
+	}
+	return FileRecord{}, fmt.Errorf("sample %q not found", sample)
+}
+
+func (s TarXZSource) Order(ctx context.Context) ([]string, error) {
+	stream, err := newTarXZRecordStream(s)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer stream.Close()
+	var order []string
+	for {
+		sampleID, ok, err := stream.NextSampleID(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			break
+		}
+		order = append(order, sampleID)
+	}
+	return order, nil
+}
+
+func streamTarXZRecords(ctx context.Context, s TarXZSource, fn func(FileRecord) error) error {
+	stream, err := newTarXZRecordStream(s)
+	if err != nil {
+		return err
+	}
+	defer stream.Close()
+	for {
+		record, ok, err := stream.Next(ctx)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return nil
+		}
+		if err := fn(record); err != nil {
+			return err
+		}
+	}
+}
+
+type tarXZRecordStream struct {
+	source TarXZSource
+	file   *os.File
+	xzr    *xz.Reader
+	tr     *tar.Reader
+}
+
+func newTarXZRecordStream(source TarXZSource) (*tarXZRecordStream, error) {
+	file, err := os.Open(source.Path)
+	if err != nil {
+		return nil, err
+	}
 	xzr, err := xz.NewReader(file)
 	if err != nil {
+		file.Close()
 		return nil, err
 	}
 	tr := tar.NewReader(xzr)
-	var records []FileRecord
+	return &tarXZRecordStream{source: source, file: file, xzr: xzr, tr: tr}, nil
+}
+
+func (s *tarXZRecordStream) Close() error {
+	if s.file == nil {
+		return nil
+	}
+	return s.file.Close()
+}
+
+func (s *tarXZRecordStream) Next(ctx context.Context) (FileRecord, bool, error) {
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return FileRecord{}, false, ctx.Err()
 		default:
 		}
-		header, err := tr.Next()
+		header, err := s.tr.Next()
 		if err == io.EOF {
-			break
+			return FileRecord{}, false, nil
 		}
 		if err != nil {
-			return nil, err
+			return FileRecord{}, false, err
 		}
 		if header.Typeflag != tar.TypeReg {
 			continue
 		}
-		sampleID := sampleIDFromName(filepath.Base(header.Name), s.Role)
+		sampleID := sampleIDFromName(filepath.Base(header.Name), s.source.Role)
 		if sampleID == "" {
 			continue
 		}
-		data, err := io.ReadAll(tr)
+		data, err := io.ReadAll(s.tr)
 		if err != nil {
-			return nil, err
+			return FileRecord{}, false, err
 		}
-		records = append(records, FileRecord{SampleID: sampleID, Name: header.Name, Bytes: data})
+		return FileRecord{SampleID: sampleID, Name: header.Name, Bytes: data}, true, nil
 	}
-	return records, nil
 }
 
-func (s TarXZSource) Get(ctx context.Context, sample string) (FileRecord, error) {
-	records, err := s.Records(ctx)
-	if err != nil {
-		return FileRecord{}, err
+func (s *tarXZRecordStream) NextSampleID(ctx context.Context) (string, bool, error) {
+	for {
+		select {
+		case <-ctx.Done():
+			return "", false, ctx.Err()
+		default:
+		}
+		header, err := s.tr.Next()
+		if err == io.EOF {
+			return "", false, nil
+		}
+		if err != nil {
+			return "", false, err
+		}
+		if header.Typeflag != tar.TypeReg {
+			continue
+		}
+		sampleID := sampleIDFromName(filepath.Base(header.Name), s.source.Role)
+		if sampleID == "" {
+			continue
+		}
+		return sampleID, true, nil
 	}
-	return findRecord(records, sample)
-}
-
-func (s TarXZSource) Order(ctx context.Context) ([]string, error) {
-	records, err := s.Records(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return recordOrder(records), nil
 }
 
 type AGCGenomeSource struct {

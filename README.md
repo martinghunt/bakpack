@@ -125,6 +125,7 @@ The current `.bakpack` archive uses:
 - a specialized columnar chunk payload
 
 Within each chunk, Bakta feature values are stored as typed streams instead of repeated JSON objects. High-volume fields get specialized codecs, including contig indexes and sample-local numeric suffix encoding for `id` and `locus`.
+Schemas and field codecs are chunk-local, so archive creation can reduce and encode one chunk of samples at a time.
 
 Extraction reads the front index and only decompresses chunks containing requested samples.
 For HTTP(S) archive URLs, `bakpack` uses byte-range GET requests for the fixed header, compressed index, and requested chunks.

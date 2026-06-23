@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	optimizedPayloadFormat = "specialized_columnar_v8"
+	optimizedPayloadFormat = "specialized_columnar_chunklocal_v9"
 	optimizedChunkMagic    = "BSC8"
 
 	valueTagNull   = 0
@@ -50,6 +50,14 @@ type optimizedArchiveCodec struct {
 	fieldIDs         map[string]int
 }
 
+type optimizedCodecBuilder struct {
+	valueSchemaSet   map[string][]string
+	featureSchemaSet map[string][]string
+	fieldSet         map[string]bool
+	stats            map[string]*fieldStats
+	topKeys          []string
+}
+
 type fieldStats struct {
 	count           int
 	types           map[string]int
@@ -84,78 +92,93 @@ func newOptimizedArchiveCodec(packed []packedSampleForArchive) (*optimizedArchiv
 		return nil, fmt.Errorf("cannot build archive with no samples")
 	}
 
-	valueSchemaSet := map[string][]string{}
-	featureSchemaSet := map[string][]string{}
-	fieldSet := map[string]bool{}
-	stats := map[string]*fieldStats{}
-	var topKeys []string
-
+	builder := newOptimizedCodecBuilder()
 	for i := range packed {
-		root, err := DecodeJSON(packed[i].reduced)
-		if err != nil {
-			return nil, fmt.Errorf("%s: decode reduced JSON: %w", packed[i].index.SampleID, err)
-		}
-		data, ok := root.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("%s: reduced JSON root is not an object", packed[i].index.SampleID)
-		}
-		packed[i].reducedRoot = data
-
-		keys := sortedObjectKeys(data)
-		if topKeys == nil {
-			topKeys = keys
-		} else if !sameStrings(topKeys, keys) {
-			return nil, fmt.Errorf("%s: top-level JSON keys differ from first sample", packed[i].index.SampleID)
-		}
-
-		collectValueSchemas(data, valueSchemaSet)
-		metadata := makeMetadataRecord(data)
-		collectValueSchemas(metadata, valueSchemaSet)
-
-		features, ok := data["features"].([]any)
-		if !ok {
-			return nil, fmt.Errorf("%s: reduced JSON has no features array", packed[i].index.SampleID)
-		}
-		valuesByField := map[string][]any{}
-		for _, item := range features {
-			feature, ok := item.(map[string]any)
-			if !ok {
-				return nil, fmt.Errorf("%s: feature is not an object", packed[i].index.SampleID)
-			}
-			featureKeys := sortedObjectKeys(feature)
-			featureSchemaSet[schemaKey(featureKeys)] = featureKeys
-			for _, key := range featureKeys {
-				value := feature[key]
-				fieldSet[key] = true
-				statsForField := stats[key]
-				if statsForField == nil {
-					statsForField = newFieldStats()
-					stats[key] = statsForField
-				}
-				statsForField.add(value)
-				valuesByField[key] = append(valuesByField[key], value)
-			}
-		}
-		for field, values := range valuesByField {
-			stats[field].addSampleValues(field, values)
+		if err := builder.observeReducedJSON(packed[i].index.SampleID, packed[i].reduced); err != nil {
+			return nil, err
 		}
 	}
+	return builder.finish()
+}
 
-	valueSchemas := makeSchemaEntries(valueSchemaSet)
-	featureSchemas := makeSchemaEntries(featureSchemaSet)
-	featureFields := make([]string, 0, len(fieldSet))
-	for field := range fieldSet {
+func newOptimizedCodecBuilder() *optimizedCodecBuilder {
+	return &optimizedCodecBuilder{
+		valueSchemaSet:   map[string][]string{},
+		featureSchemaSet: map[string][]string{},
+		fieldSet:         map[string]bool{},
+		stats:            map[string]*fieldStats{},
+	}
+}
+
+func (b *optimizedCodecBuilder) observeReducedJSON(sampleID string, reduced []byte) error {
+	root, err := DecodeJSON(reduced)
+	if err != nil {
+		return fmt.Errorf("%s: decode reduced JSON: %w", sampleID, err)
+	}
+	data, ok := root.(map[string]any)
+	if !ok {
+		return fmt.Errorf("%s: reduced JSON root is not an object", sampleID)
+	}
+	keys := sortedObjectKeys(data)
+	if b.topKeys == nil {
+		b.topKeys = keys
+	} else if !sameStrings(b.topKeys, keys) {
+		return fmt.Errorf("%s: top-level JSON keys differ from first sample", sampleID)
+	}
+
+	collectValueSchemas(data, b.valueSchemaSet)
+	metadata := makeMetadataRecord(data)
+	collectValueSchemas(metadata, b.valueSchemaSet)
+
+	features, ok := data["features"].([]any)
+	if !ok {
+		return fmt.Errorf("%s: reduced JSON has no features array", sampleID)
+	}
+	valuesByField := map[string][]any{}
+	for _, item := range features {
+		feature, ok := item.(map[string]any)
+		if !ok {
+			return fmt.Errorf("%s: feature is not an object", sampleID)
+		}
+		featureKeys := sortedObjectKeys(feature)
+		b.featureSchemaSet[schemaKey(featureKeys)] = featureKeys
+		for _, key := range featureKeys {
+			value := feature[key]
+			b.fieldSet[key] = true
+			statsForField := b.stats[key]
+			if statsForField == nil {
+				statsForField = newFieldStats()
+				b.stats[key] = statsForField
+			}
+			statsForField.add(value)
+			valuesByField[key] = append(valuesByField[key], value)
+		}
+	}
+	for field, values := range valuesByField {
+		b.stats[field].addSampleValues(field, values)
+	}
+	return nil
+}
+
+func (b *optimizedCodecBuilder) finish() (*optimizedArchiveCodec, error) {
+	if b.topKeys == nil {
+		return nil, fmt.Errorf("cannot build archive with no samples")
+	}
+	valueSchemas := makeSchemaEntries(b.valueSchemaSet)
+	featureSchemas := makeSchemaEntries(b.featureSchemaSet)
+	featureFields := make([]string, 0, len(b.fieldSet))
+	for field := range b.fieldSet {
 		featureFields = append(featureFields, field)
 	}
 	sort.Strings(featureFields)
 
 	fieldCodecs := make([]FieldCodec, len(featureFields))
 	for i, field := range featureFields {
-		fieldCodecs[i] = chooseFieldCodec(field, stats[field])
+		fieldCodecs[i] = chooseFieldCodec(field, b.stats[field])
 	}
 
 	codec := &optimizedArchiveCodec{
-		TopKeys:        topKeys,
+		TopKeys:        b.topKeys,
 		ValueSchemas:   valueSchemas,
 		FeatureSchemas: featureSchemas,
 		FeatureFields:  featureFields,
@@ -165,13 +188,23 @@ func newOptimizedArchiveCodec(packed []packedSampleForArchive) (*optimizedArchiv
 	return codec, nil
 }
 
-func optimizedCodecFromIndex(index ArchiveIndex) (*optimizedArchiveCodec, error) {
+func optimizedCodecFromChunk(chunk ChunkIndex) (*optimizedArchiveCodec, error) {
+	return optimizedCodecFromMetadata(
+		chunk.TopKeys,
+		chunk.ValueSchemas,
+		chunk.FeatureSchemas,
+		chunk.FeatureFields,
+		chunk.FieldCodecs,
+	)
+}
+
+func optimizedCodecFromMetadata(topKeys []string, valueSchemas []SchemaIndexEntry, featureSchemas []SchemaIndexEntry, featureFields []string, fieldCodecs []FieldCodec) (*optimizedArchiveCodec, error) {
 	codec := &optimizedArchiveCodec{
-		TopKeys:        append([]string(nil), index.TopKeys...),
-		ValueSchemas:   append([]SchemaIndexEntry(nil), index.ValueSchemas...),
-		FeatureSchemas: append([]SchemaIndexEntry(nil), index.FeatureSchemas...),
-		FeatureFields:  append([]string(nil), index.FeatureFields...),
-		FieldCodecs:    append([]FieldCodec(nil), index.FieldCodecs...),
+		TopKeys:        append([]string(nil), topKeys...),
+		ValueSchemas:   append([]SchemaIndexEntry(nil), valueSchemas...),
+		FeatureSchemas: append([]SchemaIndexEntry(nil), featureSchemas...),
+		FeatureFields:  append([]string(nil), featureFields...),
+		FieldCodecs:    append([]FieldCodec(nil), fieldCodecs...),
 	}
 	if len(codec.ValueSchemas) == 0 || len(codec.FeatureFields) != len(codec.FieldCodecs) {
 		return nil, fmt.Errorf("archive index is missing optimized codec metadata")
@@ -206,7 +239,15 @@ func (c *optimizedArchiveCodec) encodeChunk(chunkID int, packed []packedSampleFo
 	for _, sample := range packed {
 		data := sample.reducedRoot
 		if data == nil {
-			return nil, nil, fmt.Errorf("%s: reduced JSON was not decoded before chunk encoding", sample.index.SampleID)
+			root, err := DecodeJSON(sample.reduced)
+			if err != nil {
+				return nil, nil, fmt.Errorf("%s: decode reduced JSON: %w", sample.index.SampleID, err)
+			}
+			var ok bool
+			data, ok = root.(map[string]any)
+			if !ok {
+				return nil, nil, fmt.Errorf("%s: reduced JSON root is not an object", sample.index.SampleID)
+			}
 		}
 		metadata := makeMetadataRecord(data)
 		features, ok := data["features"].([]any)

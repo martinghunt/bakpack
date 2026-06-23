@@ -113,6 +113,7 @@ func newBuildCommand() *cobra.Command {
 	var genomesPath, genomesFormat string
 	var output string
 	var orderPath string
+	var annotationSpoolCompression string
 	var chunkSize int
 	var xzThreads int
 	cmd := &cobra.Command{
@@ -141,12 +142,13 @@ func newBuildCommand() *cobra.Command {
 				return err
 			}
 			return bakpack.BuildArchive(cmd.Context(), bakpack.BuildOptions{
-				Annotations: annotations,
-				Genomes:     genomes,
-				Order:       order,
-				ChunkSize:   chunkSize,
-				OutputPath:  output,
-				XZThreads:   xzThreads,
+				Annotations:                annotations,
+				Genomes:                    genomes,
+				Order:                      order,
+				ChunkSize:                  chunkSize,
+				OutputPath:                 output,
+				XZThreads:                  xzThreads,
+				AnnotationSpoolCompression: annotationSpoolCompression,
 			})
 		},
 	}
@@ -156,6 +158,7 @@ func newBuildCommand() *cobra.Command {
 	cmd.Flags().StringVar(&genomesFormat, "genomes-format", "auto", "Genome source format: auto, dir, list, tar.xz, agc")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output archive path, default annotations.bakpack")
 	cmd.Flags().StringVar(&orderPath, "order", "", "Optional file of sample IDs defining archive order")
+	cmd.Flags().StringVar(&annotationSpoolCompression, "annotation-spool-compression", "gzip", "Temporary annotation spool compression: gzip or none")
 	cmd.Flags().IntVar(&chunkSize, "chunk-size", 25, "Samples per compressed chunk")
 	cmd.Flags().IntVar(&xzThreads, "xz-threads", 1, "Threads passed to xz as -T")
 	return cmd

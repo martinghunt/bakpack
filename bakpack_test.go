@@ -122,8 +122,11 @@ func TestBuildAndExtractArchiveFromTarXZUsesGenomeArchiveOrder(t *testing.T) {
 	if index.PayloadFormat != optimizedPayloadFormat {
 		t.Fatalf("payload format = %q, want %q", index.PayloadFormat, optimizedPayloadFormat)
 	}
+	if len(index.Chunks) != 1 {
+		t.Fatalf("chunk count = %d, want 1", len(index.Chunks))
+	}
 	codecs := map[string]string{}
-	for _, codec := range index.FieldCodecs {
+	for _, codec := range index.Chunks[0].FieldCodecs {
 		codecs[codec.Field] = codec.Kind
 	}
 	if codecs["contig"] != "sequence_index" {
