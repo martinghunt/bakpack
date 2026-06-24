@@ -21,14 +21,22 @@ func newRootCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "bakpack",
 		Short:   "Compress and retrieve Bakta annotation JSON files",
-		Version: buildinfo.Version,
+		Version: displayVersion(buildinfo.Version),
 	}
+	cmd.SetVersionTemplate("{{.Name}} {{.Version}}\n")
 	cmd.AddCommand(newReduceCommand())
 	cmd.AddCommand(newRestoreCommand())
 	cmd.AddCommand(newBuildCommand())
 	cmd.AddCommand(newExtractCommand())
 	cmd.AddCommand(newIndexCommand())
 	return cmd
+}
+
+func displayVersion(raw string) string {
+	if len(raw) > 1 && (raw[0] == 'v' || raw[0] == 'V') && raw[1] >= '0' && raw[1] <= '9' {
+		return raw[1:]
+	}
+	return raw
 }
 
 func newReduceCommand() *cobra.Command {
