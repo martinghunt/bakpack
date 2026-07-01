@@ -62,7 +62,6 @@ Extract an annotation:
 bakpack extract annotations.bakpack SAMPLE \
   --genomes genomes.tar.xz \
   --original \
-  --gff3 \
   --gff3-annotation-only \
   --output-dir out
 ```

@@ -99,7 +99,6 @@ Extract one reconstructed annotation and its genome FASTA:
 bakpack extract annotations.bakpack SAMN1 \
   --genomes genomes.tar.xz \
   --original \
-  --gff3 \
   --gff3-annotation-only \
   --genome \
   --output-dir out

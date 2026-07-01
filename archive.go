@@ -111,7 +111,8 @@ type ExtractRequest struct {
 	Genome bool
 	// GFF3 renders a Bakta-style GFF3 annotation.
 	GFF3 bool
-	// GFF3AnnotationOnly omits the terminal ##FASTA section from GFF3 output.
+	// GFF3AnnotationOnly returns GFF3 output without the terminal ##FASTA section.
+	// It implies GFF3.
 	GFF3AnnotationOnly bool
 	// OnSample is called for each extracted sample. When nil, Extract returns
 	// accumulated results in the same order as Samples.
@@ -945,6 +946,9 @@ func (a *Archive) Extract(ctx context.Context, req ExtractRequest) ([]ExtractedS
 	if a == nil || a.reader == nil {
 		return nil, fmt.Errorf("archive is closed or nil")
 	}
+	if req.GFF3AnnotationOnly {
+		req.GFF3 = true
+	}
 	if !req.Reduced && !req.Original && !req.Genome && !req.GFF3 {
 		req.Reduced = true
 	}
@@ -1074,6 +1078,9 @@ func (a *Archive) Extract(ctx context.Context, req ExtractRequest) ([]ExtractedS
 }
 
 func ExtractArchive(ctx context.Context, opts ExtractOptions) error {
+	if opts.GFF3AnnotationOnly {
+		opts.GFF3 = true
+	}
 	if !opts.Reduced && !opts.Original && !opts.Genome && !opts.GFF3 {
 		opts.Reduced = true
 	}

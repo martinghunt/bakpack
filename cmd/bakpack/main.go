@@ -243,9 +243,6 @@ func newExtractCommand() *cobra.Command {
 				return err
 			}
 			samples = append(samples, fromFile...)
-			if gff3AnnotationOnly && !gff3 {
-				return fmt.Errorf("--gff3-annotation-only requires --gff3")
-			}
 			var genomes bakpack.FileSource
 			if genomesPath != "" {
 				genomes, err = bakpack.OpenSource(genomesPath, genomesFormat, "genome")
@@ -274,7 +271,7 @@ func newExtractCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&original, "original", false, "Write reconstructed original JSON")
 	cmd.Flags().BoolVar(&genome, "genome", false, "Write matching genome FASTA")
 	cmd.Flags().BoolVar(&gff3, "gff3", false, "Write rendered GFF3 annotation")
-	cmd.Flags().BoolVar(&gff3AnnotationOnly, "gff3-annotation-only", false, "Omit the terminal FASTA section from GFF3 output")
+	cmd.Flags().BoolVar(&gff3AnnotationOnly, "gff3-annotation-only", false, "Write GFF3 without the terminal FASTA section")
 	return cmd
 }
 

@@ -16,12 +16,11 @@ support byte-range requests.
 --original   write SAMPLE.bakta.json
 --genome     write SAMPLE.fa
 --gff3       write SAMPLE.gff3
+--gff3-annotation-only
+             write SAMPLE.gff3 without the terminal ##FASTA section
 ```
 
 If no output mode is selected, `--reduced` is used.
-
-Use `--gff3-annotation-only` with `--gff3` to omit the terminal `##FASTA`
-section from the GFF3 output.
 
 Original JSON, genome FASTA, and GFF3 extraction require a genome source:
 
@@ -57,7 +56,6 @@ Extract the reconstructed annotation and GFF3:
 bakpack extract annotations.bakpack SAMPLE \
   --genomes genomes.tar.xz \
   --original \
-  --gff3 \
   --gff3-annotation-only \
   --output-dir out
 ```

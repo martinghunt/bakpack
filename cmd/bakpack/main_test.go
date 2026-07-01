@@ -82,7 +82,6 @@ func TestCLIWorkflowWithDirectoryInputs(t *testing.T) {
 		"--output-dir", outDir,
 		"--original",
 		"--genome",
-		"--gff3",
 		"--gff3-annotation-only",
 	)
 	if err != nil {
