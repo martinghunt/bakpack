@@ -26,6 +26,7 @@ func newRootCommand() *cobra.Command {
 	cmd.SetVersionTemplate("{{.Name}} {{.Version}}\n")
 	cmd.AddCommand(newReduceCommand())
 	cmd.AddCommand(newRestoreCommand())
+	cmd.AddCommand(newGFF3Command())
 	cmd.AddCommand(newBuildCommand())
 	cmd.AddCommand(newExtractCommand())
 	cmd.AddCommand(newIndexCommand())
@@ -116,6 +117,44 @@ func newRestoreCommand() *cobra.Command {
 	return cmd
 }
 
+func newGFF3Command() *cobra.Command {
+	var output string
+	var annotationOnly bool
+	cmd := &cobra.Command{
+		Use:   "gff3 BAKTA_JSON GENOME_FASTA",
+		Short: "Render a Bakta JSON annotation as GFF3",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if output == "" {
+				return fmt.Errorf("--output is required")
+			}
+			annotation, err := os.ReadFile(args[0])
+			if err != nil {
+				return err
+			}
+			genomeBytes, err := os.ReadFile(args[1])
+			if err != nil {
+				return err
+			}
+			sampleID := sampleIDFromPath(args[0], "annotation")
+			genome, err := bakpack.ReadGenome(sampleID, filepath.Base(args[1]), genomeBytes)
+			if err != nil {
+				return err
+			}
+			gff3, err := bakpack.BaktaGFF3WithOptions(annotation, genome, bakpack.BaktaGFF3Options{
+				AnnotationOnly: annotationOnly,
+			})
+			if err != nil {
+				return err
+			}
+			return os.WriteFile(output, gff3, 0o644)
+		},
+	}
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Output GFF3 file")
+	cmd.Flags().BoolVar(&annotationOnly, "annotation-only", false, "Omit the terminal FASTA section")
+	return cmd
+}
+
 func newBuildCommand() *cobra.Command {
 	var annotationsPath, annotationsFormat string
 	var genomesPath, genomesFormat string
@@ -191,7 +230,7 @@ func newExtractCommand() *cobra.Command {
 	var genomesPath, genomesFormat string
 	var outputDir string
 	var samplesFile string
-	var reduced, original, genome bool
+	var reduced, original, genome, gff3, gff3AnnotationOnly bool
 	cmd := &cobra.Command{
 		Use:   "extract ARCHIVE SAMPLE...",
 		Short: "Extract one or more annotations from a .bakpack archive",
@@ -204,6 +243,9 @@ func newExtractCommand() *cobra.Command {
 				return err
 			}
 			samples = append(samples, fromFile...)
+			if gff3AnnotationOnly && !gff3 {
+				return fmt.Errorf("--gff3-annotation-only requires --gff3")
+			}
 			var genomes bakpack.FileSource
 			if genomesPath != "" {
 				genomes, err = bakpack.OpenSource(genomesPath, genomesFormat, "genome")
@@ -212,23 +254,27 @@ func newExtractCommand() *cobra.Command {
 				}
 			}
 			return bakpack.ExtractArchive(cmd.Context(), bakpack.ExtractOptions{
-				ArchivePath: archive,
-				Genomes:     genomes,
-				Samples:     samples,
-				OutputDir:   outputDir,
-				Reduced:     reduced,
-				Original:    original,
-				Genome:      genome,
+				ArchivePath:        archive,
+				Genomes:            genomes,
+				Samples:            samples,
+				OutputDir:          outputDir,
+				Reduced:            reduced,
+				Original:           original,
+				Genome:             genome,
+				GFF3:               gff3,
+				GFF3AnnotationOnly: gff3AnnotationOnly,
 			})
 		},
 	}
-	cmd.Flags().StringVar(&genomesPath, "genomes", "", "Genome source for original JSON/FASTA extraction")
+	cmd.Flags().StringVar(&genomesPath, "genomes", "", "Genome source for original JSON/FASTA/GFF3 extraction")
 	cmd.Flags().StringVar(&genomesFormat, "genomes-format", "auto", "Genome source format: auto, dir, list, manifest, tar.xz, agc")
 	cmd.Flags().StringVarP(&outputDir, "output-dir", "o", ".", "Output directory")
 	cmd.Flags().StringVar(&samplesFile, "samples-file", "", "File of sample IDs to extract")
 	cmd.Flags().BoolVar(&reduced, "reduced", false, "Write reduced JSON")
 	cmd.Flags().BoolVar(&original, "original", false, "Write reconstructed original JSON")
 	cmd.Flags().BoolVar(&genome, "genome", false, "Write matching genome FASTA")
+	cmd.Flags().BoolVar(&gff3, "gff3", false, "Write rendered GFF3 annotation")
+	cmd.Flags().BoolVar(&gff3AnnotationOnly, "gff3-annotation-only", false, "Omit the terminal FASTA section from GFF3 output")
 	return cmd
 }
 

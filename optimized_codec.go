@@ -119,6 +119,9 @@ func (b *optimizedCodecBuilder) observeReducedJSON(sampleID string, reduced []by
 	if !ok {
 		return fmt.Errorf("%s: reduced JSON root is not an object", sampleID)
 	}
+	if err := validateBaktaFeatureTypes(data); err != nil {
+		return fmt.Errorf("%s: %w", sampleID, err)
+	}
 	keys := sortedObjectKeys(data)
 	if b.topKeys == nil {
 		b.topKeys = keys
@@ -208,6 +211,11 @@ func optimizedCodecFromMetadata(topKeys []string, valueSchemas []SchemaIndexEntr
 	}
 	if len(codec.ValueSchemas) == 0 || len(codec.FeatureFields) != len(codec.FieldCodecs) {
 		return nil, fmt.Errorf("archive index is missing optimized codec metadata")
+	}
+	for _, fieldCodec := range codec.FieldCodecs {
+		if err := validateFeatureTypeFieldCodec(fieldCodec); err != nil {
+			return nil, err
+		}
 	}
 	codec.rebuildLookupMaps()
 	return codec, nil
@@ -479,6 +487,9 @@ func (c *optimizedArchiveCodec) decodeSample(chunkBytes []byte, dir optimizedSam
 			return nil, fmt.Errorf("metadata missing top-level key %q", key)
 		}
 		output[key] = value
+	}
+	if err := validateBaktaFeatureTypes(output); err != nil {
+		return nil, err
 	}
 	return output, nil
 }

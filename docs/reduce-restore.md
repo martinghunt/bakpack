@@ -14,6 +14,19 @@ the matching genome FASTA.
 bakpack restore REDUCED_JSON GENOME_FASTA -o BAKTA_JSON
 ```
 
+`bakpack gff3` renders a Bakta-style GFF3 file from original or reduced JSON
+and the matching genome FASTA.
+
+```
+bakpack gff3 BAKTA_JSON GENOME_FASTA -o SAMPLE.gff3
+```
+
+Use `--annotation-only` to omit the terminal `##FASTA` section:
+
+```
+bakpack gff3 BAKTA_JSON GENOME_FASTA -o SAMPLE.gff3 --annotation-only
+```
+
 ## Removed fields
 
 The current reducer can remove:

@@ -64,6 +64,18 @@ Reconstruct original JSON content:
 bakpack restore sample.reduced.bakta.json sample.fa -o sample.bakta.json
 ```
 
+Render a Bakta-style GFF3 file from original or reduced JSON:
+
+```bash
+bakpack gff3 sample.bakta.json sample.fa -o sample.gff3
+```
+
+Omit the terminal FASTA section when only annotation rows are needed:
+
+```bash
+bakpack gff3 sample.bakta.json sample.fa -o sample.gff3 --annotation-only
+```
+
 Build a compressed archive:
 
 ```bash
@@ -87,6 +99,8 @@ Extract one reconstructed annotation and its genome FASTA:
 bakpack extract annotations.bakpack SAMN1 \
   --genomes genomes.tar.xz \
   --original \
+  --gff3 \
+  --gff3-annotation-only \
   --genome \
   --output-dir out
 ```

@@ -69,13 +69,15 @@ type BuildOptions struct {
 }
 
 type ExtractOptions struct {
-	ArchivePath string
-	Genomes     FileSource
-	Samples     []string
-	OutputDir   string
-	Reduced     bool
-	Original    bool
-	Genome      bool
+	ArchivePath        string
+	Genomes            FileSource
+	Samples            []string
+	OutputDir          string
+	Reduced            bool
+	Original           bool
+	Genome             bool
+	GFF3               bool
+	GFF3AnnotationOnly bool
 }
 
 // OpenArchiveOptions configures archive reads.
@@ -97,7 +99,7 @@ type Archive struct {
 
 // ExtractRequest configures extraction from an opened archive.
 type ExtractRequest struct {
-	// Genomes is required when Original or Genome output is requested.
+	// Genomes is required when Original, Genome, or GFF3 output is requested.
 	Genomes FileSource
 	// Samples are the sample IDs to extract.
 	Samples []string
@@ -107,6 +109,10 @@ type ExtractRequest struct {
 	Original bool
 	// Genome returns matching genome FASTA.
 	Genome bool
+	// GFF3 renders a Bakta-style GFF3 annotation.
+	GFF3 bool
+	// GFF3AnnotationOnly omits the terminal ##FASTA section from GFF3 output.
+	GFF3AnnotationOnly bool
 	// OnSample is called for each extracted sample. When nil, Extract returns
 	// accumulated results in the same order as Samples.
 	OnSample func(ExtractedSample) error
@@ -120,6 +126,7 @@ type ExtractedSample struct {
 	ReducedJSON                 []byte
 	OriginalJSON                []byte
 	GenomeFASTA                 []byte
+	GFF3                        []byte
 	OriginalJSONCanonicalSHA256 string
 	ReducedJSONCanonicalSHA256  string
 }
@@ -938,14 +945,14 @@ func (a *Archive) Extract(ctx context.Context, req ExtractRequest) ([]ExtractedS
 	if a == nil || a.reader == nil {
 		return nil, fmt.Errorf("archive is closed or nil")
 	}
-	if !req.Reduced && !req.Original && !req.Genome {
+	if !req.Reduced && !req.Original && !req.Genome && !req.GFF3 {
 		req.Reduced = true
 	}
 	if len(req.Samples) == 0 {
 		return nil, nil
 	}
-	if (req.Original || req.Genome) && req.Genomes == nil {
-		return nil, fmt.Errorf("genome source is required for original JSON or FASTA extraction")
+	if (req.Original || req.Genome || req.GFF3) && req.Genomes == nil {
+		return nil, fmt.Errorf("genome source is required for original JSON, FASTA, or GFF3 extraction")
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -969,7 +976,7 @@ func (a *Archive) Extract(ctx context.Context, req ExtractRequest) ([]ExtractedS
 
 	var genomes genomeRecordProvider
 	var err error
-	if req.Original || req.Genome {
+	if req.Original || req.Genome || req.GFF3 {
 		genomes, err = newGenomeRecordProvider(ctx, req.Genomes, req.Samples)
 		if err != nil {
 			return nil, err
@@ -1001,6 +1008,9 @@ func (a *Archive) Extract(ctx context.Context, req ExtractRequest) ([]ExtractedS
 			if err := verifyReduced(entry, reducedJSON); err != nil {
 				return nil, err
 			}
+			if err := validateBaktaJSONFeatureTypes(reducedJSON); err != nil {
+				return nil, fmt.Errorf("%s: %w", sample, err)
+			}
 			result := ExtractedSample{
 				SampleID:                    sample,
 				AnnotationName:              entry.AnnotationName,
@@ -1012,7 +1022,7 @@ func (a *Archive) Extract(ctx context.Context, req ExtractRequest) ([]ExtractedS
 				result.ReducedJSON = append([]byte(nil), reducedJSON...)
 			}
 			var genome Genome
-			if req.Original || req.Genome {
+			if req.Original || req.Genome || req.GFF3 {
 				record, err := genomes.Get(ctx, sample)
 				if err != nil {
 					return nil, err
@@ -1024,6 +1034,15 @@ func (a *Archive) Extract(ctx context.Context, req ExtractRequest) ([]ExtractedS
 				if req.Genome {
 					result.GenomeFASTA = genome.FASTABytes(80)
 				}
+			}
+			if req.GFF3 {
+				gff3, err := BaktaGFF3WithOptions(reducedJSON, genome, BaktaGFF3Options{
+					AnnotationOnly: req.GFF3AnnotationOnly,
+				})
+				if err != nil {
+					return nil, err
+				}
+				result.GFF3 = gff3
 			}
 			if req.Original {
 				restored, err := RestoreBaktaJSON(reducedJSON, genome)
@@ -1055,14 +1074,14 @@ func (a *Archive) Extract(ctx context.Context, req ExtractRequest) ([]ExtractedS
 }
 
 func ExtractArchive(ctx context.Context, opts ExtractOptions) error {
-	if !opts.Reduced && !opts.Original && !opts.Genome {
+	if !opts.Reduced && !opts.Original && !opts.Genome && !opts.GFF3 {
 		opts.Reduced = true
 	}
 	if len(opts.Samples) == 0 {
 		return nil
 	}
-	if (opts.Original || opts.Genome) && opts.Genomes == nil {
-		return fmt.Errorf("genome source is required for original JSON or FASTA extraction")
+	if (opts.Original || opts.Genome || opts.GFF3) && opts.Genomes == nil {
+		return fmt.Errorf("genome source is required for original JSON, FASTA, or GFF3 extraction")
 	}
 	outputDir := opts.OutputDir
 	if outputDir == "" {
@@ -1079,11 +1098,13 @@ func ExtractArchive(ctx context.Context, opts ExtractOptions) error {
 	defer archive.Close()
 
 	_, err = archive.Extract(ctx, ExtractRequest{
-		Genomes:  opts.Genomes,
-		Samples:  opts.Samples,
-		Reduced:  opts.Reduced,
-		Original: opts.Original,
-		Genome:   opts.Genome,
+		Genomes:            opts.Genomes,
+		Samples:            opts.Samples,
+		Reduced:            opts.Reduced,
+		Original:           opts.Original,
+		Genome:             opts.Genome,
+		GFF3:               opts.GFF3,
+		GFF3AnnotationOnly: opts.GFF3AnnotationOnly,
 		OnSample: func(sample ExtractedSample) error {
 			if opts.Genome {
 				if err := os.WriteFile(filepath.Join(outputDir, sample.SampleID+".fa"), sample.GenomeFASTA, 0o644); err != nil {
@@ -1097,6 +1118,11 @@ func ExtractArchive(ctx context.Context, opts ExtractOptions) error {
 			}
 			if opts.Original {
 				if err := os.WriteFile(filepath.Join(outputDir, sample.SampleID+".bakta.json"), sample.OriginalJSON, 0o644); err != nil {
+					return err
+				}
+			}
+			if opts.GFF3 {
+				if err := os.WriteFile(filepath.Join(outputDir, sample.SampleID+".gff3"), sample.GFF3, 0o644); err != nil {
 					return err
 				}
 			}

@@ -43,6 +43,9 @@ func ReduceBaktaJSON(original []byte, genome Genome) (ReduceResult, error) {
 	if _, exists := data[reducedMetadataKey]; exists {
 		return ReduceResult{}, fmt.Errorf("Bakta JSON uses reserved top-level key %q", reducedMetadataKey)
 	}
+	if err := validateBaktaFeatureTypes(data); err != nil {
+		return ReduceResult{}, err
+	}
 
 	stripContigSequences(data, genome)
 	table := translationTable(data)
@@ -106,6 +109,9 @@ func RestoreBaktaJSON(reduced []byte, genome Genome) (RestoreResult, error) {
 	if err != nil {
 		return RestoreResult{}, err
 	}
+	if err := validateBaktaFeatureTypes(data); err != nil {
+		return RestoreResult{}, err
+	}
 	delete(data, reducedMetadataKey)
 
 	restoreDerivableFields(data, genome)
@@ -117,9 +123,9 @@ func RestoreBaktaJSON(reduced []byte, genome Genome) (RestoreResult, error) {
 		if !ok {
 			continue
 		}
-		featureType, _ := feature["type"].(string)
-		shouldHaveNT := featureType != "gap" && hasFeatureCoords(feature)
-		shouldHaveAA := featureType == "cds" || featureType == "sorf" || feature["aa_hexdigest"] != nil
+		info, _ := baktaFeatureTypeString(feature)
+		shouldHaveNT := !info.Gap && hasFeatureCoords(feature)
+		shouldHaveAA := info.Protein || feature["aa_hexdigest"] != nil
 		nt, haveNT := FeatureNT(feature, genome)
 		if shouldHaveNT && haveNT {
 			if _, exists := feature["nt"]; !exists {
@@ -322,8 +328,8 @@ func stripFeatureDerivableFields(data map[string]any, genome Genome) {
 		}
 
 		if existing, exists := feature["start_type"]; exists {
-			featureType, _ := feature["type"].(string)
-			if featureType == "cds" {
+			info, _ := baktaFeatureTypeString(feature)
+			if info.StartCodon {
 				if !haveNT {
 					nt, haveNT = FeatureNT(feature, genome)
 				}
@@ -343,8 +349,8 @@ func stripFeatureDerivableFields(data map[string]any, genome Genome) {
 		}
 
 		if existing, exists := feature["length"]; exists {
-			featureType, _ := feature["type"].(string)
-			if span, ok := featureSpan(feature, genome); ok && featureType == "gap" && jsonValuesEqual(existing, span) {
+			info, _ := baktaFeatureTypeString(feature)
+			if span, ok := featureSpan(feature, genome); ok && info.Gap && jsonValuesEqual(existing, span) {
 				delete(feature, "length")
 			}
 		}
@@ -370,8 +376,8 @@ func restoreFeatureDerivableFields(data map[string]any, genome Genome) {
 			}
 		}
 
-		featureType, _ := feature["type"].(string)
-		if _, exists := feature["start_type"]; !exists && featureType == "cds" {
+		info, _ := baktaFeatureTypeString(feature)
+		if _, exists := feature["start_type"]; !exists && info.StartCodon {
 			if !haveNT {
 				nt, haveNT = FeatureNT(feature, genome)
 			}
@@ -387,7 +393,7 @@ func restoreFeatureDerivableFields(data map[string]any, genome Genome) {
 			}
 		}
 
-		if _, exists := feature["length"]; !exists && featureType == "gap" {
+		if _, exists := feature["length"]; !exists && info.Gap {
 			if span, ok := featureSpan(feature, genome); ok {
 				feature["length"] = span
 			}
@@ -441,8 +447,13 @@ func n50(lengths []int) int {
 }
 
 func isProteinFeature(feature map[string]any) bool {
+	info, ok := baktaFeatureTypeString(feature)
+	return ok && info.Protein
+}
+
+func baktaFeatureTypeString(feature map[string]any) (baktaFeatureTypeInfo, bool) {
 	featureType, _ := feature["type"].(string)
-	return featureType == "cds" || featureType == "sorf"
+	return baktaFeatureType(featureType)
 }
 
 func firstCodon(nt string) string {
