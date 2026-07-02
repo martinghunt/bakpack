@@ -263,6 +263,53 @@ func TestArchiveExtractReturnsBytesInRequestedOrder(t *testing.T) {
 	if got := countingGenomes.calls; len(got) != 2 {
 		t.Fatalf("genome fetches = %v, want two lazy fetches", got)
 	}
+
+	filesDir := filepath.Join(dir, "extract-files")
+	var writtenSamples []string
+	if err := archive.ExtractFiles(ctx, ExtractRequest{
+		Genomes:            genomes,
+		Samples:            []string{"sampleA"},
+		Original:           true,
+		Genome:             true,
+		GFF3AnnotationOnly: true,
+		OnSample: func(sample ExtractedSample) error {
+			writtenSamples = append(writtenSamples, sample.SampleID)
+			if len(sample.OriginalJSON) == 0 || len(sample.GenomeFASTA) == 0 || len(sample.GFF3) == 0 {
+				return fmt.Errorf("missing extracted bytes for %s", sample.SampleID)
+			}
+			return nil
+		},
+	}, filesDir); err != nil {
+		t.Fatalf("Archive.ExtractFiles() error = %v", err)
+	}
+	if len(writtenSamples) != 1 || writtenSamples[0] != "sampleA" {
+		t.Fatalf("Archive.ExtractFiles() callback samples = %v, want [sampleA]", writtenSamples)
+	}
+	assertCanonicalFileEqual(t, filepath.Join(filesDir, "sampleA.bakta.json"), toyBaktaJSON("sampleA", "gene A"))
+	genomeOut, err := os.ReadFile(filepath.Join(filesDir, "sampleA.fa"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(genomeOut, []byte(">contig1")) || !bytes.Contains(genomeOut, []byte("ATGAAATAA")) {
+		t.Fatalf("Archive.ExtractFiles() genome FASTA not written correctly: %s", genomeOut)
+	}
+	gff3Out, err := os.ReadFile(filepath.Join(filesDir, "sampleA.gff3"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(gff3Out, []byte("##FASTA")) {
+		t.Fatalf("Archive.ExtractFiles() annotation-only GFF3 contains FASTA section: %s", gff3Out)
+	}
+
+	defaultFilesDir := filepath.Join(dir, "extract-files-default")
+	if err := archive.ExtractFiles(ctx, ExtractRequest{
+		Samples: []string{"sampleB"},
+	}, defaultFilesDir); err != nil {
+		t.Fatalf("Archive.ExtractFiles() default mode error = %v", err)
+	}
+	if _, err := os.ReadFile(filepath.Join(defaultFilesDir, "sampleB.reduced.bakta.json")); err != nil {
+		t.Fatalf("Archive.ExtractFiles() default reduced output not written: %v", err)
+	}
 }
 
 func TestBuildArchiveFromDirectoryAnnotationsAndGenomeList(t *testing.T) {

@@ -307,6 +307,48 @@ func (a *Archive) Extract(ctx context.Context, req ExtractRequest) ([]ExtractedS
 	return collectExtractedSamples(req.Samples, resultsBySample), nil
 }
 
+// ExtractFiles extracts one or more samples and writes the selected outputs to
+// outputDir using the same filenames as the CLI: SAMPLE.reduced.bakta.json,
+// SAMPLE.bakta.json, SAMPLE.fa, and SAMPLE.gff3. If no output mode is selected,
+// reduced JSON files are written. If outputDir is empty, "." is used.
+//
+// ExtractFiles streams samples through OnSample and does not accumulate output
+// bytes in memory. If req.OnSample is set, it is called after files for that
+// sample have been written.
+func (a *Archive) ExtractFiles(ctx context.Context, req ExtractRequest, outputDir string) error {
+	var err error
+	ctx, req, err = normalizeExtractRequest(ctx, req)
+	if err != nil {
+		return err
+	}
+	if len(req.Samples) == 0 {
+		return nil
+	}
+	if outputDir == "" {
+		outputDir = "."
+	}
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return err
+	}
+
+	onSample := req.OnSample
+	req.OnSample = func(sample ExtractedSample) error {
+		if err := writeExtractedSampleOutputs(outputDir, req, sample); err != nil {
+			return err
+		}
+		if onSample != nil {
+			return onSample(sample)
+		}
+		return nil
+	}
+	_, err = a.Extract(ctx, req)
+	return err
+}
+
+// ExtractArchive opens opts.ArchivePath and writes the selected sample outputs
+// to opts.OutputDir using the same filenames as the CLI. It is a convenience
+// wrapper around OpenArchive and Archive.ExtractFiles for callers that do not
+// need to keep the archive open across requests.
 func ExtractArchive(ctx context.Context, opts ExtractOptions) error {
 	req := extractRequestFromOptions(opts)
 	var err error
@@ -318,25 +360,13 @@ func ExtractArchive(ctx context.Context, opts ExtractOptions) error {
 		return nil
 	}
 
-	outputDir := opts.OutputDir
-	if outputDir == "" {
-		outputDir = "."
-	}
-	if err := os.MkdirAll(outputDir, 0o755); err != nil {
-		return err
-	}
-
-	archive, err := OpenArchive(ctx, opts.ArchivePath)
+	archive, err := OpenArchive(ctx, opts.ArchivePath, opts.OpenOptions)
 	if err != nil {
 		return err
 	}
 	defer archive.Close()
 
-	req.OnSample = func(sample ExtractedSample) error {
-		return writeExtractedSampleOutputs(outputDir, req, sample)
-	}
-	_, err = archive.Extract(ctx, req)
-	return err
+	return archive.ExtractFiles(ctx, req, opts.OutputDir)
 }
 
 func verifyReduced(entry SampleIndex, reducedJSON []byte) error {

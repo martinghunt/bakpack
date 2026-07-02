@@ -120,3 +120,32 @@ bakpack extract annotations.bakpack SAMN1 SAMN2 SAMN3 \
   --reduced \
   --output-dir out
 ```
+
+## Go library
+
+Import the root package from another Go module:
+
+```go
+import "github.com/martinghunt/bakpack"
+```
+
+Use `Archive.Extract` for extracted bytes, or `Archive.ExtractFiles` /
+`ExtractArchive` to write the same files as the CLI from library code:
+
+```go
+archive, err := bakpack.OpenArchive(ctx, "annotations.bakpack")
+if err != nil {
+	panic(err)
+}
+defer archive.Close()
+
+err = archive.ExtractFiles(ctx, bakpack.ExtractRequest{
+	Genomes:  genomes,
+	Samples:  []string{"SAMN1"},
+	Original: true,
+	Genome:   true,
+}, "out")
+```
+
+See [Library usage](https://bakpack.readthedocs.io/en/latest/library/) for the
+full API examples.

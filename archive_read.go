@@ -12,6 +12,8 @@ import (
 	"os"
 )
 
+// OpenArchive opens a local .bakpack path or HTTP(S) URL. HTTP(S) archives are
+// read with byte-range requests.
 func OpenArchive(ctx context.Context, path string, opts ...OpenArchiveOptions) (*Archive, error) {
 	openOpts, err := mergeOpenArchiveOptions(opts)
 	if err != nil {
@@ -67,6 +69,8 @@ func (a *Archive) SampleIDs() []string {
 	return samples
 }
 
+// ReadArchiveIndex reads the front index from a local or HTTP(S) archive using
+// a background context.
 func ReadArchiveIndex(path string) (ArchiveIndex, error) {
 	return ReadArchiveIndexContext(context.Background(), path)
 }

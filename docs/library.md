@@ -71,6 +71,52 @@ and file lists are fetched one sample at a time. `.tar.xz` genome sources are
 streamed once and selected genomes are kept in memory, which avoids repeatedly
 decompressing the same tar archive.
 
+## Extract files to a directory
+
+Use `Archive.ExtractFiles` when another Go program wants the standard bakpack
+output files instead of in-memory byte slices:
+
+```go
+err = archive.ExtractFiles(ctx, bakpack.ExtractRequest{
+	Genomes:            genomes,
+	Samples:            []string{"sampleA", "sampleB"},
+	Original:           true,
+	Genome:             true,
+	GFF3AnnotationOnly: true,
+}, "out")
+if err != nil {
+	panic(err)
+}
+```
+
+This writes files named like the CLI output:
+
+```text
+out/sampleA.bakta.json
+out/sampleA.fa
+out/sampleA.gff3
+```
+
+If no output mode is selected, `ExtractFiles` writes reduced JSON files named
+`SAMPLE.reduced.bakta.json`.
+
+For a one-shot call that opens the archive, writes files, and closes it, use
+`ExtractArchive`:
+
+```go
+err = bakpack.ExtractArchive(ctx, bakpack.ExtractOptions{
+	ArchivePath:        "https://example.org/annotations.bakpack",
+	Genomes:            genomes,
+	Samples:            []string{"sampleA"},
+	OutputDir:          "out",
+	Original:           true,
+	GFF3AnnotationOnly: true,
+})
+if err != nil {
+	panic(err)
+}
+```
+
 Pass a custom HTTP client when the remote archive needs specific timeouts,
 headers, transport settings, or authentication:
 
@@ -79,6 +125,9 @@ archive, err := bakpack.OpenArchive(ctx, archiveURL, bakpack.OpenArchiveOptions{
 	HTTPClient: client,
 })
 ```
+
+The same setting is available on one-shot file extraction through
+`ExtractOptions.OpenOptions`.
 
 ## Render GFF3
 
@@ -170,6 +219,7 @@ Core entry points:
 ```go
 archive, err := bakpack.OpenArchive(ctx, archivePath)
 results, err := archive.Extract(ctx, bakpack.ExtractRequest{...})
+err := archive.ExtractFiles(ctx, bakpack.ExtractRequest{...}, "out")
 index, err := bakpack.ReadArchiveIndexContext(ctx, archivePath)
 genome, err := bakpack.ReadGenome(sampleID, filename, fastaBytes)
 reduced, err := bakpack.ReduceBaktaJSON(originalJSON, genome)

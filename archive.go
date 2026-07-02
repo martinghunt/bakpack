@@ -51,15 +51,30 @@ type BuildOptions struct {
 	AnnotationSpoolCompression string
 }
 
+// ExtractOptions configures one-shot extraction from an archive path or
+// HTTP(S) URL to files on disk.
 type ExtractOptions struct {
-	ArchivePath        string
-	Genomes            FileSource
-	Samples            []string
-	OutputDir          string
-	Reduced            bool
-	Original           bool
-	Genome             bool
-	GFF3               bool
+	// ArchivePath is a local .bakpack path or HTTP(S) URL.
+	ArchivePath string
+	// OpenOptions configures archive reads, including custom HTTP clients for
+	// HTTP(S) archives.
+	OpenOptions OpenArchiveOptions
+	// Genomes is required when Original, Genome, or GFF3 output is requested.
+	Genomes FileSource
+	// Samples are the sample IDs to extract.
+	Samples []string
+	// OutputDir receives extracted files. If empty, "." is used.
+	OutputDir string
+	// Reduced writes SAMPLE.reduced.bakta.json.
+	Reduced bool
+	// Original writes SAMPLE.bakta.json.
+	Original bool
+	// Genome writes SAMPLE.fa.
+	Genome bool
+	// GFF3 writes SAMPLE.gff3.
+	GFF3 bool
+	// GFF3AnnotationOnly writes SAMPLE.gff3 without the terminal ##FASTA
+	// section. It implies GFF3.
 	GFF3AnnotationOnly bool
 }
 
