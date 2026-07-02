@@ -166,12 +166,7 @@ func BuildArchive(ctx context.Context, opts BuildOptions) error {
 	return buildArchiveFromIndexedSources(ctx, opts, chunkSize)
 }
 
-func buildArchiveFromIndexedSources(ctx context.Context, opts BuildOptions, chunkSize int) error {
-	order, err := buildOrderFromSources(ctx, opts)
-	if err != nil {
-		return err
-	}
-
+func buildArchiveFromChunks(opts BuildOptions, chunkSize int, buildChunks func(io.Writer) ([]ChunkIndex, []SampleIndex, error)) error {
 	chunkFile, err := os.CreateTemp(filepath.Dir(opts.OutputPath), ".bakpack-chunks-*")
 	if err != nil {
 		return err
@@ -179,7 +174,7 @@ func buildArchiveFromIndexedSources(ctx context.Context, opts BuildOptions, chun
 	defer os.Remove(chunkFile.Name())
 	defer chunkFile.Close()
 
-	chunks, samples, err := makeArchiveChunksFromIndexedSources(ctx, opts, order, chunkSize, chunkFile)
+	chunks, samples, err := buildChunks(chunkFile)
 	if err != nil {
 		return err
 	}
@@ -198,40 +193,77 @@ func buildArchiveFromIndexedSources(ctx context.Context, opts BuildOptions, chun
 	return writeArchiveFile(opts.OutputPath, index, opts, chunkFile)
 }
 
-func makeArchiveChunksFromIndexedSources(ctx context.Context, opts BuildOptions, order []string, chunkSize int, chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
-	var chunks []ChunkIndex
-	var samples []SampleIndex
-	var batch []packedSampleForArchive
-	var relativeOffset int64
-	chunkID := 0
+type archiveChunkBatcher struct {
+	opts           BuildOptions
+	chunkSize      int
+	chunkWriter    io.Writer
+	chunks         []ChunkIndex
+	samples        []SampleIndex
+	batch          []packedSampleForArchive
+	relativeOffset int64
+	chunkID        int
+}
 
-	flush := func() error {
-		if len(batch) == 0 {
-			return nil
-		}
-		chunk, sampleIndexes, compressed, err := encodeArchiveChunk(chunkID, batch, opts)
-		if err != nil {
-			return err
-		}
-		written, err := chunkWriter.Write(compressed)
-		if err != nil {
-			return err
-		}
-		if written != len(compressed) {
-			return io.ErrShortWrite
-		}
-		chunk.Offset = relativeOffset
-		chunks = append(chunks, chunk)
-		relativeOffset += int64(len(compressed))
-		samples = append(samples, sampleIndexes...)
-		for i := range batch {
-			batch[i].reduced = nil
-			batch[i].reducedRoot = nil
-		}
-		batch = batch[:0]
-		chunkID++
+func newArchiveChunkBatcher(opts BuildOptions, chunkSize int, chunkWriter io.Writer) *archiveChunkBatcher {
+	return &archiveChunkBatcher{
+		opts:        opts,
+		chunkSize:   chunkSize,
+		chunkWriter: chunkWriter,
+	}
+}
+
+func (b *archiveChunkBatcher) add(packed packedSampleForArchive) error {
+	b.batch = append(b.batch, packed)
+	if len(b.batch) == b.chunkSize {
+		return b.flush()
+	}
+	return nil
+}
+
+func (b *archiveChunkBatcher) flush() error {
+	if len(b.batch) == 0 {
 		return nil
 	}
+	chunk, sampleIndexes, compressed, err := encodeArchiveChunk(b.chunkID, b.batch, b.opts)
+	if err != nil {
+		return err
+	}
+	written, err := b.chunkWriter.Write(compressed)
+	if err != nil {
+		return err
+	}
+	if written != len(compressed) {
+		return io.ErrShortWrite
+	}
+	chunk.Offset = b.relativeOffset
+	b.chunks = append(b.chunks, chunk)
+	b.relativeOffset += int64(len(compressed))
+	b.samples = append(b.samples, sampleIndexes...)
+	for i := range b.batch {
+		b.batch[i].reduced = nil
+		b.batch[i].reducedRoot = nil
+	}
+	b.batch = b.batch[:0]
+	b.chunkID++
+	return nil
+}
+
+func (b *archiveChunkBatcher) indexes() ([]ChunkIndex, []SampleIndex) {
+	return b.chunks, b.samples
+}
+
+func buildArchiveFromIndexedSources(ctx context.Context, opts BuildOptions, chunkSize int) error {
+	order, err := buildOrderFromSources(ctx, opts)
+	if err != nil {
+		return err
+	}
+	return buildArchiveFromChunks(opts, chunkSize, func(chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
+		return makeArchiveChunksFromIndexedSources(ctx, opts, order, chunkSize, chunkWriter)
+	})
+}
+
+func makeArchiveChunksFromIndexedSources(ctx context.Context, opts BuildOptions, order []string, chunkSize int, chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
+	batcher := newArchiveChunkBatcher(opts, chunkSize, chunkWriter)
 
 	for _, sample := range order {
 		select {
@@ -243,97 +275,39 @@ func makeArchiveChunksFromIndexedSources(ctx context.Context, opts BuildOptions,
 		if err != nil {
 			return nil, nil, err
 		}
-		batch = append(batch, packed)
-		if len(batch) == chunkSize {
-			if err := flush(); err != nil {
-				return nil, nil, err
-			}
+		if err := batcher.add(packed); err != nil {
+			return nil, nil, err
 		}
 	}
-	if err := flush(); err != nil {
+	if err := batcher.flush(); err != nil {
 		return nil, nil, err
 	}
+	chunks, samples := batcher.indexes()
 	return chunks, samples, nil
 }
 
 func buildArchiveFromPairedTarXZ(ctx context.Context, opts BuildOptions, annotationsTar, genomesTar TarXZSource, chunkSize int) error {
-	chunkFile, err := os.CreateTemp(filepath.Dir(opts.OutputPath), ".bakpack-chunks-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(chunkFile.Name())
-	defer chunkFile.Close()
-
-	chunks, samples, err := makeArchiveChunksFromPairedTarXZ(ctx, opts, annotationsTar, genomesTar, chunkSize, chunkFile)
-	if err != nil {
-		return err
-	}
-	if _, err := chunkFile.Seek(0, io.SeekStart); err != nil {
-		return err
-	}
-
-	index := ArchiveIndex{
-		Format:        "bakpack",
-		Version:       ArchiveVersion,
-		PayloadFormat: optimizedPayloadFormat,
-		ChunkSize:     chunkSize,
-		Chunks:        chunks,
-		Samples:       samples,
-	}
-	return writeArchiveFile(opts.OutputPath, index, opts, chunkFile)
+	return buildArchiveFromChunks(opts, chunkSize, func(chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
+		return makeArchiveChunksFromPairedTarXZ(ctx, opts, annotationsTar, genomesTar, chunkSize, chunkWriter)
+	})
 }
 
 func makeArchiveChunksFromPairedTarXZ(ctx context.Context, opts BuildOptions, annotationsTar, genomesTar TarXZSource, chunkSize int, chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
-	var chunks []ChunkIndex
-	var samples []SampleIndex
-	var batch []packedSampleForArchive
-	var relativeOffset int64
-	chunkID := 0
-
-	flush := func() error {
-		if len(batch) == 0 {
-			return nil
-		}
-		chunk, sampleIndexes, compressed, err := encodeArchiveChunk(chunkID, batch, opts)
-		if err != nil {
-			return err
-		}
-		written, err := chunkWriter.Write(compressed)
-		if err != nil {
-			return err
-		}
-		if written != len(compressed) {
-			return io.ErrShortWrite
-		}
-		chunk.Offset = relativeOffset
-		chunks = append(chunks, chunk)
-		relativeOffset += int64(len(compressed))
-		samples = append(samples, sampleIndexes...)
-		for i := range batch {
-			batch[i].reduced = nil
-			batch[i].reducedRoot = nil
-		}
-		batch = batch[:0]
-		chunkID++
-		return nil
-	}
+	batcher := newArchiveChunkBatcher(opts, chunkSize, chunkWriter)
 
 	if err := streamPairedTarXZRecords(ctx, annotationsTar, genomesTar, func(annotation, genomeRecord FileRecord) error {
 		packed, err := packReducedSample(annotation.SampleID, annotation, genomeRecord)
 		if err != nil {
 			return err
 		}
-		batch = append(batch, packed)
-		if len(batch) == chunkSize {
-			return flush()
-		}
-		return nil
+		return batcher.add(packed)
 	}); err != nil {
 		return nil, nil, err
 	}
-	if err := flush(); err != nil {
+	if err := batcher.flush(); err != nil {
 		return nil, nil, err
 	}
+	chunks, samples := batcher.indexes()
 	return chunks, samples, nil
 }
 
@@ -363,30 +337,9 @@ func buildArchiveFromSpooledAnnotationTar(ctx context.Context, opts BuildOptions
 		return err
 	}
 
-	chunkFile, err := os.CreateTemp(filepath.Dir(opts.OutputPath), ".bakpack-chunks-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(chunkFile.Name())
-	defer chunkFile.Close()
-
-	chunks, samples, err := makeArchiveChunksFromSpooledAnnotations(ctx, opts, annotations, order, chunkSize, chunkFile)
-	if err != nil {
-		return err
-	}
-	if _, err := chunkFile.Seek(0, io.SeekStart); err != nil {
-		return err
-	}
-
-	index := ArchiveIndex{
-		Format:        "bakpack",
-		Version:       ArchiveVersion,
-		PayloadFormat: optimizedPayloadFormat,
-		ChunkSize:     chunkSize,
-		Chunks:        chunks,
-		Samples:       samples,
-	}
-	return writeArchiveFile(opts.OutputPath, index, opts, chunkFile)
+	return buildArchiveFromChunks(opts, chunkSize, func(chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
+		return makeArchiveChunksFromSpooledAnnotations(ctx, opts, annotations, order, chunkSize, chunkWriter)
+	})
 }
 
 func spoolAnnotationTar(ctx context.Context, annotationsTar TarXZSource, spoolDir, spoolCompression string) (map[string]spooledAnnotation, error) {
@@ -426,56 +379,21 @@ func buildOrderFromSpooledAnnotations(ctx context.Context, opts BuildOptions, an
 }
 
 func makeArchiveChunksFromSpooledAnnotations(ctx context.Context, opts BuildOptions, annotations map[string]spooledAnnotation, order []string, chunkSize int, chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
-	var chunks []ChunkIndex
-	var samples []SampleIndex
-	var batch []packedSampleForArchive
-	var relativeOffset int64
-	chunkID := 0
-
-	flush := func() error {
-		if len(batch) == 0 {
-			return nil
-		}
-		chunk, sampleIndexes, compressed, err := encodeArchiveChunk(chunkID, batch, opts)
-		if err != nil {
-			return err
-		}
-		written, err := chunkWriter.Write(compressed)
-		if err != nil {
-			return err
-		}
-		if written != len(compressed) {
-			return io.ErrShortWrite
-		}
-		chunk.Offset = relativeOffset
-		chunks = append(chunks, chunk)
-		relativeOffset += int64(len(compressed))
-		samples = append(samples, sampleIndexes...)
-		for i := range batch {
-			batch[i].reduced = nil
-			batch[i].reducedRoot = nil
-		}
-		batch = batch[:0]
-		chunkID++
-		return nil
-	}
+	batcher := newArchiveChunkBatcher(opts, chunkSize, chunkWriter)
 
 	err := forEachSpooledAnnotationSample(ctx, opts, annotations, order, func(packed packedSampleForArchive) error {
-		batch = append(batch, packed)
 		if annotation, ok := annotations[packed.index.SampleID]; ok {
 			_ = os.Remove(annotation.Path)
 		}
-		if len(batch) == chunkSize {
-			return flush()
-		}
-		return nil
+		return batcher.add(packed)
 	})
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := flush(); err != nil {
+	if err := batcher.flush(); err != nil {
 		return nil, nil, err
 	}
+	chunks, samples := batcher.indexes()
 	return chunks, samples, nil
 }
 
