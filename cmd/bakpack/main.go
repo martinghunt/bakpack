@@ -47,19 +47,10 @@ func newReduceCommand() *cobra.Command {
 		Short: "Write reduced Bakta JSON by removing genome-derived fields",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if output == "" {
-				return fmt.Errorf("--output is required")
-			}
-			annotation, err := os.ReadFile(args[0])
-			if err != nil {
+			if err := requireOutput(output); err != nil {
 				return err
 			}
-			genomeBytes, err := os.ReadFile(args[1])
-			if err != nil {
-				return err
-			}
-			sampleID := sampleIDFromPath(args[0], "annotation")
-			genome, err := bakpack.ReadGenome(sampleID, filepath.Base(args[1]), genomeBytes)
+			annotation, genome, err := readJSONAndGenome(args[0], args[1])
 			if err != nil {
 				return err
 			}
@@ -86,19 +77,10 @@ func newRestoreCommand() *cobra.Command {
 		Short: "Recreate original Bakta JSON content from reduced JSON and genome FASTA",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if output == "" {
-				return fmt.Errorf("--output is required")
-			}
-			reduced, err := os.ReadFile(args[0])
-			if err != nil {
+			if err := requireOutput(output); err != nil {
 				return err
 			}
-			genomeBytes, err := os.ReadFile(args[1])
-			if err != nil {
-				return err
-			}
-			sampleID := sampleIDFromPath(args[0], "annotation")
-			genome, err := bakpack.ReadGenome(sampleID, filepath.Base(args[1]), genomeBytes)
+			reduced, genome, err := readJSONAndGenome(args[0], args[1])
 			if err != nil {
 				return err
 			}
@@ -125,19 +107,10 @@ func newGFF3Command() *cobra.Command {
 		Short: "Render a Bakta JSON annotation as GFF3",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if output == "" {
-				return fmt.Errorf("--output is required")
-			}
-			annotation, err := os.ReadFile(args[0])
-			if err != nil {
+			if err := requireOutput(output); err != nil {
 				return err
 			}
-			genomeBytes, err := os.ReadFile(args[1])
-			if err != nil {
-				return err
-			}
-			sampleID := sampleIDFromPath(args[0], "annotation")
-			genome, err := bakpack.ReadGenome(sampleID, filepath.Base(args[1]), genomeBytes)
+			annotation, genome, err := readJSONAndGenome(args[0], args[1])
 			if err != nil {
 				return err
 			}
@@ -153,6 +126,30 @@ func newGFF3Command() *cobra.Command {
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output GFF3 file")
 	cmd.Flags().BoolVar(&annotationOnly, "annotation-only", false, "Omit the terminal FASTA section")
 	return cmd
+}
+
+func requireOutput(path string) error {
+	if path == "" {
+		return fmt.Errorf("--output is required")
+	}
+	return nil
+}
+
+func readJSONAndGenome(jsonPath, genomePath string) ([]byte, bakpack.Genome, error) {
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return nil, bakpack.Genome{}, err
+	}
+	genomeBytes, err := os.ReadFile(genomePath)
+	if err != nil {
+		return nil, bakpack.Genome{}, err
+	}
+	sampleID := sampleIDFromPath(jsonPath)
+	genome, err := bakpack.ReadGenome(sampleID, filepath.Base(genomePath), genomeBytes)
+	if err != nil {
+		return nil, bakpack.Genome{}, err
+	}
+	return data, genome, nil
 }
 
 func newBuildCommand() *cobra.Command {
@@ -171,32 +168,9 @@ func newBuildCommand() *cobra.Command {
 			if output == "" {
 				output = "annotations.bakpack"
 			}
-			var annotations, genomes bakpack.FileSource
-			if manifestPath != "" {
-				if annotationsPath != "" || genomesPath != "" {
-					return fmt.Errorf("--manifest cannot be used with --annotations or --genomes")
-				}
-				var err error
-				annotations, genomes, err = bakpack.OpenManifestSources(manifestPath)
-				if err != nil {
-					return err
-				}
-			} else {
-				if annotationsPath == "" {
-					return fmt.Errorf("--annotations is required")
-				}
-				if genomesPath == "" {
-					return fmt.Errorf("--genomes is required")
-				}
-				var err error
-				annotations, err = bakpack.OpenSource(annotationsPath, annotationsFormat, "annotation")
-				if err != nil {
-					return err
-				}
-				genomes, err = bakpack.OpenSource(genomesPath, genomesFormat, "genome")
-				if err != nil {
-					return err
-				}
+			annotations, genomes, err := openBuildSources(manifestPath, annotationsPath, annotationsFormat, genomesPath, genomesFormat)
+			if err != nil {
+				return err
 			}
 			order, err := readNameFile(orderPath)
 			if err != nil {
@@ -226,6 +200,30 @@ func newBuildCommand() *cobra.Command {
 	return cmd
 }
 
+func openBuildSources(manifestPath, annotationsPath, annotationsFormat, genomesPath, genomesFormat string) (bakpack.FileSource, bakpack.FileSource, error) {
+	if manifestPath != "" {
+		if annotationsPath != "" || genomesPath != "" {
+			return nil, nil, fmt.Errorf("--manifest cannot be used with --annotations or --genomes")
+		}
+		return bakpack.OpenManifestSources(manifestPath)
+	}
+	if annotationsPath == "" {
+		return nil, nil, fmt.Errorf("--annotations is required")
+	}
+	if genomesPath == "" {
+		return nil, nil, fmt.Errorf("--genomes is required")
+	}
+	annotations, err := bakpack.OpenSource(annotationsPath, annotationsFormat, "annotation")
+	if err != nil {
+		return nil, nil, err
+	}
+	genomes, err := bakpack.OpenSource(genomesPath, genomesFormat, "genome")
+	if err != nil {
+		return nil, nil, err
+	}
+	return annotations, genomes, nil
+}
+
 func newExtractCommand() *cobra.Command {
 	var genomesPath, genomesFormat string
 	var outputDir string
@@ -243,12 +241,9 @@ func newExtractCommand() *cobra.Command {
 				return err
 			}
 			samples = append(samples, fromFile...)
-			var genomes bakpack.FileSource
-			if genomesPath != "" {
-				genomes, err = bakpack.OpenSource(genomesPath, genomesFormat, "genome")
-				if err != nil {
-					return err
-				}
+			genomes, err := openOptionalGenomeSource(genomesPath, genomesFormat)
+			if err != nil {
+				return err
 			}
 			return bakpack.ExtractArchive(cmd.Context(), bakpack.ExtractOptions{
 				ArchivePath:        archive,
@@ -273,6 +268,13 @@ func newExtractCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&gff3, "gff3", false, "Write rendered GFF3 annotation")
 	cmd.Flags().BoolVar(&gff3AnnotationOnly, "gff3-annotation-only", false, "Write GFF3 without the terminal FASTA section")
 	return cmd
+}
+
+func openOptionalGenomeSource(path, format string) (bakpack.FileSource, error) {
+	if path == "" {
+		return nil, nil
+	}
+	return bakpack.OpenSource(path, format, "genome")
 }
 
 func newIndexCommand() *cobra.Command {
@@ -315,17 +317,10 @@ func readNameFile(path string) ([]string, error) {
 	return names, nil
 }
 
-func sampleIDFromPath(path, role string) string {
+func sampleIDFromPath(path string) string {
 	base := filepath.Base(path)
-	switch role {
-	case "annotation":
-		base = strings.TrimSuffix(base, ".bakta.json")
-		base = strings.TrimSuffix(base, ".json")
-	case "genome":
-		base = strings.TrimSuffix(base, ".fasta")
-		base = strings.TrimSuffix(base, ".fa")
-		base = strings.TrimSuffix(base, ".fna")
-	}
+	base = strings.TrimSuffix(base, ".bakta.json")
+	base = strings.TrimSuffix(base, ".json")
 	return base
 }
 
