@@ -915,6 +915,42 @@ func collectExtractedSamples(samples []string, resultsBySample map[string]Extrac
 	return results
 }
 
+func extractRequestFromOptions(opts ExtractOptions) ExtractRequest {
+	return ExtractRequest{
+		Genomes:            opts.Genomes,
+		Samples:            opts.Samples,
+		Reduced:            opts.Reduced,
+		Original:           opts.Original,
+		Genome:             opts.Genome,
+		GFF3:               opts.GFF3,
+		GFF3AnnotationOnly: opts.GFF3AnnotationOnly,
+	}
+}
+
+func writeExtractedSampleOutputs(outputDir string, req ExtractRequest, sample ExtractedSample) error {
+	if req.Genome {
+		if err := os.WriteFile(filepath.Join(outputDir, sample.SampleID+".fa"), sample.GenomeFASTA, 0o644); err != nil {
+			return err
+		}
+	}
+	if req.Reduced {
+		if err := os.WriteFile(filepath.Join(outputDir, sample.SampleID+".reduced.bakta.json"), sample.ReducedJSON, 0o644); err != nil {
+			return err
+		}
+	}
+	if req.Original {
+		if err := os.WriteFile(filepath.Join(outputDir, sample.SampleID+".bakta.json"), sample.OriginalJSON, 0o644); err != nil {
+			return err
+		}
+	}
+	if req.GFF3 {
+		if err := os.WriteFile(filepath.Join(outputDir, sample.SampleID+".gff3"), sample.GFF3, 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Extract extracts one or more samples from the archive. Without OnSample,
 // results are returned in the same order as req.Samples. With OnSample, results
 // are delivered to the callback and the returned slice is nil.
@@ -965,18 +1001,16 @@ func (a *Archive) Extract(ctx context.Context, req ExtractRequest) ([]ExtractedS
 }
 
 func ExtractArchive(ctx context.Context, opts ExtractOptions) error {
-	if opts.GFF3AnnotationOnly {
-		opts.GFF3 = true
+	req := extractRequestFromOptions(opts)
+	var err error
+	ctx, req, err = normalizeExtractRequest(ctx, req)
+	if err != nil {
+		return err
 	}
-	if !opts.Reduced && !opts.Original && !opts.Genome && !opts.GFF3 {
-		opts.Reduced = true
-	}
-	if len(opts.Samples) == 0 {
+	if len(req.Samples) == 0 {
 		return nil
 	}
-	if (opts.Original || opts.Genome || opts.GFF3) && opts.Genomes == nil {
-		return fmt.Errorf("genome source is required for original JSON, FASTA, or GFF3 extraction")
-	}
+
 	outputDir := opts.OutputDir
 	if outputDir == "" {
 		outputDir = "."
@@ -991,38 +1025,10 @@ func ExtractArchive(ctx context.Context, opts ExtractOptions) error {
 	}
 	defer archive.Close()
 
-	_, err = archive.Extract(ctx, ExtractRequest{
-		Genomes:            opts.Genomes,
-		Samples:            opts.Samples,
-		Reduced:            opts.Reduced,
-		Original:           opts.Original,
-		Genome:             opts.Genome,
-		GFF3:               opts.GFF3,
-		GFF3AnnotationOnly: opts.GFF3AnnotationOnly,
-		OnSample: func(sample ExtractedSample) error {
-			if opts.Genome {
-				if err := os.WriteFile(filepath.Join(outputDir, sample.SampleID+".fa"), sample.GenomeFASTA, 0o644); err != nil {
-					return err
-				}
-			}
-			if opts.Reduced {
-				if err := os.WriteFile(filepath.Join(outputDir, sample.SampleID+".reduced.bakta.json"), sample.ReducedJSON, 0o644); err != nil {
-					return err
-				}
-			}
-			if opts.Original {
-				if err := os.WriteFile(filepath.Join(outputDir, sample.SampleID+".bakta.json"), sample.OriginalJSON, 0o644); err != nil {
-					return err
-				}
-			}
-			if opts.GFF3 {
-				if err := os.WriteFile(filepath.Join(outputDir, sample.SampleID+".gff3"), sample.GFF3, 0o644); err != nil {
-					return err
-				}
-			}
-			return nil
-		},
-	})
+	req.OnSample = func(sample ExtractedSample) error {
+		return writeExtractedSampleOutputs(outputDir, req, sample)
+	}
+	_, err = archive.Extract(ctx, req)
 	return err
 }
 
