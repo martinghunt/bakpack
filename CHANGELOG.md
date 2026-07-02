@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Render Bakta-style GFF3 from original or reduced JSON with `bakpack gff3`, extract GFF3 from archives with `--gff3` / `--gff3-annotation-only`, and use the same support through the library APIs.
+
 ## [0.1.0] - 2026-06-24
 
 Initial release of `bakpack`.
