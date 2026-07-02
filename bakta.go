@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/martinghunt/faqt/seq"
@@ -32,13 +33,9 @@ const (
 )
 
 func ReduceBaktaJSON(original []byte, genome Genome) (ReduceResult, error) {
-	root, err := DecodeJSON(original)
+	data, err := decodeBaktaJSONObject(original)
 	if err != nil {
 		return ReduceResult{}, err
-	}
-	data, ok := root.(map[string]any)
-	if !ok {
-		return ReduceResult{}, fmt.Errorf("Bakta JSON root is not an object")
 	}
 	if _, exists := data[reducedMetadataKey]; exists {
 		return ReduceResult{}, fmt.Errorf("Bakta JSON uses reserved top-level key %q", reducedMetadataKey)
@@ -49,12 +46,7 @@ func ReduceBaktaJSON(original []byte, genome Genome) (ReduceResult, error) {
 
 	stripContigSequences(data, genome)
 	table := translationTable(data)
-	features, _ := data["features"].([]any)
-	for _, item := range features {
-		feature, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
+	for _, feature := range baktaFeatures(data) {
 		nt, haveNT := FeatureNT(feature, genome)
 		if haveNT {
 			if existing, ok := feature["nt"].(string); ok && normalizeNT(existing) == nt {
@@ -97,13 +89,9 @@ func ReduceBaktaJSON(original []byte, genome Genome) (ReduceResult, error) {
 }
 
 func RestoreBaktaJSON(reduced []byte, genome Genome) (RestoreResult, error) {
-	root, err := DecodeJSON(reduced)
+	data, err := decodeBaktaJSONObject(reduced)
 	if err != nil {
 		return RestoreResult{}, err
-	}
-	data, ok := root.(map[string]any)
-	if !ok {
-		return RestoreResult{}, fmt.Errorf("Bakta JSON root is not an object")
 	}
 	metadata, err := reducedMetadata(data)
 	if err != nil {
@@ -117,12 +105,7 @@ func RestoreBaktaJSON(reduced []byte, genome Genome) (RestoreResult, error) {
 	restoreDerivableFields(data, genome)
 	restoreContigSequences(data, genome)
 	table := translationTable(data)
-	features, _ := data["features"].([]any)
-	for _, item := range features {
-		feature, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
+	for _, feature := range baktaFeatures(data) {
 		info, _ := baktaFeatureTypeString(feature)
 		shouldHaveNT := !info.Gap && hasFeatureCoords(feature)
 		shouldHaveAA := info.Protein || feature["aa_hexdigest"] != nil
@@ -164,6 +147,18 @@ func RestoreBaktaJSON(reduced []byte, genome Genome) (RestoreResult, error) {
 	}, nil
 }
 
+func decodeBaktaJSONObject(data []byte) (map[string]any, error) {
+	root, err := DecodeJSON(data)
+	if err != nil {
+		return nil, err
+	}
+	obj, ok := root.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("Bakta JSON root is not an object")
+	}
+	return obj, nil
+}
+
 type reducedJSONMetadata struct {
 	OriginalJSONCanonicalSHA256 string
 }
@@ -197,12 +192,7 @@ func reducedMetadata(data map[string]any) (reducedJSONMetadata, error) {
 }
 
 func stripContigSequences(data map[string]any, genome Genome) {
-	sequences, _ := data["sequences"].([]any)
-	for _, item := range sequences {
-		entry, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
+	for _, entry := range baktaSequences(data) {
 		id, _ := entry["id"].(string)
 		existing, ok := entry["sequence"].(string)
 		if id == "" || !ok {
@@ -216,12 +206,7 @@ func stripContigSequences(data map[string]any, genome Genome) {
 }
 
 func restoreContigSequences(data map[string]any, genome Genome) {
-	sequences, _ := data["sequences"].([]any)
-	for _, item := range sequences {
-		entry, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
+	for _, entry := range baktaSequences(data) {
 		if _, exists := entry["sequence"]; exists {
 			continue
 		}
@@ -270,12 +255,7 @@ func restoreDerivedStats(data map[string]any, genome Genome) {
 }
 
 func stripSequenceLengths(data map[string]any, genome Genome) {
-	sequences, _ := data["sequences"].([]any)
-	for _, item := range sequences {
-		entry, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
+	for _, entry := range baktaSequences(data) {
 		existing, exists := entry["length"]
 		if !exists {
 			continue
@@ -288,12 +268,7 @@ func stripSequenceLengths(data map[string]any, genome Genome) {
 }
 
 func restoreSequenceLengths(data map[string]any, genome Genome) {
-	sequences, _ := data["sequences"].([]any)
-	for _, item := range sequences {
-		entry, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
+	for _, entry := range baktaSequences(data) {
 		if _, exists := entry["length"]; exists {
 			continue
 		}
@@ -306,13 +281,7 @@ func restoreSequenceLengths(data map[string]any, genome Genome) {
 
 func stripFeatureDerivableFields(data map[string]any, genome Genome) {
 	table := translationTable(data)
-	features, _ := data["features"].([]any)
-	for _, item := range features {
-		feature, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-
+	for _, feature := range baktaFeatures(data) {
 		var nt string
 		haveNT := false
 		if existing, exists := feature["aa_hexdigest"]; exists {
@@ -359,13 +328,7 @@ func stripFeatureDerivableFields(data map[string]any, genome Genome) {
 
 func restoreFeatureDerivableFields(data map[string]any, genome Genome) {
 	table := translationTable(data)
-	features, _ := data["features"].([]any)
-	for _, item := range features {
-		feature, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-
+	for _, feature := range baktaFeatures(data) {
 		var nt string
 		haveNT := false
 		if _, exists := feature["aa_hexdigest"]; !exists && isProteinFeature(feature) && hasFeatureCoords(feature) {
@@ -401,6 +364,14 @@ func restoreFeatureDerivableFields(data map[string]any, genome Genome) {
 	}
 }
 
+func baktaSequences(data map[string]any) []map[string]any {
+	return mapSlice(data["sequences"])
+}
+
+func baktaFeatures(data map[string]any) []map[string]any {
+	return mapSlice(data["features"])
+}
+
 func derivedStats(genome Genome) map[string]any {
 	lengths := make([]int, 0, len(genome.Contigs))
 	totalSize := 0
@@ -430,13 +401,9 @@ func n50(lengths []int) int {
 	}
 	cumulative := 0
 	sorted := append([]int(nil), lengths...)
-	for i := 0; i < len(sorted); i++ {
-		for j := i + 1; j < len(sorted); j++ {
-			if sorted[j] > sorted[i] {
-				sorted[i], sorted[j] = sorted[j], sorted[i]
-			}
-		}
-	}
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i] > sorted[j]
+	})
 	for _, length := range sorted {
 		cumulative += length
 		if float64(cumulative) >= float64(total)/2 {
