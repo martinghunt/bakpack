@@ -26,6 +26,24 @@ const (
 	valueTagNumber = 8
 )
 
+const (
+	fieldCodecSequenceIndex          = "sequence_index"
+	fieldCodecSamplePrefixUintString = "sample_prefix_uint_string"
+	fieldCodecConstNull              = "const_null"
+	fieldCodecConstBool              = "const_bool"
+	fieldCodecConstString            = "const_string"
+	fieldCodecBoolBitset             = "bool_bitset"
+	fieldCodecUint                   = "uint"
+	fieldCodecInt                    = "int"
+	fieldCodecFloat64                = "float64"
+	fieldCodecRawNumber              = "raw_number"
+	fieldCodecRawString              = "raw_string"
+	fieldCodecNullableRawString      = "nullable_raw_string"
+	fieldCodecEnumString             = "enum_string"
+	fieldCodecNullableEnumString     = "nullable_enum_string"
+	fieldCodecGeneric                = "generic"
+)
+
 type SchemaIndexEntry struct {
 	SchemaID int      `json:"schema_id"`
 	Keys     []string `json:"keys"`
@@ -620,375 +638,526 @@ func parseOptimizedChunkDirectory(chunkBytes []byte, expectedFields int) ([]opti
 }
 
 func (c *optimizedArchiveCodec) encodeFieldValues(codec FieldCodec, values []any, metadata map[string]any) ([]byte, error) {
-	var out bytes.Buffer
 	switch codec.Kind {
-	case "sequence_index":
-		idToIndex, err := sequenceIDIndex(metadata)
-		if err != nil {
-			return nil, err
-		}
-		for _, value := range values {
-			contig, ok := value.(string)
-			if !ok {
-				return nil, fmt.Errorf("expected string contig")
-			}
-			index, ok := idToIndex[contig]
-			if !ok {
-				return nil, fmt.Errorf("contig %q not found in metadata sequences", contig)
-			}
-			writeUvarint(&out, uint64(index))
-		}
-	case "sample_prefix_uint_string":
-		prefix, fixedWidth, numbers, err := parseSamplePrefixValues(values)
-		if err != nil {
-			return nil, err
-		}
-		writeString(&out, prefix)
-		writeUvarint(&out, uint64(fixedWidth))
-		for _, number := range numbers {
-			writeUvarint(&out, number)
-		}
-	case "const_null":
-		for _, value := range values {
-			if value != nil {
-				return nil, fmt.Errorf("expected null")
-			}
-		}
-	case "const_bool":
-		expected, ok := codec.Value.(bool)
-		if !ok {
-			return nil, fmt.Errorf("constant bool codec has non-bool value")
-		}
-		for _, value := range values {
-			got, ok := value.(bool)
-			if !ok || got != expected {
-				return nil, fmt.Errorf("expected bool constant %v", expected)
-			}
-		}
-	case "const_string":
-		expected, ok := codec.Value.(string)
-		if !ok {
-			return nil, fmt.Errorf("constant string codec has non-string value")
-		}
-		for _, value := range values {
-			got, ok := value.(string)
-			if !ok || got != expected {
-				return nil, fmt.Errorf("expected string constant %q", expected)
-			}
-		}
-	case "bool_bitset":
-		var current byte
-		bit := 0
-		for _, value := range values {
-			got, ok := value.(bool)
-			if !ok {
-				return nil, fmt.Errorf("expected bool")
-			}
-			if got {
-				current |= 1 << bit
-			}
-			bit++
-			if bit == 8 {
-				out.WriteByte(current)
-				current = 0
-				bit = 0
-			}
-		}
-		if bit != 0 {
-			out.WriteByte(current)
-		}
-	case "uint":
-		for _, value := range values {
-			number, ok := jsonUint64(value)
-			if !ok {
-				return nil, fmt.Errorf("expected non-negative integer")
-			}
-			writeUvarint(&out, number)
-		}
-	case "int":
-		for _, value := range values {
-			number, ok := jsonInt64(value)
-			if !ok {
-				return nil, fmt.Errorf("expected integer")
-			}
-			writeUvarint(&out, zigzagInt64(number))
-		}
-	case "float64":
-		for _, value := range values {
-			number, ok := jsonFloat64(value)
-			if !ok {
-				return nil, fmt.Errorf("expected float")
-			}
-			var buf [8]byte
-			binary.LittleEndian.PutUint64(buf[:], math.Float64bits(number))
-			out.Write(buf[:])
-		}
-	case "raw_number":
-		for _, value := range values {
-			text, ok := jsonNumberText(value)
-			if !ok {
-				return nil, fmt.Errorf("expected JSON number")
-			}
-			writeString(&out, text)
-		}
-	case "raw_string":
-		for _, value := range values {
-			text, ok := value.(string)
-			if !ok {
-				return nil, fmt.Errorf("expected string")
-			}
-			writeString(&out, text)
-		}
-	case "nullable_raw_string":
-		for _, value := range values {
-			if value == nil {
-				writeUvarint(&out, 0)
-				continue
-			}
-			text, ok := value.(string)
-			if !ok {
-				return nil, fmt.Errorf("expected nullable string")
-			}
-			encoded := []byte(text)
-			writeUvarint(&out, uint64(len(encoded)+1))
-			out.Write(encoded)
-		}
-	case "enum_string":
-		idByValue := map[string]int{}
-		for i, value := range codec.Values {
-			idByValue[value] = i
-		}
-		for _, value := range values {
-			text, ok := value.(string)
-			if !ok {
-				return nil, fmt.Errorf("expected enum string")
-			}
-			id, ok := idByValue[text]
-			if !ok {
-				return nil, fmt.Errorf("enum value %q not found in dictionary", text)
-			}
-			writeUvarint(&out, uint64(id))
-		}
-	case "nullable_enum_string":
-		idByValue := map[string]int{}
-		for i, value := range codec.Values {
-			idByValue[value] = i + 1
-		}
-		for _, value := range values {
-			if value == nil {
-				writeUvarint(&out, 0)
-				continue
-			}
-			text, ok := value.(string)
-			if !ok {
-				return nil, fmt.Errorf("expected nullable enum string")
-			}
-			id, ok := idByValue[text]
-			if !ok {
-				return nil, fmt.Errorf("enum value %q not found in dictionary", text)
-			}
-			writeUvarint(&out, uint64(id))
-		}
-	case "generic":
-		for _, value := range values {
-			if err := c.encodeValue(&out, value); err != nil {
-				return nil, err
-			}
-		}
+	case fieldCodecSequenceIndex:
+		return encodeSequenceIndexFieldValues(values, metadata)
+	case fieldCodecSamplePrefixUintString:
+		return encodeSamplePrefixUintStringFieldValues(values)
+	case fieldCodecConstNull:
+		return encodeConstNullFieldValues(values)
+	case fieldCodecConstBool:
+		return encodeConstBoolFieldValues(codec, values)
+	case fieldCodecConstString:
+		return encodeConstStringFieldValues(codec, values)
+	case fieldCodecBoolBitset:
+		return encodeBoolBitsetFieldValues(values)
+	case fieldCodecUint:
+		return encodeUintFieldValues(values)
+	case fieldCodecInt:
+		return encodeIntFieldValues(values)
+	case fieldCodecFloat64:
+		return encodeFloat64FieldValues(values)
+	case fieldCodecRawNumber:
+		return encodeRawNumberFieldValues(values)
+	case fieldCodecRawString:
+		return encodeRawStringFieldValues(values)
+	case fieldCodecNullableRawString:
+		return encodeNullableRawStringFieldValues(values)
+	case fieldCodecEnumString:
+		return encodeEnumStringFieldValues(codec, values, false)
+	case fieldCodecNullableEnumString:
+		return encodeEnumStringFieldValues(codec, values, true)
+	case fieldCodecGeneric:
+		return c.encodeGenericFieldValues(values)
 	default:
 		return nil, fmt.Errorf("unknown field codec %q", codec.Kind)
+	}
+}
+
+func encodeSequenceIndexFieldValues(values []any, metadata map[string]any) ([]byte, error) {
+	var out bytes.Buffer
+	idToIndex, err := sequenceIDIndex(metadata)
+	if err != nil {
+		return nil, err
+	}
+	for _, value := range values {
+		contig, ok := value.(string)
+		if !ok {
+			return nil, fmt.Errorf("expected string contig")
+		}
+		index, ok := idToIndex[contig]
+		if !ok {
+			return nil, fmt.Errorf("contig %q not found in metadata sequences", contig)
+		}
+		writeUvarint(&out, uint64(index))
+	}
+	return out.Bytes(), nil
+}
+
+func encodeSamplePrefixUintStringFieldValues(values []any) ([]byte, error) {
+	var out bytes.Buffer
+	prefix, fixedWidth, numbers, err := parseSamplePrefixValues(values)
+	if err != nil {
+		return nil, err
+	}
+	writeString(&out, prefix)
+	writeUvarint(&out, uint64(fixedWidth))
+	for _, number := range numbers {
+		writeUvarint(&out, number)
+	}
+	return out.Bytes(), nil
+}
+
+func encodeConstNullFieldValues(values []any) ([]byte, error) {
+	for _, value := range values {
+		if value != nil {
+			return nil, fmt.Errorf("expected null")
+		}
+	}
+	return nil, nil
+}
+
+func encodeConstBoolFieldValues(codec FieldCodec, values []any) ([]byte, error) {
+	expected, ok := codec.Value.(bool)
+	if !ok {
+		return nil, fmt.Errorf("constant bool codec has non-bool value")
+	}
+	for _, value := range values {
+		got, ok := value.(bool)
+		if !ok || got != expected {
+			return nil, fmt.Errorf("expected bool constant %v", expected)
+		}
+	}
+	return nil, nil
+}
+
+func encodeConstStringFieldValues(codec FieldCodec, values []any) ([]byte, error) {
+	expected, ok := codec.Value.(string)
+	if !ok {
+		return nil, fmt.Errorf("constant string codec has non-string value")
+	}
+	for _, value := range values {
+		got, ok := value.(string)
+		if !ok || got != expected {
+			return nil, fmt.Errorf("expected string constant %q", expected)
+		}
+	}
+	return nil, nil
+}
+
+func encodeBoolBitsetFieldValues(values []any) ([]byte, error) {
+	var out bytes.Buffer
+	var current byte
+	bit := 0
+	for _, value := range values {
+		got, ok := value.(bool)
+		if !ok {
+			return nil, fmt.Errorf("expected bool")
+		}
+		if got {
+			current |= 1 << bit
+		}
+		bit++
+		if bit == 8 {
+			out.WriteByte(current)
+			current = 0
+			bit = 0
+		}
+	}
+	if bit != 0 {
+		out.WriteByte(current)
+	}
+	return out.Bytes(), nil
+}
+
+func encodeUintFieldValues(values []any) ([]byte, error) {
+	var out bytes.Buffer
+	for _, value := range values {
+		number, ok := jsonUint64(value)
+		if !ok {
+			return nil, fmt.Errorf("expected non-negative integer")
+		}
+		writeUvarint(&out, number)
+	}
+	return out.Bytes(), nil
+}
+
+func encodeIntFieldValues(values []any) ([]byte, error) {
+	var out bytes.Buffer
+	for _, value := range values {
+		number, ok := jsonInt64(value)
+		if !ok {
+			return nil, fmt.Errorf("expected integer")
+		}
+		writeUvarint(&out, zigzagInt64(number))
+	}
+	return out.Bytes(), nil
+}
+
+func encodeFloat64FieldValues(values []any) ([]byte, error) {
+	var out bytes.Buffer
+	for _, value := range values {
+		number, ok := jsonFloat64(value)
+		if !ok {
+			return nil, fmt.Errorf("expected float")
+		}
+		var buf [8]byte
+		binary.LittleEndian.PutUint64(buf[:], math.Float64bits(number))
+		out.Write(buf[:])
+	}
+	return out.Bytes(), nil
+}
+
+func encodeRawNumberFieldValues(values []any) ([]byte, error) {
+	var out bytes.Buffer
+	for _, value := range values {
+		text, ok := jsonNumberText(value)
+		if !ok {
+			return nil, fmt.Errorf("expected JSON number")
+		}
+		writeString(&out, text)
+	}
+	return out.Bytes(), nil
+}
+
+func encodeRawStringFieldValues(values []any) ([]byte, error) {
+	var out bytes.Buffer
+	for _, value := range values {
+		text, ok := value.(string)
+		if !ok {
+			return nil, fmt.Errorf("expected string")
+		}
+		writeString(&out, text)
+	}
+	return out.Bytes(), nil
+}
+
+func encodeNullableRawStringFieldValues(values []any) ([]byte, error) {
+	var out bytes.Buffer
+	for _, value := range values {
+		if value == nil {
+			writeUvarint(&out, 0)
+			continue
+		}
+		text, ok := value.(string)
+		if !ok {
+			return nil, fmt.Errorf("expected nullable string")
+		}
+		encoded := []byte(text)
+		writeUvarint(&out, uint64(len(encoded)+1))
+		out.Write(encoded)
+	}
+	return out.Bytes(), nil
+}
+
+func encodeEnumStringFieldValues(codec FieldCodec, values []any, nullable bool) ([]byte, error) {
+	var out bytes.Buffer
+	idByValue := map[string]int{}
+	for i, value := range codec.Values {
+		if nullable {
+			idByValue[value] = i + 1
+		} else {
+			idByValue[value] = i
+		}
+	}
+	for _, value := range values {
+		if nullable && value == nil {
+			writeUvarint(&out, 0)
+			continue
+		}
+		text, ok := value.(string)
+		if !ok {
+			if nullable {
+				return nil, fmt.Errorf("expected nullable enum string")
+			}
+			return nil, fmt.Errorf("expected enum string")
+		}
+		id, ok := idByValue[text]
+		if !ok {
+			return nil, fmt.Errorf("enum value %q not found in dictionary", text)
+		}
+		writeUvarint(&out, uint64(id))
+	}
+	return out.Bytes(), nil
+}
+
+func (c *optimizedArchiveCodec) encodeGenericFieldValues(values []any) ([]byte, error) {
+	var out bytes.Buffer
+	for _, value := range values {
+		if err := c.encodeValue(&out, value); err != nil {
+			return nil, err
+		}
 	}
 	return out.Bytes(), nil
 }
 
 func (c *optimizedArchiveCodec) decodeFieldValues(codec FieldCodec, data []byte, count int, metadata map[string]any) ([]any, error) {
-	if count == 0 && codec.Kind != "sample_prefix_uint_string" {
+	if count == 0 && codec.Kind != fieldCodecSamplePrefixUintString {
 		if len(data) != 0 {
 			return nil, fmt.Errorf("empty field has payload bytes")
 		}
 	}
 	switch codec.Kind {
-	case "sequence_index":
-		sequenceIDs, err := sequenceIDs(metadata)
-		if err != nil {
-			return nil, err
-		}
-		reader := bytes.NewReader(data)
-		values := make([]any, count)
-		for i := 0; i < count; i++ {
-			index, err := readUvarint(reader)
-			if err != nil {
-				return nil, err
-			}
-			if index >= uint64(len(sequenceIDs)) {
-				return nil, fmt.Errorf("sequence index %d is out of range", index)
-			}
-			values[i] = sequenceIDs[index]
-		}
-		if reader.Len() != 0 {
-			return nil, fmt.Errorf("field stream has trailing bytes")
-		}
-		return values, nil
-	case "sample_prefix_uint_string":
-		reader := bytes.NewReader(data)
-		prefix, err := readString(reader)
-		if err != nil {
-			return nil, err
-		}
-		fixedWidth, err := readUvarint(reader)
-		if err != nil {
-			return nil, err
-		}
-		values := make([]any, count)
-		for i := 0; i < count; i++ {
-			number, err := readUvarint(reader)
-			if err != nil {
-				return nil, err
-			}
-			suffix := strconv.FormatUint(number, 10)
-			if fixedWidth > 0 && len(suffix) < int(fixedWidth) {
-				suffix = strings.Repeat("0", int(fixedWidth)-len(suffix)) + suffix
-			}
-			values[i] = prefix + suffix
-		}
-		if reader.Len() != 0 {
-			return nil, fmt.Errorf("field stream has trailing bytes")
-		}
-		return values, nil
-	case "const_null":
-		if len(data) != 0 {
-			return nil, fmt.Errorf("constant field has payload bytes")
-		}
-		values := make([]any, count)
-		return values, nil
-	case "const_bool":
-		if len(data) != 0 {
-			return nil, fmt.Errorf("constant field has payload bytes")
-		}
-		values := make([]any, count)
-		for i := range values {
-			values[i] = codec.Value.(bool)
-		}
-		return values, nil
-	case "const_string":
-		if len(data) != 0 {
-			return nil, fmt.Errorf("constant field has payload bytes")
-		}
-		values := make([]any, count)
-		for i := range values {
-			values[i] = codec.Value.(string)
-		}
-		return values, nil
-	case "bool_bitset":
-		if len(data) != (count+7)/8 {
-			return nil, fmt.Errorf("bool bitset length mismatch")
-		}
-		values := make([]any, count)
-		for i := 0; i < count; i++ {
-			values[i] = data[i/8]&(1<<(i%8)) != 0
-		}
-		return values, nil
+	case fieldCodecSequenceIndex:
+		return decodeSequenceIndexFieldValues(data, count, metadata)
+	case fieldCodecSamplePrefixUintString:
+		return decodeSamplePrefixUintStringFieldValues(data, count)
+	case fieldCodecConstNull:
+		return decodeConstNullFieldValues(data, count)
+	case fieldCodecConstBool:
+		return decodeConstBoolFieldValues(codec, data, count)
+	case fieldCodecConstString:
+		return decodeConstStringFieldValues(codec, data, count)
+	case fieldCodecBoolBitset:
+		return decodeBoolBitsetFieldValues(data, count)
+	case fieldCodecUint:
+		return decodeUintFieldValues(data, count)
+	case fieldCodecInt:
+		return decodeIntFieldValues(data, count)
+	case fieldCodecFloat64:
+		return decodeFloat64FieldValues(data, count)
+	case fieldCodecRawNumber:
+		return decodeRawNumberFieldValues(data, count)
+	case fieldCodecRawString:
+		return decodeRawStringFieldValues(data, count)
+	case fieldCodecNullableRawString:
+		return decodeNullableRawStringFieldValues(data, count)
+	case fieldCodecEnumString:
+		return decodeEnumStringFieldValues(codec, data, count, false)
+	case fieldCodecNullableEnumString:
+		return decodeEnumStringFieldValues(codec, data, count, true)
+	case fieldCodecGeneric:
+		return c.decodeGenericFieldValues(data, count)
+	default:
+		return nil, fmt.Errorf("unknown field codec %q", codec.Kind)
 	}
+}
 
+func decodeSequenceIndexFieldValues(data []byte, count int, metadata map[string]any) ([]any, error) {
+	sequenceIDs, err := sequenceIDs(metadata)
+	if err != nil {
+		return nil, err
+	}
+	reader := bytes.NewReader(data)
+	values := make([]any, count)
+	for i := 0; i < count; i++ {
+		index, err := readUvarint(reader)
+		if err != nil {
+			return nil, err
+		}
+		if index >= uint64(len(sequenceIDs)) {
+			return nil, fmt.Errorf("sequence index %d is out of range", index)
+		}
+		values[i] = sequenceIDs[index]
+	}
+	if reader.Len() != 0 {
+		return nil, fmt.Errorf("field stream has trailing bytes")
+	}
+	return values, nil
+}
+
+func decodeSamplePrefixUintStringFieldValues(data []byte, count int) ([]any, error) {
+	reader := bytes.NewReader(data)
+	prefix, err := readString(reader)
+	if err != nil {
+		return nil, err
+	}
+	fixedWidth, err := readUvarint(reader)
+	if err != nil {
+		return nil, err
+	}
+	values := make([]any, count)
+	for i := 0; i < count; i++ {
+		number, err := readUvarint(reader)
+		if err != nil {
+			return nil, err
+		}
+		suffix := strconv.FormatUint(number, 10)
+		if fixedWidth > 0 && len(suffix) < int(fixedWidth) {
+			suffix = strings.Repeat("0", int(fixedWidth)-len(suffix)) + suffix
+		}
+		values[i] = prefix + suffix
+	}
+	if reader.Len() != 0 {
+		return nil, fmt.Errorf("field stream has trailing bytes")
+	}
+	return values, nil
+}
+
+func decodeConstNullFieldValues(data []byte, count int) ([]any, error) {
+	if len(data) != 0 {
+		return nil, fmt.Errorf("constant field has payload bytes")
+	}
+	return make([]any, count), nil
+}
+
+func decodeConstBoolFieldValues(codec FieldCodec, data []byte, count int) ([]any, error) {
+	if len(data) != 0 {
+		return nil, fmt.Errorf("constant field has payload bytes")
+	}
+	values := make([]any, count)
+	for i := range values {
+		values[i] = codec.Value.(bool)
+	}
+	return values, nil
+}
+
+func decodeConstStringFieldValues(codec FieldCodec, data []byte, count int) ([]any, error) {
+	if len(data) != 0 {
+		return nil, fmt.Errorf("constant field has payload bytes")
+	}
+	values := make([]any, count)
+	for i := range values {
+		values[i] = codec.Value.(string)
+	}
+	return values, nil
+}
+
+func decodeBoolBitsetFieldValues(data []byte, count int) ([]any, error) {
+	if len(data) != (count+7)/8 {
+		return nil, fmt.Errorf("bool bitset length mismatch")
+	}
+	values := make([]any, count)
+	for i := 0; i < count; i++ {
+		values[i] = data[i/8]&(1<<(i%8)) != 0
+	}
+	return values, nil
+}
+
+func decodeUintFieldValues(data []byte, count int) ([]any, error) {
 	reader := bytes.NewReader(data)
 	values := make([]any, 0, count)
-	switch codec.Kind {
-	case "uint":
-		for i := 0; i < count; i++ {
-			value, err := readUvarint(reader)
-			if err != nil {
-				return nil, err
-			}
-			values = append(values, json.Number(strconv.FormatUint(value, 10)))
+	for i := 0; i < count; i++ {
+		value, err := readUvarint(reader)
+		if err != nil {
+			return nil, err
 		}
-	case "int":
-		for i := 0; i < count; i++ {
-			value, err := readUvarint(reader)
-			if err != nil {
-				return nil, err
-			}
-			values = append(values, json.Number(strconv.FormatInt(unzigzagInt64(value), 10)))
+		values = append(values, json.Number(strconv.FormatUint(value, 10)))
+	}
+	return finishDecodedFieldValues(reader, values)
+}
+
+func decodeIntFieldValues(data []byte, count int) ([]any, error) {
+	reader := bytes.NewReader(data)
+	values := make([]any, 0, count)
+	for i := 0; i < count; i++ {
+		value, err := readUvarint(reader)
+		if err != nil {
+			return nil, err
 		}
-	case "float64":
-		for i := 0; i < count; i++ {
-			var raw [8]byte
-			if _, err := reader.Read(raw[:]); err != nil {
-				return nil, err
-			}
-			values = append(values, math.Float64frombits(binary.LittleEndian.Uint64(raw[:])))
+		values = append(values, json.Number(strconv.FormatInt(unzigzagInt64(value), 10)))
+	}
+	return finishDecodedFieldValues(reader, values)
+}
+
+func decodeFloat64FieldValues(data []byte, count int) ([]any, error) {
+	reader := bytes.NewReader(data)
+	values := make([]any, 0, count)
+	for i := 0; i < count; i++ {
+		var raw [8]byte
+		if _, err := reader.Read(raw[:]); err != nil {
+			return nil, err
 		}
-	case "raw_number":
-		for i := 0; i < count; i++ {
-			value, err := readString(reader)
-			if err != nil {
-				return nil, err
-			}
-			values = append(values, json.Number(value))
+		values = append(values, math.Float64frombits(binary.LittleEndian.Uint64(raw[:])))
+	}
+	return finishDecodedFieldValues(reader, values)
+}
+
+func decodeRawNumberFieldValues(data []byte, count int) ([]any, error) {
+	reader := bytes.NewReader(data)
+	values := make([]any, 0, count)
+	for i := 0; i < count; i++ {
+		value, err := readString(reader)
+		if err != nil {
+			return nil, err
 		}
-	case "raw_string":
-		for i := 0; i < count; i++ {
-			value, err := readString(reader)
-			if err != nil {
-				return nil, err
-			}
-			values = append(values, value)
+		values = append(values, json.Number(value))
+	}
+	return finishDecodedFieldValues(reader, values)
+}
+
+func decodeRawStringFieldValues(data []byte, count int) ([]any, error) {
+	reader := bytes.NewReader(data)
+	values := make([]any, 0, count)
+	for i := 0; i < count; i++ {
+		value, err := readString(reader)
+		if err != nil {
+			return nil, err
 		}
-	case "nullable_raw_string":
-		for i := 0; i < count; i++ {
-			encodedLength, err := readUvarint(reader)
-			if err != nil {
-				return nil, err
-			}
-			if encodedLength == 0 {
-				values = append(values, nil)
-				continue
-			}
-			if encodedLength-1 > uint64(reader.Len()) {
-				return nil, fmt.Errorf("nullable string length is out of range")
-			}
-			raw := make([]byte, encodedLength-1)
-			if _, err := reader.Read(raw); err != nil {
-				return nil, err
-			}
-			values = append(values, string(raw))
+		values = append(values, value)
+	}
+	return finishDecodedFieldValues(reader, values)
+}
+
+func decodeNullableRawStringFieldValues(data []byte, count int) ([]any, error) {
+	reader := bytes.NewReader(data)
+	values := make([]any, 0, count)
+	for i := 0; i < count; i++ {
+		encodedLength, err := readUvarint(reader)
+		if err != nil {
+			return nil, err
 		}
-	case "enum_string":
-		for i := 0; i < count; i++ {
-			id, err := readUvarint(reader)
-			if err != nil {
-				return nil, err
-			}
-			if id >= uint64(len(codec.Values)) {
-				return nil, fmt.Errorf("enum id %d is out of range", id)
-			}
-			values = append(values, codec.Values[id])
+		if encodedLength == 0 {
+			values = append(values, nil)
+			continue
 		}
-	case "nullable_enum_string":
-		for i := 0; i < count; i++ {
-			id, err := readUvarint(reader)
-			if err != nil {
-				return nil, err
-			}
-			if id == 0 {
-				values = append(values, nil)
-				continue
-			}
+		if encodedLength-1 > uint64(reader.Len()) {
+			return nil, fmt.Errorf("nullable string length is out of range")
+		}
+		if encodedLength == 1 {
+			values = append(values, "")
+			continue
+		}
+		raw := make([]byte, encodedLength-1)
+		if _, err := reader.Read(raw); err != nil {
+			return nil, err
+		}
+		values = append(values, string(raw))
+	}
+	return finishDecodedFieldValues(reader, values)
+}
+
+func decodeEnumStringFieldValues(codec FieldCodec, data []byte, count int, nullable bool) ([]any, error) {
+	reader := bytes.NewReader(data)
+	values := make([]any, 0, count)
+	for i := 0; i < count; i++ {
+		id, err := readUvarint(reader)
+		if err != nil {
+			return nil, err
+		}
+		if nullable && id == 0 {
+			values = append(values, nil)
+			continue
+		}
+		if nullable {
 			if id-1 >= uint64(len(codec.Values)) {
 				return nil, fmt.Errorf("enum id %d is out of range", id)
 			}
 			values = append(values, codec.Values[id-1])
+			continue
 		}
-	case "generic":
-		for i := 0; i < count; i++ {
-			value, err := c.decodeValue(reader)
-			if err != nil {
-				return nil, err
-			}
-			values = append(values, value)
+		if id >= uint64(len(codec.Values)) {
+			return nil, fmt.Errorf("enum id %d is out of range", id)
 		}
-	default:
-		return nil, fmt.Errorf("unknown field codec %q", codec.Kind)
+		values = append(values, codec.Values[id])
 	}
+	return finishDecodedFieldValues(reader, values)
+}
+
+func (c *optimizedArchiveCodec) decodeGenericFieldValues(data []byte, count int) ([]any, error) {
+	reader := bytes.NewReader(data)
+	values := make([]any, 0, count)
+	for i := 0; i < count; i++ {
+		value, err := c.decodeValue(reader)
+		if err != nil {
+			return nil, err
+		}
+		values = append(values, value)
+	}
+	return finishDecodedFieldValues(reader, values)
+}
+
+func finishDecodedFieldValues(reader *bytes.Reader, values []any) ([]any, error) {
 	if reader.Len() != 0 {
 		return nil, fmt.Errorf("field stream has trailing bytes")
 	}
@@ -1183,52 +1352,52 @@ func (s *fieldStats) addSampleValues(field string, values []any) {
 
 func chooseFieldCodec(field string, stats *fieldStats) FieldCodec {
 	if field == "contig" {
-		return FieldCodec{Field: field, Kind: "sequence_index"}
+		return FieldCodec{Field: field, Kind: fieldCodecSequenceIndex}
 	}
 	if (field == "id" || field == "locus") && stats.prefixCandidate {
-		return FieldCodec{Field: field, Kind: "sample_prefix_uint_string"}
+		return FieldCodec{Field: field, Kind: fieldCodecSamplePrefixUintString}
 	}
 	if onlyType(stats.types, "null") {
-		return FieldCodec{Field: field, Kind: "const_null"}
+		return FieldCodec{Field: field, Kind: fieldCodecConstNull}
 	}
 	if onlyType(stats.types, "bool") {
 		if len(stats.scalarValues) == 1 {
-			return FieldCodec{Field: field, Kind: "const_bool", Value: stats.scalarValues[0]}
+			return FieldCodec{Field: field, Kind: fieldCodecConstBool, Value: stats.scalarValues[0]}
 		}
-		return FieldCodec{Field: field, Kind: "bool_bitset"}
+		return FieldCodec{Field: field, Kind: fieldCodecBoolBitset}
 	}
 	if onlyType(stats.types, "int") {
 		if stats.minInt != nil && *stats.minInt >= 0 {
-			return FieldCodec{Field: field, Kind: "uint"}
+			return FieldCodec{Field: field, Kind: fieldCodecUint}
 		}
-		return FieldCodec{Field: field, Kind: "int"}
+		return FieldCodec{Field: field, Kind: fieldCodecInt}
 	}
 	if onlyType(stats.types, "float") {
-		return FieldCodec{Field: field, Kind: "raw_number"}
+		return FieldCodec{Field: field, Kind: fieldCodecRawNumber}
 	}
 	if onlyType(stats.types, "string") {
 		if len(stats.scalarValues) == 1 {
-			return FieldCodec{Field: field, Kind: "const_string", Value: stats.scalarValues[0]}
+			return FieldCodec{Field: field, Kind: fieldCodecConstString, Value: stats.scalarValues[0]}
 		}
 		if len(stats.scalarValues) <= 256 {
-			return FieldCodec{Field: field, Kind: "enum_string", Values: scalarStrings(stats.scalarValues)}
+			return FieldCodec{Field: field, Kind: fieldCodecEnumString, Values: scalarStrings(stats.scalarValues)}
 		}
-		return FieldCodec{Field: field, Kind: "raw_string"}
+		return FieldCodec{Field: field, Kind: fieldCodecRawString}
 	}
 	if typeSubset(stats.types, "string", "null") {
 		stringsOnly := scalarStringsWithoutNull(stats.scalarValues)
 		if len(stringsOnly) == 0 {
-			return FieldCodec{Field: field, Kind: "const_null"}
+			return FieldCodec{Field: field, Kind: fieldCodecConstNull}
 		}
 		if len(stringsOnly) == 1 && len(stats.scalarValues) == 1 {
-			return FieldCodec{Field: field, Kind: "const_string", Value: stringsOnly[0]}
+			return FieldCodec{Field: field, Kind: fieldCodecConstString, Value: stringsOnly[0]}
 		}
 		if len(stringsOnly) <= 256 {
-			return FieldCodec{Field: field, Kind: "nullable_enum_string", Values: stringsOnly}
+			return FieldCodec{Field: field, Kind: fieldCodecNullableEnumString, Values: stringsOnly}
 		}
-		return FieldCodec{Field: field, Kind: "nullable_raw_string"}
+		return FieldCodec{Field: field, Kind: fieldCodecNullableRawString}
 	}
-	return FieldCodec{Field: field, Kind: "generic"}
+	return FieldCodec{Field: field, Kind: fieldCodecGeneric}
 }
 
 func collectValueSchemas(value any, schemas map[string][]string) {

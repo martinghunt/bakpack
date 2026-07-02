@@ -160,7 +160,7 @@ func validateFeatureTypeFieldCodec(codec FieldCodec) error {
 		return nil
 	}
 	switch codec.Kind {
-	case "const_string":
+	case fieldCodecConstString:
 		value, ok := codec.Value.(string)
 		if !ok {
 			return fmt.Errorf("archive feature type codec has non-string value")
@@ -168,13 +168,13 @@ func validateFeatureTypeFieldCodec(codec FieldCodec) error {
 		if !isSupportedBaktaFeatureType(value) {
 			return unsupportedBaktaFeatureTypeError(value)
 		}
-	case "enum_string", "nullable_enum_string":
+	case fieldCodecEnumString, fieldCodecNullableEnumString:
 		for _, value := range codec.Values {
 			if !isSupportedBaktaFeatureType(value) {
 				return unsupportedBaktaFeatureTypeError(value)
 			}
 		}
-	case "const_null":
+	case fieldCodecConstNull:
 		return fmt.Errorf("archive feature type codec has null value")
 	}
 	return nil
