@@ -166,88 +166,6 @@ func BuildArchive(ctx context.Context, opts BuildOptions) error {
 	return buildArchiveFromIndexedSources(ctx, opts, chunkSize)
 }
 
-func buildArchiveMaterialized(ctx context.Context, opts BuildOptions, chunkSize int) error {
-	annotationRecords, err := opts.Annotations.Records(ctx)
-	if err != nil {
-		return err
-	}
-	annotations, err := recordsBySample(annotationRecords)
-	if err != nil {
-		return err
-	}
-	genomeRecords, err := opts.Genomes.Records(ctx)
-	if err != nil {
-		return err
-	}
-	genomes, err := recordsBySample(genomeRecords)
-	if err != nil {
-		return err
-	}
-	order, err := buildOrder(ctx, opts, annotations)
-	if err != nil {
-		return err
-	}
-
-	var packed []packedSampleForArchive
-	for _, sample := range order {
-		annotation, ok := annotations[sample]
-		if !ok {
-			return fmt.Errorf("annotation for sample %q not found", sample)
-		}
-		genomeRecord, ok := genomes[sample]
-		if !ok {
-			return fmt.Errorf("genome for sample %q not found", sample)
-		}
-		packedSample, err := packReducedSample(sample, annotation, genomeRecord)
-		if err != nil {
-			return err
-		}
-		packed = append(packed, packedSample)
-	}
-
-	chunks, samples, chunkPayloads, err := makeArchiveChunks(packed, chunkSize, opts)
-	if err != nil {
-		return err
-	}
-	index := ArchiveIndex{
-		Format:        "bakpack",
-		Version:       ArchiveVersion,
-		PayloadFormat: optimizedPayloadFormat,
-		ChunkSize:     chunkSize,
-		Chunks:        chunks,
-		Samples:       samples,
-	}
-	indexBytes, err := json.Marshal(index)
-	if err != nil {
-		return err
-	}
-	indexBytes, err = xzCompress(indexBytes, opts)
-	if err != nil {
-		return err
-	}
-
-	out, err := os.Create(opts.OutputPath)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	if _, err := out.Write([]byte(ArchiveMagic)); err != nil {
-		return err
-	}
-	if err := binary.Write(out, binary.LittleEndian, uint64(len(indexBytes))); err != nil {
-		return err
-	}
-	if _, err := out.Write(indexBytes); err != nil {
-		return err
-	}
-	for _, payload := range chunkPayloads {
-		if _, err := out.Write(payload); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func buildArchiveFromIndexedSources(ctx context.Context, opts BuildOptions, chunkSize int) error {
 	order, err := buildOrderFromSources(ctx, opts)
 	if err != nil {
@@ -1221,33 +1139,6 @@ func encodeArchiveChunk(chunkID int, batch []packedSampleForArchive, opts BuildO
 	return chunk, sampleIndexes, compressed, nil
 }
 
-func makeArchiveChunks(packed []packedSampleForArchive, chunkSize int, opts BuildOptions) ([]ChunkIndex, []SampleIndex, [][]byte, error) {
-	var chunks []ChunkIndex
-	var samples []SampleIndex
-	var payloads [][]byte
-	var relativeOffset int64
-	for chunkID, start := 0, 0; start < len(packed); chunkID, start = chunkID+1, start+chunkSize {
-		end := start + chunkSize
-		if end > len(packed) {
-			end = len(packed)
-		}
-		chunk, sampleIndexes, compressed, err := encodeArchiveChunk(chunkID, packed[start:end], opts)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		for i := start; i < end; i++ {
-			packed[i].reduced = nil
-			packed[i].reducedRoot = nil
-		}
-		chunk.Offset = relativeOffset
-		chunks = append(chunks, chunk)
-		relativeOffset += int64(len(compressed))
-		samples = append(samples, sampleIndexes...)
-		payloads = append(payloads, compressed)
-	}
-	return chunks, samples, payloads, nil
-}
-
 type packedSampleForArchive struct {
 	index       SampleIndex
 	reduced     []byte
@@ -1533,20 +1424,6 @@ func packSampleFromSources(ctx context.Context, opts BuildOptions, sample string
 		return packedSampleForArchive{}, err
 	}
 	return packReducedSample(sample, annotation, genomeRecord)
-}
-
-func recordsBySample(records []FileRecord) (map[string]FileRecord, error) {
-	out := map[string]FileRecord{}
-	for _, record := range records {
-		if record.SampleID == "" {
-			return nil, fmt.Errorf("record %q has no sample ID", record.Name)
-		}
-		if _, exists := out[record.SampleID]; exists {
-			return nil, fmt.Errorf("duplicate sample %q", record.SampleID)
-		}
-		out[record.SampleID] = record
-	}
-	return out, nil
 }
 
 func xzCompress(data []byte, opts BuildOptions) ([]byte, error) {

@@ -655,20 +655,3 @@ func sampleIDFromName(name, role string) string {
 	}
 	return ""
 }
-
-func findRecord(records []FileRecord, sample string) (FileRecord, error) {
-	for _, record := range records {
-		if record.SampleID == sample {
-			return record, nil
-		}
-	}
-	return FileRecord{}, fmt.Errorf("sample %q not found", sample)
-}
-
-func recordOrder(records []FileRecord) []string {
-	order := make([]string, 0, len(records))
-	for _, record := range records {
-		order = append(order, record.SampleID)
-	}
-	return order
-}
