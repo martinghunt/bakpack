@@ -251,98 +251,62 @@ func gffAttributes(feature map[string]any) string {
 
 func gffProteinAttributes(feature map[string]any) string {
 	product, _ := feature["product"].(string)
-	attrs := []gffAttr{
-		{Key: "ID", Value: gffFeatureID(feature)},
-		{Key: "Name", Value: product},
-	}
-	if locus, _ := feature["locus"].(string); locus != "" {
-		attrs = append(attrs, gffAttr{Key: "locus_tag", Value: locus})
-	}
-	attrs = append(attrs, gffAttr{Key: "product", Value: product})
+	attrs := gffIDNameAttrs(feature, product)
+	attrs = appendGFFAttrString(attrs, "locus_tag", featureString(feature, "locus"))
+	attrs = append(attrs, gffProductAttr(product))
 	attrs = appendDBXrefs(attrs, feature)
-	if pseudo, _ := feature["pseudo"].(bool); pseudo {
-		attrs = append(attrs, gffAttr{Key: "pseudogene", Value: "unitary"})
-	}
-	if gene, _ := feature["gene"].(string); gene != "" {
-		attrs = append(attrs, gffAttr{Key: "gene", Value: gene})
-	}
+	attrs = appendUnitaryPseudogene(attrs, feature)
+	attrs = appendGFFAttrString(attrs, "gene", featureString(feature, "gene"))
 	return gffAttrString(attrs)
 }
 
 func gffGapAttributes(feature map[string]any) string {
 	length, _ := jsonInt(feature["length"])
 	product := fmt.Sprintf("gap (%d bp)", length)
-	return gffAttrString([]gffAttr{
-		{Key: "ID", Value: gffFeatureID(feature)},
-		{Key: "Name", Value: product},
-		{Key: "product", Value: product},
-	})
+	attrs := gffIDNameAttrs(feature, product)
+	attrs = append(attrs, gffProductAttr(product))
+	return gffAttrString(attrs)
 }
 
 func gffOriginAttributes(feature map[string]any) string {
 	product, _ := feature["product"].(string)
-	return gffAttrString([]gffAttr{
-		{Key: "ID", Value: gffFeatureID(feature)},
-		{Key: "Name", Value: product},
-		{Key: "product", Value: product},
-		{Key: "inference", Value: "similar to DNA sequence"},
-	})
+	attrs := gffIDNameAttrs(feature, product)
+	attrs = append(attrs,
+		gffProductAttr(product),
+		gffAttr{Key: "inference", Value: "similar to DNA sequence"},
+	)
+	return gffAttrString(attrs)
 }
 
 func gffRNAAttributes(feature map[string]any) string {
 	product, _ := feature["product"].(string)
-	attrs := []gffAttr{
-		{Key: "ID", Value: gffFeatureID(feature)},
-		{Key: "Name", Value: product},
-	}
-	if locus, _ := feature["locus"].(string); locus != "" {
-		attrs = append(attrs, gffAttr{Key: "locus_tag", Value: locus})
-	}
-	if gene, _ := feature["gene"].(string); gene != "" {
-		attrs = append(attrs, gffAttr{Key: "gene", Value: gene})
-	}
-	attrs = append(attrs, gffAttr{Key: "product", Value: product})
+	attrs := gffIDNameAttrs(feature, product)
+	attrs = appendGFFAttrString(attrs, "locus_tag", featureString(feature, "locus"))
+	attrs = appendGFFAttrString(attrs, "gene", featureString(feature, "gene"))
+	attrs = append(attrs, gffProductAttr(product))
 	attrs = appendDBXrefs(attrs, feature)
-	if isTruncated(feature) {
-		attrs = append(attrs, gffAttr{Key: "pseudo", Value: "True"})
-	}
+	attrs = appendTruncatedPseudo(attrs, feature)
 	return gffAttrString(attrs)
 }
 
 func gffRegulatoryRegionAttributes(feature map[string]any) string {
 	product, _ := feature["product"].(string)
-	attrs := []gffAttr{
-		{Key: "ID", Value: gffFeatureID(feature)},
-		{Key: "Name", Value: product},
-		{Key: "product", Value: product},
-	}
+	attrs := gffIDNameAttrs(feature, product)
+	attrs = append(attrs, gffProductAttr(product))
 	attrs = appendDBXrefs(attrs, feature)
-	if isTruncated(feature) {
-		attrs = append(attrs, gffAttr{Key: "pseudo", Value: "True"})
-	}
+	attrs = appendTruncatedPseudo(attrs, feature)
 	return gffAttrString(attrs)
 }
 
 func gffTRNAAttributes(feature map[string]any) string {
 	product, _ := feature["product"].(string)
-	attrs := []gffAttr{
-		{Key: "ID", Value: gffFeatureID(feature)},
-		{Key: "Name", Value: product},
-	}
-	if locus, _ := feature["locus"].(string); locus != "" {
-		attrs = append(attrs, gffAttr{Key: "locus_tag", Value: locus})
-	}
-	attrs = append(attrs, gffAttr{Key: "product", Value: product})
+	attrs := gffIDNameAttrs(feature, product)
+	attrs = appendGFFAttrString(attrs, "locus_tag", featureString(feature, "locus"))
+	attrs = append(attrs, gffProductAttr(product))
 	attrs = appendDBXrefs(attrs, feature)
-	if gene, _ := feature["gene"].(string); gene != "" {
-		attrs = append(attrs, gffAttr{Key: "gene", Value: gene})
-	}
-	if antiCodon, _ := feature["anti_codon"].(string); antiCodon != "" {
-		attrs = append(attrs, gffAttr{Key: "anti_codon", Value: antiCodon})
-	}
-	if aminoAcid, _ := feature["amino_acid"].(string); aminoAcid != "" {
-		attrs = append(attrs, gffAttr{Key: "amino_acid", Value: aminoAcid})
-	}
+	attrs = appendGFFAttrString(attrs, "gene", featureString(feature, "gene"))
+	attrs = appendGFFAttrString(attrs, "anti_codon", featureString(feature, "anti_codon"))
+	attrs = appendGFFAttrString(attrs, "amino_acid", featureString(feature, "amino_acid"))
 	return gffAttrString(attrs)
 }
 
@@ -412,6 +376,43 @@ func appendDBXrefs(attrs []gffAttr, feature map[string]any) []gffAttr {
 		return attrs
 	}
 	return append(attrs, gffAttr{Key: "Dbxref", Values: dbxrefs})
+}
+
+func gffIDNameAttrs(feature map[string]any, name string) []gffAttr {
+	return []gffAttr{
+		{Key: "ID", Value: gffFeatureID(feature)},
+		{Key: "Name", Value: name},
+	}
+}
+
+func gffProductAttr(product string) gffAttr {
+	return gffAttr{Key: "product", Value: product}
+}
+
+func appendGFFAttrString(attrs []gffAttr, key, value string) []gffAttr {
+	if value == "" {
+		return attrs
+	}
+	return append(attrs, gffAttr{Key: key, Value: value})
+}
+
+func appendUnitaryPseudogene(attrs []gffAttr, feature map[string]any) []gffAttr {
+	if pseudo, _ := feature["pseudo"].(bool); pseudo {
+		return append(attrs, gffAttr{Key: "pseudogene", Value: "unitary"})
+	}
+	return attrs
+}
+
+func appendTruncatedPseudo(attrs []gffAttr, feature map[string]any) []gffAttr {
+	if isTruncated(feature) {
+		return append(attrs, gffAttr{Key: "pseudo", Value: "True"})
+	}
+	return attrs
+}
+
+func featureString(feature map[string]any, key string) string {
+	value, _ := feature[key].(string)
+	return value
 }
 
 func gffFeatureID(feature map[string]any) string {
