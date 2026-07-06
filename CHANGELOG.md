@@ -7,9 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-06
+
 ### Added
 
 - Render Bakta-style GFF3 from original or reduced JSON with `bakpack gff3`, extract GFF3 from archives with `--gff3` / `--gff3-annotation-only`, and use the same support through the library APIs.
+- Write CLI-equivalent extracted files from library code with `Archive.ExtractFiles` and the one-shot `ExtractArchive` helper.
 
 ## [0.1.0] - 2026-06-24
 
@@ -34,5 +37,6 @@ Initial release of `bakpack`.
 - AGC genome extraction uses `agc getset -t 1` by default and fetches non-tar genome sources one sample at a time during extraction.
 - Archive format compatibility is not guaranteed before a future stable release.
 
-[Unreleased]: https://github.com/martinghunt/bakpack/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/martinghunt/bakpack/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/martinghunt/bakpack/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/martinghunt/bakpack/releases/tag/v0.1.0
