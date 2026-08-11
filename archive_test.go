@@ -56,6 +56,15 @@ func TestOptimizedArchiveCodecMetadataErrorsOnUnsupportedFeatureType(t *testing.
 	}
 }
 
+func TestBuildTempPatternUsesOutputBasename(t *testing.T) {
+	if got, want := buildTempPattern(filepath.Join("results", "run42.bakpack"), "chunks"), "run42.bakpack.tmp-chunks-*"; got != want {
+		t.Fatalf("buildTempPattern() = %q, want %q", got, want)
+	}
+	if got, want := buildTempPattern("annotations.bakpack", "annotations"), "annotations.bakpack.tmp-annotations-*"; got != want {
+		t.Fatalf("buildTempPattern() = %q, want %q", got, want)
+	}
+}
+
 func TestBuildAndExtractArchiveFromTarXZUsesGenomeArchiveOrder(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()

@@ -48,7 +48,7 @@ func BuildArchive(ctx context.Context, opts BuildOptions) error {
 }
 
 func buildArchiveFromChunks(opts BuildOptions, chunkSize int, buildChunks func(io.Writer) ([]ChunkIndex, []SampleIndex, error)) error {
-	chunkFile, err := os.CreateTemp(filepath.Dir(opts.OutputPath), ".bakpack-chunks-*")
+	chunkFile, err := os.CreateTemp(filepath.Dir(opts.OutputPath), buildTempPattern(opts.OutputPath, "chunks"))
 	if err != nil {
 		return err
 	}
@@ -203,7 +203,7 @@ func buildArchiveFromSpooledAnnotationTar(ctx context.Context, opts BuildOptions
 	if err != nil {
 		return err
 	}
-	spoolDir, err := os.MkdirTemp(filepath.Dir(opts.OutputPath), ".bakpack-annotations-*")
+	spoolDir, err := os.MkdirTemp(filepath.Dir(opts.OutputPath), buildTempPattern(opts.OutputPath, "annotations"))
 	if err != nil {
 		return err
 	}
@@ -523,6 +523,13 @@ func writeArchiveFile(path string, index ArchiveIndex, opts BuildOptions, chunks
 	}
 	_, err = io.Copy(out, chunks)
 	return err
+}
+
+// buildTempPattern returns a visible, output-specific temporary name pattern.
+// Keeping interrupted-build artifacts beside and named after their target makes
+// them straightforward to identify and remove without affecting other builds.
+func buildTempPattern(outputPath, purpose string) string {
+	return filepath.Base(outputPath) + ".tmp-" + purpose + "-*"
 }
 
 func encodeArchiveChunk(chunkID int, batch []packedSampleForArchive, opts BuildOptions) (ChunkIndex, []SampleIndex, []byte, error) {

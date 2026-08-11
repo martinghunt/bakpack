@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Let `bakpack extract --genomes` accept a standalone `.fa`, `.fasta`, or `.fna` genome file, including faqt-supported gzip, bzip2, xz, and zstd compression.
 - Recognize compressed genome FASTA files when extracting from genome directories or file lists.
 - Use a requested positional sample or a sole `--samples-file` entry to identify a standalone genome file, overriding its filename-derived sample ID.
+- Name build temporary chunk files and annotation spool directories after their output archive, making leftovers from interrupted builds easier to identify and clean up.
 
 ## [0.2.0] - 2026-07-06
 
