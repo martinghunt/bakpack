@@ -136,6 +136,8 @@ func OpenSource(path, kind, role string) (FileSource, error) {
 			kind = "tar.xz"
 		case strings.HasSuffix(path, ".agc"):
 			kind = "agc"
+		case role == "genome" && isGenomeFilename(filepath.Base(path)):
+			kind = "file"
 		default:
 			kind = "list"
 		}
@@ -143,6 +145,19 @@ func OpenSource(path, kind, role string) (FileSource, error) {
 	switch kind {
 	case "dir":
 		return DirSource{Dir: path, Role: role}, nil
+	case "file":
+		if role != "genome" {
+			return nil, fmt.Errorf("single file source is only supported for genomes")
+		}
+		sampleID := sampleIDFromName(filepath.Base(path), role)
+		if sampleID == "" {
+			return nil, fmt.Errorf("cannot infer sample ID from genome filename %q", path)
+		}
+		return SingleFileSource{File: sourceFile{
+			SampleID: sampleID,
+			Name:     filepath.Base(path),
+			Path:     path,
+		}}, nil
 	case "list":
 		return ListSource{Path: path, Role: role}, nil
 	case "manifest":
@@ -325,6 +340,38 @@ type sourceFile struct {
 	SampleID string
 	Name     string
 	Path     string
+}
+
+// SingleFileSource exposes one genome file as a source. Its sample ID is
+// inferred from the file name, including recognised compression suffixes.
+type SingleFileSource struct {
+	File sourceFile
+}
+
+// WithSampleID returns a copy that exposes the genome as sampleID. It is used
+// by the CLI when a single genome file accompanies an explicit sample argument.
+func (s SingleFileSource) WithSampleID(sampleID string) SingleFileSource {
+	s.File.SampleID = sampleID
+	return s
+}
+
+func (s SingleFileSource) Records(ctx context.Context) ([]FileRecord, error) {
+	record, err := readSourceFileRecord(ctx, s.File)
+	if err != nil {
+		return nil, err
+	}
+	return []FileRecord{record}, nil
+}
+
+func (s SingleFileSource) Get(ctx context.Context, sample string) (FileRecord, error) {
+	if sample != s.File.SampleID {
+		return FileRecord{}, fmt.Errorf("sample %q not found", sample)
+	}
+	return readSourceFileRecord(ctx, s.File)
+}
+
+func (s SingleFileSource) Order(context.Context) ([]string, error) {
+	return []string{s.File.SampleID}, nil
 }
 
 func readSourceFileRecords(ctx context.Context, entries []sourceFile) ([]FileRecord, error) {
@@ -646,10 +693,19 @@ func sampleIDFromName(name, role string) string {
 	} else {
 		suffixes = []string{".fasta", ".fa", ".fna"}
 	}
+	for _, suffix := range compressionSuffixes {
+		base = strings.TrimSuffix(base, suffix)
+	}
 	for _, suffix := range suffixes {
 		if strings.HasSuffix(base, suffix) {
 			return strings.TrimSuffix(base, suffix)
 		}
 	}
 	return ""
+}
+
+var compressionSuffixes = []string{".gz", ".bz2", ".xz", ".zst"}
+
+func isGenomeFilename(name string) bool {
+	return sampleIDFromName(name, "genome") != ""
 }

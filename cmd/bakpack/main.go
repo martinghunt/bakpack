@@ -245,6 +245,11 @@ func newExtractCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if len(samples) == 1 {
+				if source, ok := genomes.(bakpack.SingleFileSource); ok {
+					genomes = source.WithSampleID(samples[0])
+				}
+			}
 			return bakpack.ExtractArchive(cmd.Context(), bakpack.ExtractOptions{
 				ArchivePath:        archive,
 				Genomes:            genomes,

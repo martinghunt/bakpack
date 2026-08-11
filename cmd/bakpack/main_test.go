@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"os"
 	"path/filepath"
 	"testing"
@@ -102,6 +103,41 @@ func TestCLIWorkflowWithDirectoryInputs(t *testing.T) {
 	if bytes.Contains(gff3Extracted, []byte("##FASTA")) || !bytes.Contains(gff3Extracted, []byte("\tPyrodigal\tCDS\t")) {
 		t.Fatalf("extracted GFF3 = %s", gff3Extracted)
 	}
+
+	compressedGenomePath := filepath.Join(dir, "different-name.fa.gz")
+	writeFile(t, compressedGenomePath, gzipFileBytes(t, toyFASTA()))
+	compressedOutDir := filepath.Join(dir, "compressed-out")
+	_, stderr, err = executeCommand(
+		"extract",
+		archivePath,
+		"sample1",
+		"--genomes", compressedGenomePath,
+		"--output-dir", compressedOutDir,
+		"--original",
+	)
+	if err != nil {
+		t.Fatalf("extract with compressed genome error = %v, stderr = %s", err, stderr)
+	}
+	assertCanonicalEqual(t, filepath.Join(compressedOutDir, "sample1.bakta.json"), originalJSON)
+
+	compressedGenomesDir := filepath.Join(dir, "compressed-genomes")
+	mustMkdir(t, compressedGenomesDir)
+	writeFile(t, filepath.Join(compressedGenomesDir, "sample1.fa.gz"), gzipFileBytes(t, toyFASTA()))
+	samplesFile := filepath.Join(dir, "samples.txt")
+	writeFile(t, samplesFile, []byte("sample1\n"))
+	samplesFileOutDir := filepath.Join(dir, "samples-file-out")
+	_, stderr, err = executeCommand(
+		"extract",
+		archivePath,
+		"--samples-file", samplesFile,
+		"--genomes", compressedGenomesDir,
+		"--output-dir", samplesFileOutDir,
+		"--original",
+	)
+	if err != nil {
+		t.Fatalf("extract with --samples-file and compressed genome directory error = %v, stderr = %s", err, stderr)
+	}
+	assertCanonicalEqual(t, filepath.Join(samplesFileOutDir, "sample1.bakta.json"), originalJSON)
 }
 
 func TestCLIBuildWithCombinedManifest(t *testing.T) {
@@ -177,6 +213,19 @@ func mustMkdir(t *testing.T, path string) {
 	if err := os.Mkdir(path, 0o755); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func gzipFileBytes(t *testing.T, input []byte) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	w := gzip.NewWriter(&buf)
+	if _, err := w.Write(input); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
 }
 
 func writeFile(t *testing.T, path string, data []byte) {

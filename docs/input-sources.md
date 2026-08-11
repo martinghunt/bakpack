@@ -25,7 +25,15 @@ sample.json       -> sample
 sample.fa         -> sample
 sample.fasta      -> sample
 sample.fna        -> sample
+sample.fa.gz      -> sample
+sample.fasta.bz2  -> sample
+sample.fna.xz     -> sample
+sample.fa.zst     -> sample
 ```
+
+Genome FASTA sources can use faqt-supported gzip, bzip2, xz, or zstd
+compression. This applies to a standalone genome passed to `--genomes`, as
+well as genome files discovered in a directory or listed in a file list.
 
 For `.tar.xz` sources, `bakpack` uses regular tar member basenames in tar order.
 For directories, it uses lexicographic file path order. For AGC genome sources,
