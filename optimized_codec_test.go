@@ -262,6 +262,15 @@ func TestDecodeValueRejectsOversizedListCount(t *testing.T) {
 	}
 }
 
+func TestDecodeConstFieldValuesRejectsMismatchedCodecValueType(t *testing.T) {
+	if _, err := decodeConstBoolFieldValues(FieldCodec{Value: "not-a-bool"}, nil, 3); err == nil {
+		t.Fatal("decodeConstBoolFieldValues() with non-bool codec value = nil error, want error")
+	}
+	if _, err := decodeConstStringFieldValues(FieldCodec{Value: 42}, nil, 3); err == nil {
+		t.Fatal("decodeConstStringFieldValues() with non-string codec value = nil error, want error")
+	}
+}
+
 func roundTripFieldValuesForTest(t *testing.T, codec FieldCodec, values []any, metadata map[string]any) []any {
 	t.Helper()
 	c := &optimizedArchiveCodec{}

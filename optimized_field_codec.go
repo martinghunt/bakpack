@@ -368,9 +368,13 @@ func decodeConstBoolFieldValues(codec FieldCodec, data []byte, count int) ([]any
 	if len(data) != 0 {
 		return nil, fmt.Errorf("constant field has payload bytes")
 	}
+	value, ok := codec.Value.(bool)
+	if !ok {
+		return nil, fmt.Errorf("constant bool codec has non-bool value")
+	}
 	values := make([]any, count)
 	for i := range values {
-		values[i] = codec.Value.(bool)
+		values[i] = value
 	}
 	return values, nil
 }
@@ -379,9 +383,13 @@ func decodeConstStringFieldValues(codec FieldCodec, data []byte, count int) ([]a
 	if len(data) != 0 {
 		return nil, fmt.Errorf("constant field has payload bytes")
 	}
+	value, ok := codec.Value.(string)
+	if !ok {
+		return nil, fmt.Errorf("constant string codec has non-string value")
+	}
 	values := make([]any, count)
 	for i := range values {
-		values[i] = codec.Value.(string)
+		values[i] = value
 	}
 	return values, nil
 }
