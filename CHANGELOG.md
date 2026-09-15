@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reject non-positive sequence lengths and feature coordinates when rendering GFF3, instead of emitting invalid GFF3 lines (a feature's `start > stop` is still allowed, as that's the convention for a feature wrapping a circular contig's origin).
 - Cancel the `xz` compression subprocess when a build's context is canceled, instead of letting it keep running to completion after the caller has given up.
 - Reject an archive index that contains a duplicate sample ID or chunk ID, instead of silently keeping only the last entry.
+- Report a duplicate genome sample in a `.tar.xz` genome source during build with a clear error, instead of a confusing "file not found" error from the second copy's spool file already having been removed.
 
 ## [0.3.0] - 2026-08-11
 

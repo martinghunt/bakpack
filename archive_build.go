@@ -291,11 +291,15 @@ func forEachSpooledAnnotationSample(ctx context.Context, opts BuildOptions, anno
 		for _, sample := range order {
 			wanted[sample] = true
 		}
-		seen := 0
+		seen := map[string]bool{}
 		err := streamTarXZRecords(ctx, genomesTar, func(genomeRecord FileRecord) error {
 			if !wanted[genomeRecord.SampleID] {
 				return nil
 			}
+			if seen[genomeRecord.SampleID] {
+				return fmt.Errorf("duplicate genome sample %q in %s", genomeRecord.SampleID, genomesTar.Path)
+			}
+			seen[genomeRecord.SampleID] = true
 			annotation, err := loadSpooledAnnotation(annotations[genomeRecord.SampleID])
 			if err != nil {
 				return err
@@ -304,13 +308,12 @@ func forEachSpooledAnnotationSample(ctx context.Context, opts BuildOptions, anno
 			if err != nil {
 				return err
 			}
-			seen++
 			return fn(packed)
 		})
 		if err != nil {
 			return err
 		}
-		if seen != len(order) {
+		if len(seen) != len(order) {
 			return fmt.Errorf("genome source did not include all annotation samples")
 		}
 		return nil

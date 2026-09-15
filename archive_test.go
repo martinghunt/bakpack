@@ -112,6 +112,48 @@ func TestWriteArchiveFileLeavesExistingArchiveUntouchedOnFailure(t *testing.T) {
 	}
 }
 
+func TestBuildArchiveFromSpooledAnnotationsRejectsDuplicateGenomeSample(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	annotationsTar := filepath.Join(dir, "annotations.tar.xz")
+	genomesTar := filepath.Join(dir, "genomes.tar.xz")
+	archivePath := filepath.Join(dir, "dup.bakpack")
+
+	writeTarXZ(t, annotationsTar, []tarEntry{
+		{Name: "bakta/sampleA.bakta.json", Data: toyBaktaJSON("sampleA", "gene A")},
+		{Name: "bakta/sampleB.bakta.json", Data: toyBaktaJSON("sampleB", "gene B")},
+		{Name: "bakta/sampleC.bakta.json", Data: toyBaktaJSON("sampleC", "gene C")},
+	})
+	// sampleA duplicated and sampleC entirely missing: the same total record
+	// count as the annotation set, so a plain length comparison alone would
+	// miss the duplicate.
+	writeTarXZ(t, genomesTar, []tarEntry{
+		{Name: "genomes/sampleA.fa", Data: toyFASTA("sampleA")},
+		{Name: "genomes/sampleA.fa", Data: toyFASTA("sampleA")},
+		{Name: "genomes/sampleB.fa", Data: toyFASTA("sampleB")},
+	})
+
+	annotations, err := OpenSource(annotationsTar, "tar.xz", "annotation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	genomes, err := OpenSource(genomesTar, "tar.xz", "genome")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = BuildArchive(ctx, BuildOptions{
+		Annotations: annotations,
+		Genomes:     genomes,
+		OutputPath:  archivePath,
+	})
+	if err == nil {
+		t.Fatal("BuildArchive() with duplicate genome sample = nil error, want error")
+	}
+	if !strings.Contains(err.Error(), "duplicate genome sample") {
+		t.Fatalf("BuildArchive() error = %v, want mention of duplicate genome sample", err)
+	}
+}
+
 func TestBuildAndExtractArchiveFromTarXZUsesGenomeArchiveOrder(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
