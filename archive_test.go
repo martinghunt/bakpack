@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/ulikunitz/xz"
 )
@@ -568,6 +569,44 @@ func TestExtractArchiveFromHTTPRangeURL(t *testing.T) {
 		if !strings.HasPrefix(rangeHeader, "bytes=") {
 			t.Fatalf("bad range header %q", rangeHeader)
 		}
+	}
+}
+
+func TestHTTPRangeReaderDoesNotBufferOversizedResponseBody(t *testing.T) {
+	// A misbehaving or malicious server ignores the requested range and
+	// streams far more data than asked for. ReadAt must return as soon as it
+	// has the bytes it needs instead of buffering the whole response body.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusPartialContent)
+		flusher, _ := w.(http.Flusher)
+		chunk := bytes.Repeat([]byte("A"), 1<<20) // 1 MiB
+		for i := 0; i < 20; i++ {
+			if _, err := w.Write(chunk); err != nil {
+				return
+			}
+			if flusher != nil {
+				flusher.Flush()
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+	}))
+	defer server.Close()
+
+	reader := httpRangeReader{client: server.Client(), url: server.URL}
+	data := make([]byte, 16)
+
+	start := time.Now()
+	n, err := reader.ReadAt(context.Background(), data, 0)
+	elapsed := time.Since(start)
+
+	if err != nil {
+		t.Fatalf("ReadAt() error = %v", err)
+	}
+	if n != len(data) {
+		t.Fatalf("ReadAt() n = %d, want %d", n, len(data))
+	}
+	if elapsed > 500*time.Millisecond {
+		t.Fatalf("ReadAt() took %v, want it to return promptly instead of draining the full oversized response body", elapsed)
 	}
 }
 

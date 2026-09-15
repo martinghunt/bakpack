@@ -237,15 +237,14 @@ func (r httpRangeReader) ReadAt(ctx context.Context, data []byte, offset int64) 
 	if resp.StatusCode != http.StatusPartialContent {
 		return 0, fmt.Errorf("%s did not honor Range request %q: HTTP %d", r.url, req.Header.Get("Range"), resp.StatusCode)
 	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return 0, err
-	}
-	n := copy(data, body)
-	if n != len(data) {
+	// Read directly into data through a limited reader so a misbehaving or
+	// malicious server can't send more than the requested range and force an
+	// unbounded read into memory.
+	n, err := io.ReadFull(io.LimitReader(resp.Body, int64(len(data))), data)
+	if err == io.ErrUnexpectedEOF || err == io.EOF {
 		return n, io.ErrUnexpectedEOF
 	}
-	return n, nil
+	return n, err
 }
 
 func (r httpRangeReader) Close() error {
