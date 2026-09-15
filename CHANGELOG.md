@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve the exact decimal text of integer JSON numbers in canonical JSON regardless of magnitude, instead of rounding integers larger than int64 through float64, which could make distinct large integers canonicalize to the same checksum.
 - Reject building from paired `.tar.xz` annotation/genome sources that contain no samples, instead of silently producing an empty archive.
 - Reject non-positive sequence lengths and feature coordinates when rendering GFF3, instead of emitting invalid GFF3 lines (a feature's `start > stop` is still allowed, as that's the convention for a feature wrapping a circular contig's origin).
+- Cancel the `xz` compression subprocess when a build's context is canceled, instead of letting it keep running to completion after the caller has given up.
 
 ## [0.3.0] - 2026-08-11
 

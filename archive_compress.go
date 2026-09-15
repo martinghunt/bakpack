@@ -2,6 +2,7 @@ package bakpack
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -11,12 +12,12 @@ import (
 	"github.com/ulikunitz/xz"
 )
 
-func xzCompress(data []byte, opts BuildOptions) ([]byte, error) {
+func xzCompress(ctx context.Context, data []byte, opts BuildOptions) ([]byte, error) {
 	threads := opts.XZThreads
 	if threads <= 0 {
 		threads = 1
 	}
-	cmd := exec.Command("xz", "-9e", fmt.Sprintf("-T%d", threads), "-c")
+	cmd := exec.CommandContext(ctx, "xz", "-9e", fmt.Sprintf("-T%d", threads), "-c")
 	cmd.Stdin = bytes.NewReader(data)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

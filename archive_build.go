@@ -47,7 +47,7 @@ func BuildArchive(ctx context.Context, opts BuildOptions) error {
 	return buildArchiveFromIndexedSources(ctx, opts, chunkSize)
 }
 
-func buildArchiveFromChunks(opts BuildOptions, chunkSize int, buildChunks func(io.Writer) ([]ChunkIndex, []SampleIndex, error)) error {
+func buildArchiveFromChunks(ctx context.Context, opts BuildOptions, chunkSize int, buildChunks func(io.Writer) ([]ChunkIndex, []SampleIndex, error)) error {
 	chunkFile, err := os.CreateTemp(filepath.Dir(opts.OutputPath), buildTempPattern(opts.OutputPath, "chunks"))
 	if err != nil {
 		return err
@@ -71,10 +71,11 @@ func buildArchiveFromChunks(opts BuildOptions, chunkSize int, buildChunks func(i
 		Chunks:        chunks,
 		Samples:       samples,
 	}
-	return writeArchiveFile(opts.OutputPath, index, opts, chunkFile)
+	return writeArchiveFile(ctx, opts.OutputPath, index, opts, chunkFile)
 }
 
 type archiveChunkBatcher struct {
+	ctx            context.Context
 	opts           BuildOptions
 	chunkSize      int
 	chunkWriter    io.Writer
@@ -85,8 +86,9 @@ type archiveChunkBatcher struct {
 	chunkID        int
 }
 
-func newArchiveChunkBatcher(opts BuildOptions, chunkSize int, chunkWriter io.Writer) *archiveChunkBatcher {
+func newArchiveChunkBatcher(ctx context.Context, opts BuildOptions, chunkSize int, chunkWriter io.Writer) *archiveChunkBatcher {
 	return &archiveChunkBatcher{
+		ctx:         ctx,
 		opts:        opts,
 		chunkSize:   chunkSize,
 		chunkWriter: chunkWriter,
@@ -105,7 +107,7 @@ func (b *archiveChunkBatcher) flush() error {
 	if len(b.batch) == 0 {
 		return nil
 	}
-	chunk, sampleIndexes, compressed, err := encodeArchiveChunk(b.chunkID, b.batch, b.opts)
+	chunk, sampleIndexes, compressed, err := encodeArchiveChunk(b.ctx, b.chunkID, b.batch, b.opts)
 	if err != nil {
 		return err
 	}
@@ -138,13 +140,13 @@ func buildArchiveFromIndexedSources(ctx context.Context, opts BuildOptions, chun
 	if err != nil {
 		return err
 	}
-	return buildArchiveFromChunks(opts, chunkSize, func(chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
+	return buildArchiveFromChunks(ctx, opts, chunkSize, func(chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
 		return makeArchiveChunksFromIndexedSources(ctx, opts, order, chunkSize, chunkWriter)
 	})
 }
 
 func makeArchiveChunksFromIndexedSources(ctx context.Context, opts BuildOptions, order []string, chunkSize int, chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
-	batcher := newArchiveChunkBatcher(opts, chunkSize, chunkWriter)
+	batcher := newArchiveChunkBatcher(ctx, opts, chunkSize, chunkWriter)
 
 	for _, sample := range order {
 		select {
@@ -168,13 +170,13 @@ func makeArchiveChunksFromIndexedSources(ctx context.Context, opts BuildOptions,
 }
 
 func buildArchiveFromPairedTarXZ(ctx context.Context, opts BuildOptions, annotationsTar, genomesTar TarXZSource, chunkSize int) error {
-	return buildArchiveFromChunks(opts, chunkSize, func(chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
+	return buildArchiveFromChunks(ctx, opts, chunkSize, func(chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
 		return makeArchiveChunksFromPairedTarXZ(ctx, opts, annotationsTar, genomesTar, chunkSize, chunkWriter)
 	})
 }
 
 func makeArchiveChunksFromPairedTarXZ(ctx context.Context, opts BuildOptions, annotationsTar, genomesTar TarXZSource, chunkSize int, chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
-	batcher := newArchiveChunkBatcher(opts, chunkSize, chunkWriter)
+	batcher := newArchiveChunkBatcher(ctx, opts, chunkSize, chunkWriter)
 
 	count := 0
 	if err := streamPairedTarXZRecords(ctx, annotationsTar, genomesTar, func(annotation, genomeRecord FileRecord) error {
@@ -223,7 +225,7 @@ func buildArchiveFromSpooledAnnotationTar(ctx context.Context, opts BuildOptions
 		return err
 	}
 
-	return buildArchiveFromChunks(opts, chunkSize, func(chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
+	return buildArchiveFromChunks(ctx, opts, chunkSize, func(chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
 		return makeArchiveChunksFromSpooledAnnotations(ctx, opts, annotations, order, chunkSize, chunkWriter)
 	})
 }
@@ -265,7 +267,7 @@ func buildOrderFromSpooledAnnotations(ctx context.Context, opts BuildOptions, an
 }
 
 func makeArchiveChunksFromSpooledAnnotations(ctx context.Context, opts BuildOptions, annotations map[string]spooledAnnotation, order []string, chunkSize int, chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
-	batcher := newArchiveChunkBatcher(opts, chunkSize, chunkWriter)
+	batcher := newArchiveChunkBatcher(ctx, opts, chunkSize, chunkWriter)
 
 	err := forEachSpooledAnnotationSample(ctx, opts, annotations, order, func(packed packedSampleForArchive) error {
 		if annotation, ok := annotations[packed.index.SampleID]; ok {
@@ -506,12 +508,12 @@ func tarXZSourcesHaveSameOrder(ctx context.Context, annotationsTar, genomesTar T
 // renames it into place only once everything has been written successfully,
 // so a failure partway through (disk full, process killed) leaves any
 // previously existing archive at path untouched instead of truncated.
-func writeArchiveFile(path string, index ArchiveIndex, opts BuildOptions, chunks io.Reader) error {
+func writeArchiveFile(ctx context.Context, path string, index ArchiveIndex, opts BuildOptions, chunks io.Reader) error {
 	indexBytes, err := json.Marshal(index)
 	if err != nil {
 		return err
 	}
-	indexBytes, err = xzCompress(indexBytes, opts)
+	indexBytes, err = xzCompress(ctx, indexBytes, opts)
 	if err != nil {
 		return err
 	}
@@ -558,7 +560,7 @@ func buildTempPattern(outputPath, purpose string) string {
 	return filepath.Base(outputPath) + ".tmp-" + purpose + "-*"
 }
 
-func encodeArchiveChunk(chunkID int, batch []packedSampleForArchive, opts BuildOptions) (ChunkIndex, []SampleIndex, []byte, error) {
+func encodeArchiveChunk(ctx context.Context, chunkID int, batch []packedSampleForArchive, opts BuildOptions) (ChunkIndex, []SampleIndex, []byte, error) {
 	codec, err := newOptimizedArchiveCodec(batch)
 	if err != nil {
 		return ChunkIndex{}, nil, nil, err
@@ -567,7 +569,7 @@ func encodeArchiveChunk(chunkID int, batch []packedSampleForArchive, opts BuildO
 	if err != nil {
 		return ChunkIndex{}, nil, nil, err
 	}
-	compressed, err := xzCompress(uncompressed, opts)
+	compressed, err := xzCompress(ctx, uncompressed, opts)
 	if err != nil {
 		return ChunkIndex{}, nil, nil, err
 	}

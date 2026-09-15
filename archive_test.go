@@ -90,7 +90,7 @@ func TestWriteArchiveFileLeavesExistingArchiveUntouchedOnFailure(t *testing.T) {
 
 	failingChunks := &errAfterReader{data: []byte("partial chunk data"), err: fmt.Errorf("simulated write failure")}
 	index := ArchiveIndex{Format: "bakpack", Version: ArchiveVersion}
-	if err := writeArchiveFile(path, index, BuildOptions{}, failingChunks); err == nil {
+	if err := writeArchiveFile(context.Background(), path, index, BuildOptions{}, failingChunks); err == nil {
 		t.Fatal("writeArchiveFile() with failing chunk reader = nil error, want error")
 	}
 
@@ -700,7 +700,7 @@ func TestXZCompressDefaultsToOneThreadAndAllowsOverride(t *testing.T) {
 	t.Setenv("BAKPACK_XZ_ARGS", argsPath)
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	got, err := xzCompress([]byte("payload"), BuildOptions{})
+	got, err := xzCompress(context.Background(), []byte("payload"), BuildOptions{})
 	if err != nil {
 		t.Fatalf("xzCompress() error = %v", err)
 	}
@@ -715,7 +715,7 @@ func TestXZCompressDefaultsToOneThreadAndAllowsOverride(t *testing.T) {
 		t.Fatalf("default xz args = %q, want -9e -T1 -c", args)
 	}
 
-	if _, err := xzCompress([]byte("payload"), BuildOptions{XZThreads: 4}); err != nil {
+	if _, err := xzCompress(context.Background(), []byte("payload"), BuildOptions{XZThreads: 4}); err != nil {
 		t.Fatalf("xzCompress() with XZThreads error = %v", err)
 	}
 	args, err = os.ReadFile(argsPath)
@@ -724,6 +724,39 @@ func TestXZCompressDefaultsToOneThreadAndAllowsOverride(t *testing.T) {
 	}
 	if strings.TrimSpace(string(args)) != "-9e\n-T4\n-c" {
 		t.Fatalf("thread override xz args = %q, want -9e -T4 -c", args)
+	}
+}
+
+func TestXZCompressKillsProcessOnContextCancellation(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("test uses a POSIX shell script")
+	}
+	dir := t.TempDir()
+	fakeXZ := filepath.Join(dir, "xz")
+	// A slow "xz" that would otherwise run for 5s. If xzCompress correctly
+	// kills it on context cancellation, the call returns almost immediately
+	// instead of waiting for the sleep to finish.
+	writeFile(t, fakeXZ, []byte("#!/bin/sh\nsleep 5\ncat\n"))
+	if err := os.Chmod(fakeXZ, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		cancel()
+	}()
+
+	start := time.Now()
+	_, err := xzCompress(ctx, []byte("payload"), BuildOptions{})
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("xzCompress() with canceled context = nil error, want error")
+	}
+	if elapsed > 2*time.Second {
+		t.Fatalf("xzCompress() took %v, want it to be killed shortly after context cancellation instead of running to completion", elapsed)
 	}
 }
 
