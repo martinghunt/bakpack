@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Reject sample IDs that would resolve outside the output directory during extraction, preventing a crafted or corrupted archive index from writing files elsewhere on disk.
+
 ## [0.3.0] - 2026-08-11
 
 ### Added

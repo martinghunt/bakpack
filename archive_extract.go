@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 func getGenomeRecords(ctx context.Context, source FileSource, samples []string) (map[string]FileRecord, error) {
@@ -234,24 +235,56 @@ func extractRequestFromOptions(opts ExtractOptions) ExtractRequest {
 	}
 }
 
+// safeExtractPath joins name onto outputDir and confirms the result does not
+// resolve outside outputDir (e.g. via a sample ID containing ".."). Sample IDs
+// come from the archive's own index and are not otherwise restricted, so this
+// guards against a crafted or corrupted archive escaping the output directory.
+func safeExtractPath(outputDir, name string) (string, error) {
+	target := filepath.Join(outputDir, name)
+	rel, err := filepath.Rel(outputDir, target)
+	if err != nil {
+		return "", fmt.Errorf("resolve output path for %q: %w", name, err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("sample ID %q resolves outside output directory", name)
+	}
+	return target, nil
+}
+
 func writeExtractedSampleOutputs(outputDir string, req ExtractRequest, sample ExtractedSample) error {
 	if req.Genome {
-		if err := os.WriteFile(filepath.Join(outputDir, sample.SampleID+".fa"), sample.GenomeFASTA, 0o644); err != nil {
+		path, err := safeExtractPath(outputDir, sample.SampleID+".fa")
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(path, sample.GenomeFASTA, 0o644); err != nil {
 			return err
 		}
 	}
 	if req.Reduced {
-		if err := os.WriteFile(filepath.Join(outputDir, sample.SampleID+".reduced.bakta.json"), sample.ReducedJSON, 0o644); err != nil {
+		path, err := safeExtractPath(outputDir, sample.SampleID+".reduced.bakta.json")
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(path, sample.ReducedJSON, 0o644); err != nil {
 			return err
 		}
 	}
 	if req.Original {
-		if err := os.WriteFile(filepath.Join(outputDir, sample.SampleID+".bakta.json"), sample.OriginalJSON, 0o644); err != nil {
+		path, err := safeExtractPath(outputDir, sample.SampleID+".bakta.json")
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(path, sample.OriginalJSON, 0o644); err != nil {
 			return err
 		}
 	}
 	if req.GFF3 {
-		if err := os.WriteFile(filepath.Join(outputDir, sample.SampleID+".gff3"), sample.GFF3, 0o644); err != nil {
+		path, err := safeExtractPath(outputDir, sample.SampleID+".gff3")
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(path, sample.GFF3, 0o644); err != nil {
 			return err
 		}
 	}

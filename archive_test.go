@@ -321,6 +321,53 @@ func TestArchiveExtractReturnsBytesInRequestedOrder(t *testing.T) {
 	}
 }
 
+func TestSafeExtractPathRejectsTraversalButAllowsUnusualCharacters(t *testing.T) {
+	dir := t.TempDir()
+
+	for _, name := range []string{
+		"sample A",
+		"sample:with:colons",
+		"sample.with.dots",
+		"sample..with..double..dots..but..no..slashes",
+	} {
+		if _, err := safeExtractPath(dir, name+".fa"); err != nil {
+			t.Errorf("safeExtractPath(%q) unexpected error: %v", name, err)
+		}
+	}
+
+	for _, name := range []string{
+		"../escape",
+		"../../escape",
+		"a/../../escape",
+	} {
+		path, err := safeExtractPath(dir, name+".fa")
+		if err == nil {
+			t.Errorf("safeExtractPath(%q) = %q, want error", name, path)
+		}
+	}
+}
+
+func TestWriteExtractedSampleOutputsRejectsTraversalSampleID(t *testing.T) {
+	dir := t.TempDir()
+	outsideDir := t.TempDir()
+	outputDir := filepath.Join(dir, "output")
+	if err := os.Mkdir(outputDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	sampleID := filepath.Join("..", filepath.Base(outsideDir), "evil")
+	err := writeExtractedSampleOutputs(outputDir, ExtractRequest{Genome: true}, ExtractedSample{
+		SampleID:    sampleID,
+		GenomeFASTA: []byte(">contig1\nACGT\n"),
+	})
+	if err == nil {
+		t.Fatalf("writeExtractedSampleOutputs() with traversal SampleID = nil error, want error")
+	}
+	if _, statErr := os.Stat(filepath.Join(outsideDir, "evil.fa")); !os.IsNotExist(statErr) {
+		t.Fatalf("writeExtractedSampleOutputs() wrote outside output directory: stat error = %v", statErr)
+	}
+}
+
 func TestBuildArchiveFromDirectoryAnnotationsAndGenomeList(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
