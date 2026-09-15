@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -911,6 +912,51 @@ func TestOpenArchiveRejectsOversizedIndexLength(t *testing.T) {
 
 	if _, err := OpenArchive(context.Background(), path); err == nil {
 		t.Fatal("OpenArchive() with oversized index length = nil error, want error")
+	}
+}
+
+func writeRawArchive(t *testing.T, path string, index ArchiveIndex) {
+	t.Helper()
+	indexBytes, err := json.Marshal(index)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	buf.WriteString(ArchiveMagic)
+	var lenBytes [8]byte
+	binary.LittleEndian.PutUint64(lenBytes[:], uint64(len(indexBytes)))
+	buf.Write(lenBytes[:])
+	buf.Write(indexBytes)
+	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOpenArchiveRejectsDuplicateSampleID(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "dup-sample.bakpack")
+	writeRawArchive(t, path, ArchiveIndex{
+		Format:  "bakpack",
+		Version: ArchiveVersion,
+		Samples: []SampleIndex{{SampleID: "sampleA"}, {SampleID: "sampleA"}},
+	})
+
+	if _, err := OpenArchive(context.Background(), path); err == nil {
+		t.Fatal("OpenArchive() with duplicate sample ID = nil error, want error")
+	}
+}
+
+func TestOpenArchiveRejectsDuplicateChunkID(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "dup-chunk.bakpack")
+	writeRawArchive(t, path, ArchiveIndex{
+		Format:  "bakpack",
+		Version: ArchiveVersion,
+		Chunks:  []ChunkIndex{{ID: 0}, {ID: 0}},
+	})
+
+	if _, err := OpenArchive(context.Background(), path); err == nil {
+		t.Fatal("OpenArchive() with duplicate chunk ID = nil error, want error")
 	}
 }
 

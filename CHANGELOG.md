@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reject building from paired `.tar.xz` annotation/genome sources that contain no samples, instead of silently producing an empty archive.
 - Reject non-positive sequence lengths and feature coordinates when rendering GFF3, instead of emitting invalid GFF3 lines (a feature's `start > stop` is still allowed, as that's the convention for a feature wrapping a circular contig's origin).
 - Cancel the `xz` compression subprocess when a build's context is canceled, instead of letting it keep running to completion after the caller has given up.
+- Reject an archive index that contains a duplicate sample ID or chunk ID, instead of silently keeping only the last entry.
 
 ## [0.3.0] - 2026-08-11
 

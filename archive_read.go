@@ -31,9 +31,17 @@ func OpenArchive(ctx context.Context, path string, opts ...OpenArchiveOptions) (
 		chunkIndex:  map[int]ChunkIndex{},
 	}
 	for _, sample := range index.Samples {
+		if _, exists := archive.sampleIndex[sample.SampleID]; exists {
+			reader.Close()
+			return nil, fmt.Errorf("archive index has duplicate sample %q", sample.SampleID)
+		}
 		archive.sampleIndex[sample.SampleID] = sample
 	}
 	for _, chunk := range index.Chunks {
+		if _, exists := archive.chunkIndex[chunk.ID]; exists {
+			reader.Close()
+			return nil, fmt.Errorf("archive index has duplicate chunk id %d", chunk.ID)
+		}
 		archive.chunkIndex[chunk.ID] = chunk
 	}
 	return archive, nil
