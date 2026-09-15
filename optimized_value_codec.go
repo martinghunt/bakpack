@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"strconv"
 )
@@ -88,7 +89,7 @@ func (c *optimizedArchiveCodec) decodeValue(reader *bytes.Reader) (any, error) {
 		return json.Number(strconv.FormatInt(unzigzagInt64(value), 10)), nil
 	case valueTagFloat:
 		var raw [8]byte
-		if _, err := reader.Read(raw[:]); err != nil {
+		if _, err := io.ReadFull(reader, raw[:]); err != nil {
 			return nil, err
 		}
 		return math.Float64frombits(binary.LittleEndian.Uint64(raw[:])), nil

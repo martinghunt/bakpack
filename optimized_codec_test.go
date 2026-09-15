@@ -262,6 +262,25 @@ func TestDecodeValueRejectsOversizedListCount(t *testing.T) {
 	}
 }
 
+func TestDecodeFloat64FieldValuesRejectsTruncatedData(t *testing.T) {
+	// Only 3 of the 8 bytes needed for one float64 are present. A short read
+	// must fail rather than silently zero-pad the missing bytes.
+	if _, err := decodeFloat64FieldValues([]byte{1, 2, 3}, 1); err == nil {
+		t.Fatal("decodeFloat64FieldValues() with truncated data = nil error, want error")
+	}
+}
+
+func TestDecodeValueRejectsTruncatedFloat(t *testing.T) {
+	var buf bytes.Buffer
+	buf.WriteByte(valueTagFloat)
+	buf.Write([]byte{1, 2, 3}) // only 3 of the 8 bytes needed
+
+	c := &optimizedArchiveCodec{}
+	if _, err := c.decodeValue(bytes.NewReader(buf.Bytes())); err == nil {
+		t.Fatal("decodeValue() with truncated float = nil error, want error")
+	}
+}
+
 func TestDecodeConstFieldValuesRejectsMismatchedCodecValueType(t *testing.T) {
 	if _, err := decodeConstBoolFieldValues(FieldCodec{Value: "not-a-bool"}, nil, 3); err == nil {
 		t.Fatal("decodeConstBoolFieldValues() with non-bool codec value = nil error, want error")

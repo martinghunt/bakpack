@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Validate untrusted size and count fields (archive index length, chunk compressed size, sample count, feature count, and encoded list length) against the actual data before allocating, so a corrupted or malicious archive can no longer trigger an out-of-range allocation panic or unbounded memory use.
 - Cap decompressed output size when reading the archive index, chunk payloads, and tar.xz source entries, so a small malicious or corrupted xz payload can no longer expand into an unbounded amount of memory (a compression bomb).
 - Reject a constant-valued field codec whose recorded value doesn't match its declared type while decoding, instead of panicking on a corrupted or malicious archive index.
+- Detect a truncated float64 value while decoding instead of silently zero-padding the missing bytes into a wrong number.
 
 ## [0.3.0] - 2026-08-11
 

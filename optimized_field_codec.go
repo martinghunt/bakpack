@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"strconv"
 	"strings"
@@ -436,7 +437,7 @@ func decodeFloat64FieldValues(data []byte, count int) ([]any, error) {
 	values := make([]any, 0, count)
 	for i := 0; i < count; i++ {
 		var raw [8]byte
-		if _, err := reader.Read(raw[:]); err != nil {
+		if _, err := io.ReadFull(reader, raw[:]); err != nil {
 			return nil, err
 		}
 		values = append(values, math.Float64frombits(binary.LittleEndian.Uint64(raw[:])))
