@@ -12,6 +12,54 @@ import (
 	"github.com/martinghunt/bakpack/internal/buildinfo"
 )
 
+func TestBaktaGFF3RejectsInvalidSequenceLength(t *testing.T) {
+	genome := mustGenome(t, "sample1", toyFASTA("sample1"))
+	original := []byte(`{
+  "genome": {"translation_table": 11},
+  "sequences": [
+    {"id": "contig1", "length": -3, "sequence": "ATGAAATAA"}
+  ],
+  "features": []
+}`)
+	if _, err := BaktaGFF3(original, genome); err == nil {
+		t.Fatal("BaktaGFF3() with negative sequence length = nil error, want error")
+	}
+}
+
+func TestBaktaGFF3RejectsInvalidFeatureCoordinates(t *testing.T) {
+	genome := mustGenome(t, "sample1", toyFASTA("sample1"))
+	original := []byte(`{
+  "genome": {"translation_table": 11},
+  "sequences": [
+    {"id": "contig1", "length": 9, "sequence": "ATGAAATAA"}
+  ],
+  "features": [
+    {"type": "cds", "contig": "contig1", "start": 0, "stop": 9, "strand": "+"}
+  ]
+}`)
+	if _, err := BaktaGFF3(original, genome); err == nil {
+		t.Fatal("BaktaGFF3() with zero feature start = nil error, want error")
+	}
+}
+
+func TestBaktaGFF3AllowsWraparoundFeatureCoordinates(t *testing.T) {
+	// start > stop is the deliberate convention for a feature that wraps
+	// around the origin of a circular contig; it must not be rejected.
+	genome := mustGenome(t, "sample1", toyFASTA("sample1"))
+	original := []byte(`{
+  "genome": {"translation_table": 11},
+  "sequences": [
+    {"id": "contig1", "length": 9, "sequence": "ATGAAATAA"}
+  ],
+  "features": [
+    {"type": "gap", "contig": "contig1", "start": 8, "stop": 2, "length": 4}
+  ]
+}`)
+	if _, err := BaktaGFF3(original, genome); err != nil {
+		t.Fatalf("BaktaGFF3() with wraparound coordinates error = %v, want nil", err)
+	}
+}
+
 func TestBaktaGFF3FromOriginalAndReducedJSON(t *testing.T) {
 	genome := mustGenome(t, "sample1", toyFASTA("sample1"))
 	original := toyBaktaJSON("sample1", "gene one")

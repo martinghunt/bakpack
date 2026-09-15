@@ -67,7 +67,9 @@ func BaktaGFF3WithOptions(annotation []byte, genome Genome, opts BaktaGFF3Option
 			continue
 		}
 		seenContigs[sequence.ID] = true
-		writeSequenceRegion(&buf, sequence)
+		if err := writeSequenceRegion(&buf, sequence); err != nil {
+			return nil, err
+		}
 		for _, feature := range featuresByContig[sequence.ID] {
 			if err := writeGFF3Feature(&buf, feature); err != nil {
 				return nil, err
@@ -184,7 +186,10 @@ func gffFeaturesByContig(data map[string]any) (map[string][]map[string]any, []st
 	return featuresByContig, order
 }
 
-func writeSequenceRegion(buf *bytes.Buffer, sequence gffSequence) {
+func writeSequenceRegion(buf *bytes.Buffer, sequence gffSequence) error {
+	if sequence.Length < 1 {
+		return fmt.Errorf("sequence %q has invalid length %d", sequence.ID, sequence.Length)
+	}
 	fmt.Fprintf(buf, "##sequence-region %s 1 %d\n", sequence.ID, sequence.Length)
 	fmt.Fprintf(buf, "%s\tBakta\tregion\t1\t%d\t.\t+\t.\tID=%s;Name=%s\n",
 		sequence.ID,
@@ -192,6 +197,7 @@ func writeSequenceRegion(buf *bytes.Buffer, sequence gffSequence) {
 		gffEscape(sequence.ID),
 		gffEscape(sequence.ID),
 	)
+	return nil
 }
 
 func writeGFF3Feature(buf *bytes.Buffer, feature map[string]any) error {
@@ -209,6 +215,12 @@ func writeGFF3Feature(buf *bytes.Buffer, feature map[string]any) error {
 	stop, stopOK := jsonInt(feature["stop"])
 	if contig == "" || !startOK || !stopOK {
 		return nil
+	}
+	// start > stop is a deliberate convention for a feature that wraps
+	// around the origin of a circular contig (see featureSpan), so only
+	// non-positive coordinates are rejected here.
+	if start < 1 || stop < 1 {
+		return fmt.Errorf("feature %s has invalid coordinates %d-%d", gffFeatureID(feature), start, stop)
 	}
 	score := "."
 	if info.Infernal {
@@ -317,6 +329,9 @@ func writeCRISPRFeature(buf *bytes.Buffer, feature map[string]any) error {
 	if contig == "" || !startOK || !stopOK {
 		return nil
 	}
+	if start < 1 || stop < 1 {
+		return fmt.Errorf("feature %s has invalid coordinates %d-%d", gffFeatureID(feature), start, stop)
+	}
 	strand, _ := feature["strand"].(string)
 	if strand == "" {
 		strand = "?"
@@ -339,21 +354,28 @@ func writeCRISPRFeature(buf *bytes.Buffer, feature map[string]any) error {
 	}
 	for i := 0; i < count; i++ {
 		if i < len(repeats) {
-			writeCRISPRChild(buf, contig, id, strand, "crispr-repeat", fmt.Sprintf("%s_repeat_%d", id, i+1), repeats[i], "")
+			if err := writeCRISPRChild(buf, contig, id, strand, "crispr-repeat", fmt.Sprintf("%s_repeat_%d", id, i+1), repeats[i], ""); err != nil {
+				return err
+			}
 		}
 		if i < len(spacers) {
 			sequence, _ := spacers[i]["sequence"].(string)
-			writeCRISPRChild(buf, contig, id, strand, "crispr-spacer", fmt.Sprintf("%s_spacer_%d", id, i+1), spacers[i], sequence)
+			if err := writeCRISPRChild(buf, contig, id, strand, "crispr-spacer", fmt.Sprintf("%s_spacer_%d", id, i+1), spacers[i], sequence); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
 }
 
-func writeCRISPRChild(buf *bytes.Buffer, contig, parentID, parentStrand, featureType, id string, child map[string]any, sequence string) {
+func writeCRISPRChild(buf *bytes.Buffer, contig, parentID, parentStrand, featureType, id string, child map[string]any, sequence string) error {
 	start, startOK := jsonInt(child["start"])
 	stop, stopOK := jsonInt(child["stop"])
 	if !startOK || !stopOK {
-		return
+		return nil
+	}
+	if start < 1 || stop < 1 {
+		return fmt.Errorf("feature %s has invalid coordinates %d-%d", id, start, stop)
 	}
 	strand, _ := child["strand"].(string)
 	if strand == "" {
@@ -368,6 +390,7 @@ func writeCRISPRChild(buf *bytes.Buffer, contig, parentID, parentStrand, feature
 	}
 	fmt.Fprintf(buf, "%s\tPILER-CR\t%s\t%d\t%d\t.\t%s\t.\t%s\n",
 		contig, featureType, start, stop, strand, gffAttrString(attrs))
+	return nil
 }
 
 func appendDBXrefs(attrs []gffAttr, feature map[string]any) []gffAttr {
