@@ -65,6 +65,21 @@ func SHA256Hex(data []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// isIntegerJSONNumber reports whether a JSON number's literal text has no
+// fraction or exponent part, per the JSON number grammar. This is checked
+// against the raw text rather than by attempting v.Int64(), so an integer
+// literal outside the int64 (or even uint64) range still keeps its exact
+// decimal text in canonical output instead of being rounded through
+// float64, per the guarantee documented in docs/checksums.md.
+func isIntegerJSONNumber(text string) bool {
+	for _, c := range text {
+		if c == '.' || c == 'e' || c == 'E' {
+			return false
+		}
+	}
+	return true
+}
+
 func writeCanonicalJSON(w io.Writer, value any) error {
 	switch v := value.(type) {
 	case nil:
@@ -85,13 +100,14 @@ func writeCanonicalJSON(w io.Writer, value any) error {
 		_, err = w.Write(encoded)
 		return err
 	case json.Number:
-		if _, err := v.Int64(); err == nil {
-			_, err = io.WriteString(w, v.String())
+		text := v.String()
+		if isIntegerJSONNumber(text) {
+			_, err := io.WriteString(w, text)
 			return err
 		}
 		f, err := v.Float64()
 		if err != nil {
-			return fmt.Errorf("invalid JSON number %q", v.String())
+			return fmt.Errorf("invalid JSON number %q", text)
 		}
 		_, err = io.WriteString(w, strconv.FormatFloat(f, 'g', -1, 64))
 		return err
