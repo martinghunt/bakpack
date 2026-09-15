@@ -2,7 +2,7 @@
 
 `bakpack` is a Go command line tool and library for compressing Bakta JSON annotation files while keeping them reconstructable and checkable against the original JSON content.
 
-This repository was developed with substantial coding assistance from [OpenAI Codex](https://openai.com/codex), which helped with implementation, refactoring, tests, documentation, and benchmarking under human direction and review.
+This repository was developed with substantial coding assistance from [OpenAI Codex](https://openai.com/codex) and [Claude Code](https://claude.com/claude-code), which helped with implementation, refactoring, tests, documentation, and benchmarking under human direction and review.
 
 Documentation: [bakpack.readthedocs.io](https://bakpack.readthedocs.io/en/)
 
