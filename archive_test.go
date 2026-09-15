@@ -612,6 +612,63 @@ func TestXZCompressDefaultsToOneThreadAndAllowsOverride(t *testing.T) {
 	}
 }
 
+func xzCompressForTest(t *testing.T, data []byte) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	w, err := xz.NewWriter(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write(data); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+func TestXZDecompressRejectsOutputOverLimit(t *testing.T) {
+	// A run of repeated bytes compresses down to a tiny payload but expands
+	// back to something well over an intentionally tiny limit, simulating a
+	// compression bomb without needing gigabytes of test data.
+	compressed := xzCompressForTest(t, bytes.Repeat([]byte("A"), 1<<20))
+
+	if _, err := xzDecompress(compressed, 10); err == nil {
+		t.Fatal("xzDecompress() with tiny limit = nil error, want error")
+	}
+
+	out, err := xzDecompress(compressed, 1<<20)
+	if err != nil {
+		t.Fatalf("xzDecompress() within limit error = %v", err)
+	}
+	if len(out) != 1<<20 {
+		t.Fatalf("xzDecompress() output length = %d, want %d", len(out), 1<<20)
+	}
+}
+
+func TestTarXZRecordStreamRejectsEntryOverLimit(t *testing.T) {
+	original := maxDecompressedComponentSize
+	maxDecompressedComponentSize = 1 << 10 // shrink the cap so the test entry stays small and fast
+	defer func() { maxDecompressedComponentSize = original }()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "genomes.tar.xz")
+	writeTarXZ(t, path, []tarEntry{
+		{Name: "sampleA.fa", Data: bytes.Repeat([]byte("A"), int(maxDecompressedComponentSize)+1)},
+	})
+
+	stream, err := newTarXZRecordStream(TarXZSource{Path: path})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stream.Close()
+
+	if _, _, err := stream.Next(context.Background()); err == nil {
+		t.Fatal("tarXZRecordStream.Next() with oversized entry = nil error, want error")
+	}
+}
+
 func assertCanonicalFileEqual(t *testing.T, gotPath string, want []byte) {
 	t.Helper()
 	got, err := os.ReadFile(gotPath)

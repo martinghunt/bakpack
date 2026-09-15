@@ -579,9 +579,12 @@ func (s *tarXZRecordStream) Next(ctx context.Context) (FileRecord, bool, error) 
 	if err != nil || !ok {
 		return FileRecord{}, ok, err
 	}
-	data, err := io.ReadAll(s.tr)
+	data, err := io.ReadAll(io.LimitReader(s.tr, maxDecompressedComponentSize+1))
 	if err != nil {
 		return FileRecord{}, false, err
+	}
+	if int64(len(data)) > maxDecompressedComponentSize {
+		return FileRecord{}, false, fmt.Errorf("tar entry %q exceeds %d byte limit", header.Name, maxDecompressedComponentSize)
 	}
 	return FileRecord{SampleID: sampleID, Name: header.Name, Bytes: data}, true, nil
 }

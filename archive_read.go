@@ -142,7 +142,7 @@ func readChunk(ctx context.Context, file archiveRangeReader, chunkStart int64, c
 	if err := readFullAt(ctx, file, compressed, chunkStart+chunk.Offset); err != nil {
 		return nil, err
 	}
-	uncompressed, err := xzDecompress(compressed)
+	uncompressed, err := xzDecompress(compressed, maxDecompressedComponentSize)
 	if err != nil {
 		return nil, err
 	}
@@ -277,7 +277,7 @@ func openArchive(ctx context.Context, path string, opts OpenArchiveOptions) (arc
 		return nil, ArchiveIndex{}, 0, err
 	}
 	if isXZ(indexBytes) {
-		decompressed, err := xzDecompress(indexBytes)
+		decompressed, err := xzDecompress(indexBytes, maxDecompressedComponentSize)
 		if err != nil {
 			file.Close()
 			return nil, ArchiveIndex{}, 0, err

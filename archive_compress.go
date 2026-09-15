@@ -27,12 +27,30 @@ func xzCompress(data []byte, opts BuildOptions) ([]byte, error) {
 	return stdout.Bytes(), nil
 }
 
-func xzDecompress(data []byte) ([]byte, error) {
+// maxDecompressedComponentSize bounds the decompressed size of any single
+// xz-compressed payload read from untrusted archive data (the index, a
+// chunk's payload, or a tar.xz source entry). xz can achieve very high
+// compression ratios, so bounding the compressed input size alone (see
+// maxArchiveComponentSize) is not enough to stop a small malicious payload
+// from expanding into an unbounded amount of memory during decompression.
+var maxDecompressedComponentSize int64 = 4 << 30 // 4 GiB
+
+// xzDecompress decompresses data, refusing to produce more than maxSize
+// bytes of output so a compression bomb fails with a clean error instead of
+// exhausting memory.
+func xzDecompress(data []byte, maxSize int64) ([]byte, error) {
 	reader, err := xz.NewReader(bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
-	return io.ReadAll(reader)
+	out, err := io.ReadAll(io.LimitReader(reader, maxSize+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(out)) > maxSize {
+		return nil, fmt.Errorf("decompressed data exceeds %d byte limit", maxSize)
+	}
+	return out, nil
 }
 
 func isXZ(data []byte) bool {
