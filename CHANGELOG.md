@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bound HTTP(S) byte-range reads to the requested length, so a misbehaving or malicious server can no longer force an unbounded amount of response data into memory.
 - Write archives to a temporary file and rename it into place on success, so a build failure partway through (disk full, process killed) no longer truncates or destroys a previously existing archive at the output path.
 - Preserve the exact decimal text of integer JSON numbers in canonical JSON regardless of magnitude, instead of rounding integers larger than int64 through float64, which could make distinct large integers canonicalize to the same checksum.
+- Reject building from paired `.tar.xz` annotation/genome sources that contain no samples, instead of silently producing an empty archive.
 
 ## [0.3.0] - 2026-08-11
 

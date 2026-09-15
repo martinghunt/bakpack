@@ -176,14 +176,19 @@ func buildArchiveFromPairedTarXZ(ctx context.Context, opts BuildOptions, annotat
 func makeArchiveChunksFromPairedTarXZ(ctx context.Context, opts BuildOptions, annotationsTar, genomesTar TarXZSource, chunkSize int, chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
 	batcher := newArchiveChunkBatcher(opts, chunkSize, chunkWriter)
 
+	count := 0
 	if err := streamPairedTarXZRecords(ctx, annotationsTar, genomesTar, func(annotation, genomeRecord FileRecord) error {
 		packed, err := packReducedSample(annotation.SampleID, annotation, genomeRecord)
 		if err != nil {
 			return err
 		}
+		count++
 		return batcher.add(packed)
 	}); err != nil {
 		return nil, nil, err
+	}
+	if count == 0 {
+		return nil, nil, fmt.Errorf("no annotation JSON files found in %s", annotationsTar.Path)
 	}
 	if err := batcher.flush(); err != nil {
 		return nil, nil, err

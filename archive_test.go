@@ -222,6 +222,37 @@ func TestBuildAndExtractArchiveFromTarXZUsesGenomeArchiveOrder(t *testing.T) {
 	}
 }
 
+func TestBuildArchiveFromEmptyPairedTarXZSourcesFails(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	annotationsTar := filepath.Join(dir, "annotations.tar.xz")
+	genomesTar := filepath.Join(dir, "genomes.tar.xz")
+	archivePath := filepath.Join(dir, "empty.bakpack")
+
+	writeTarXZ(t, annotationsTar, nil)
+	writeTarXZ(t, genomesTar, nil)
+
+	annotations, err := OpenSource(annotationsTar, "tar.xz", "annotation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	genomes, err := OpenSource(genomesTar, "tar.xz", "genome")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = BuildArchive(ctx, BuildOptions{
+		Annotations: annotations,
+		Genomes:     genomes,
+		OutputPath:  archivePath,
+	})
+	if err == nil {
+		t.Fatal("BuildArchive() with empty paired tar.xz sources = nil error, want error")
+	}
+	if _, statErr := os.Stat(archivePath); !os.IsNotExist(statErr) {
+		t.Fatalf("BuildArchive() with empty sources left a file at %s", archivePath)
+	}
+}
+
 func TestArchiveExtractReturnsBytesInRequestedOrder(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
