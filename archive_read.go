@@ -127,7 +127,17 @@ func cloneFieldCodecs(codecs []FieldCodec) []FieldCodec {
 	return out
 }
 
+// maxArchiveComponentSize bounds any single length-prefixed archive
+// component (the index, or a chunk's compressed payload) that gets
+// allocated in one shot from a size field in untrusted archive data, so a
+// corrupted or malicious value can't force an unbounded allocation attempt
+// before the corresponding read is even performed.
+const maxArchiveComponentSize = 1 << 30 // 1 GiB
+
 func readChunk(ctx context.Context, file archiveRangeReader, chunkStart int64, chunk ChunkIndex, index ArchiveIndex, wanted []string) (map[string][]byte, error) {
+	if chunk.CompressedSize < 0 || chunk.CompressedSize > maxArchiveComponentSize {
+		return nil, fmt.Errorf("chunk %d has an invalid compressed size %d", chunk.ID, chunk.CompressedSize)
+	}
 	compressed := make([]byte, chunk.CompressedSize)
 	if err := readFullAt(ctx, file, compressed, chunkStart+chunk.Offset); err != nil {
 		return nil, err
@@ -257,7 +267,7 @@ func openArchive(ctx context.Context, path string, opts OpenArchiveOptions) (arc
 		return nil, ArchiveIndex{}, 0, fmt.Errorf("not a bakpack archive")
 	}
 	indexLen := binary.LittleEndian.Uint64(header[len(ArchiveMagic):])
-	if indexLen > uint64(int(^uint(0)>>1)) {
+	if indexLen > maxArchiveComponentSize {
 		file.Close()
 		return nil, ArchiveIndex{}, 0, fmt.Errorf("archive index is too large")
 	}

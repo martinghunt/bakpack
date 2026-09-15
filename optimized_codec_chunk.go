@@ -294,6 +294,9 @@ func parseOptimizedChunkDirectory(chunkBytes []byte, expectedFields int) ([]opti
 	if err != nil {
 		return nil, optimizedStreamInfo{}, err
 	}
+	if nSamples > uint64(len(chunkBytes)) {
+		return nil, optimizedStreamInfo{}, fmt.Errorf("sample count %d exceeds chunk size", nSamples)
+	}
 	nFields, err := readUvarint(reader)
 	if err != nil {
 		return nil, optimizedStreamInfo{}, err
@@ -373,6 +376,9 @@ func parseOptimizedChunkDirectory(chunkBytes []byte, expectedFields int) ([]opti
 		}
 		if schemaOffset > schemaLength || schemaItemLength > schemaLength || schemaOffset+schemaItemLength > schemaLength {
 			return nil, optimizedStreamInfo{}, fmt.Errorf("sample feature schema stream bounds are out of range")
+		}
+		if featureCount > schemaItemLength {
+			return nil, optimizedStreamInfo{}, fmt.Errorf("sample feature count %d exceeds feature schema stream length", featureCount)
 		}
 		dirs = append(dirs, optimizedSampleDirectory{
 			sampleID:     sampleID,

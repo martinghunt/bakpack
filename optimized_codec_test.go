@@ -1,9 +1,11 @@
 package bakpack
 
 import (
+	"bytes"
 	"encoding/json"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -201,6 +203,63 @@ func fieldStatsForTest(field string, values []any) *fieldStats {
 	}
 	stats.addSampleValues(field, values)
 	return stats
+}
+
+func TestParseOptimizedChunkDirectoryRejectsOversizedSampleCount(t *testing.T) {
+	var buf bytes.Buffer
+	buf.WriteString(optimizedChunkMagic)
+	writeUvarint(&buf, 1<<60) // nSamples: absurdly large relative to chunk size
+	writeUvarint(&buf, 0)     // nFields
+	writeUvarint(&buf, 0)     // metaLength
+	writeUvarint(&buf, 0)     // schemaLength
+
+	_, _, err := parseOptimizedChunkDirectory(buf.Bytes(), 0)
+	if err == nil {
+		t.Fatal("parseOptimizedChunkDirectory() with oversized sample count = nil error, want error")
+	}
+	if !strings.Contains(err.Error(), "sample count") {
+		t.Fatalf("parseOptimizedChunkDirectory() error = %v, want mention of sample count", err)
+	}
+}
+
+func TestParseOptimizedChunkDirectoryRejectsOversizedFeatureCount(t *testing.T) {
+	var buf bytes.Buffer
+	buf.WriteString(optimizedChunkMagic)
+	writeUvarint(&buf, 1) // nSamples
+	writeUvarint(&buf, 0) // nFields
+	writeUvarint(&buf, 0) // metaLength
+	writeUvarint(&buf, 0) // schemaLength
+
+	writeString(&buf, "sample1")      // sampleID
+	writeString(&buf, "sample1.json") // filename
+	writeUvarint(&buf, 1<<20)         // featureCount: far larger than the schema stream below
+	writeUvarint(&buf, 0)             // metaOffset
+	writeUvarint(&buf, 0)             // metaItemLength
+	writeUvarint(&buf, 0)             // schemaOffset
+	writeUvarint(&buf, 0)             // schemaItemLength
+
+	_, _, err := parseOptimizedChunkDirectory(buf.Bytes(), 0)
+	if err == nil {
+		t.Fatal("parseOptimizedChunkDirectory() with oversized feature count = nil error, want error")
+	}
+	if !strings.Contains(err.Error(), "feature count") {
+		t.Fatalf("parseOptimizedChunkDirectory() error = %v, want mention of feature count", err)
+	}
+}
+
+func TestDecodeValueRejectsOversizedListCount(t *testing.T) {
+	var buf bytes.Buffer
+	buf.WriteByte(valueTagList)
+	writeUvarint(&buf, 1<<60) // count: far larger than any remaining data
+
+	c := &optimizedArchiveCodec{}
+	_, err := c.decodeValue(bytes.NewReader(buf.Bytes()))
+	if err == nil {
+		t.Fatal("decodeValue() with oversized list count = nil error, want error")
+	}
+	if !strings.Contains(err.Error(), "list value count") {
+		t.Fatalf("decodeValue() error = %v, want mention of list value count", err)
+	}
 }
 
 func roundTripFieldValuesForTest(t *testing.T, codec FieldCodec, values []any, metadata map[string]any) []any {

@@ -99,6 +99,9 @@ func (c *optimizedArchiveCodec) decodeValue(reader *bytes.Reader) (any, error) {
 		if err != nil {
 			return nil, err
 		}
+		if count > uint64(reader.Len()) {
+			return nil, fmt.Errorf("list value count %d exceeds remaining data", count)
+		}
 		values := make([]any, count)
 		for i := range values {
 			value, err := c.decodeValue(reader)

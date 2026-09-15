@@ -671,6 +671,44 @@ func (s *countingGenomeSource) Order(context.Context) ([]string, error) {
 	return order, nil
 }
 
+func TestReadChunkRejectsInvalidCompressedSize(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "dummy.bin")
+	if err := os.WriteFile(path, []byte("data"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	reader := localRangeReader{file: file}
+
+	for _, size := range []int64{-1, maxArchiveComponentSize + 1} {
+		if _, err := readChunk(ctx, reader, 0, ChunkIndex{ID: 1, CompressedSize: size}, ArchiveIndex{}, nil); err == nil {
+			t.Fatalf("readChunk() with CompressedSize=%d = nil error, want error", size)
+		}
+	}
+}
+
+func TestOpenArchiveRejectsOversizedIndexLength(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bad.bakpack")
+	var buf bytes.Buffer
+	buf.WriteString(ArchiveMagic)
+	var lenBytes [8]byte
+	binary.LittleEndian.PutUint64(lenBytes[:], uint64(maxArchiveComponentSize)+1)
+	buf.Write(lenBytes[:])
+	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := OpenArchive(context.Background(), path); err == nil {
+		t.Fatal("OpenArchive() with oversized index length = nil error, want error")
+	}
+}
+
 func writeTarXZ(t *testing.T, path string, entries []tarEntry) {
 	t.Helper()
 	file, err := os.Create(path)
