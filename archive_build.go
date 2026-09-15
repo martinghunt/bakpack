@@ -497,6 +497,10 @@ func tarXZSourcesHaveSameOrder(ctx context.Context, annotationsTar, genomesTar T
 	}
 }
 
+// writeArchiveFile writes the archive to a temporary file beside path and
+// renames it into place only once everything has been written successfully,
+// so a failure partway through (disk full, process killed) leaves any
+// previously existing archive at path untouched instead of truncated.
 func writeArchiveFile(path string, index ArchiveIndex, opts BuildOptions, chunks io.Reader) error {
 	indexBytes, err := json.Marshal(index)
 	if err != nil {
@@ -507,11 +511,19 @@ func writeArchiveFile(path string, index ArchiveIndex, opts BuildOptions, chunks
 		return err
 	}
 
-	out, err := os.Create(path)
+	out, err := os.CreateTemp(filepath.Dir(path), buildTempPattern(path, "archive"))
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	tempPath := out.Name()
+	renamed := false
+	defer func() {
+		out.Close()
+		if !renamed {
+			os.Remove(tempPath)
+		}
+	}()
+
 	if _, err := out.Write([]byte(ArchiveMagic)); err != nil {
 		return err
 	}
@@ -521,8 +533,17 @@ func writeArchiveFile(path string, index ArchiveIndex, opts BuildOptions, chunks
 	if _, err := out.Write(indexBytes); err != nil {
 		return err
 	}
-	_, err = io.Copy(out, chunks)
-	return err
+	if _, err := io.Copy(out, chunks); err != nil {
+		return err
+	}
+	if err := out.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tempPath, path); err != nil {
+		return err
+	}
+	renamed = true
+	return nil
 }
 
 // buildTempPattern returns a visible, output-specific temporary name pattern.

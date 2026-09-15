@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reject a constant-valued field codec whose recorded value doesn't match its declared type while decoding, instead of panicking on a corrupted or malicious archive index.
 - Detect a truncated float64 value while decoding instead of silently zero-padding the missing bytes into a wrong number.
 - Bound HTTP(S) byte-range reads to the requested length, so a misbehaving or malicious server can no longer force an unbounded amount of response data into memory.
+- Write archives to a temporary file and rename it into place on success, so a build failure partway through (disk full, process killed) no longer truncates or destroys a previously existing archive at the output path.
 
 ## [0.3.0] - 2026-08-11
 

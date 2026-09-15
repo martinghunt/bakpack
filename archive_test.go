@@ -66,6 +66,51 @@ func TestBuildTempPatternUsesOutputBasename(t *testing.T) {
 	}
 }
 
+type errAfterReader struct {
+	data []byte
+	err  error
+}
+
+func (r *errAfterReader) Read(p []byte) (int, error) {
+	if len(r.data) == 0 {
+		return 0, r.err
+	}
+	n := copy(p, r.data)
+	r.data = r.data[n:]
+	return n, nil
+}
+
+func TestWriteArchiveFileLeavesExistingArchiveUntouchedOnFailure(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "archive.bakpack")
+	original := []byte("existing archive contents")
+	if err := os.WriteFile(path, original, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	failingChunks := &errAfterReader{data: []byte("partial chunk data"), err: fmt.Errorf("simulated write failure")}
+	index := ArchiveIndex{Format: "bakpack", Version: ArchiveVersion}
+	if err := writeArchiveFile(path, index, BuildOptions{}, failingChunks); err == nil {
+		t.Fatal("writeArchiveFile() with failing chunk reader = nil error, want error")
+	}
+
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, original) {
+		t.Fatalf("writeArchiveFile() modified the existing archive on failure: got %q, want %q", got, original)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("writeArchiveFile() left %d entries in output dir after failure, want 1 (just the original archive): %v", len(entries), entries)
+	}
+}
+
 func TestBuildAndExtractArchiveFromTarXZUsesGenomeArchiveOrder(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
