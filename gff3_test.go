@@ -26,6 +26,38 @@ func TestBaktaGFF3RejectsInvalidSequenceLength(t *testing.T) {
 	}
 }
 
+func TestBaktaGFF3RejectsFeatureMissingCoordinates(t *testing.T) {
+	genome := mustGenome(t, "sample1", toyFASTA("sample1"))
+	original := []byte(`{
+  "genome": {"translation_table": 11},
+  "sequences": [
+    {"id": "contig1", "length": 9, "sequence": "ATGAAATAA"}
+  ],
+  "features": [
+    {"type": "cds", "contig": "contig1", "strand": "+"}
+  ]
+}`)
+	if _, err := BaktaGFF3(original, genome); err == nil {
+		t.Fatal("BaktaGFF3() with feature missing start/stop = nil error, want error")
+	}
+}
+
+func TestBaktaGFF3RejectsCRISPRFeatureMissingCoordinates(t *testing.T) {
+	genome := mustGenome(t, "sample1", toyFASTA("sample1"))
+	original := []byte(`{
+  "genome": {"translation_table": 11},
+  "sequences": [
+    {"id": "contig1", "length": 9, "sequence": "ATGAAATAA"}
+  ],
+  "features": [
+    {"type": "crispr", "contig": "contig1", "id": "crispr_1"}
+  ]
+}`)
+	if _, err := BaktaGFF3(original, genome); err == nil {
+		t.Fatal("BaktaGFF3() with CRISPR feature missing start/stop = nil error, want error")
+	}
+}
+
 func TestBaktaGFF3RejectsInvalidFeatureCoordinates(t *testing.T) {
 	genome := mustGenome(t, "sample1", toyFASTA("sample1"))
 	original := []byte(`{

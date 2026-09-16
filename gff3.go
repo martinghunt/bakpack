@@ -214,7 +214,7 @@ func writeGFF3Feature(buf *bytes.Buffer, feature map[string]any) error {
 	start, startOK := jsonInt(feature["start"])
 	stop, stopOK := jsonInt(feature["stop"])
 	if contig == "" || !startOK || !stopOK {
-		return nil
+		return fmt.Errorf("feature %s is missing contig, start, or stop", gffFeatureID(feature))
 	}
 	// start > stop is a deliberate convention for a feature that wraps
 	// around the origin of a circular contig (see featureSpan), so only
@@ -327,7 +327,7 @@ func writeCRISPRFeature(buf *bytes.Buffer, feature map[string]any) error {
 	start, startOK := jsonInt(feature["start"])
 	stop, stopOK := jsonInt(feature["stop"])
 	if contig == "" || !startOK || !stopOK {
-		return nil
+		return fmt.Errorf("CRISPR feature %s is missing contig, start, or stop", gffFeatureID(feature))
 	}
 	if start < 1 || stop < 1 {
 		return fmt.Errorf("feature %s has invalid coordinates %d-%d", gffFeatureID(feature), start, stop)
@@ -372,7 +372,7 @@ func writeCRISPRChild(buf *bytes.Buffer, contig, parentID, parentStrand, feature
 	start, startOK := jsonInt(child["start"])
 	stop, stopOK := jsonInt(child["stop"])
 	if !startOK || !stopOK {
-		return nil
+		return fmt.Errorf("CRISPR feature %s is missing start or stop", id)
 	}
 	if start < 1 || stop < 1 {
 		return fmt.Errorf("feature %s has invalid coordinates %d-%d", id, start, stop)
