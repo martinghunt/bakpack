@@ -692,11 +692,18 @@ func (s AGCGenomeSource) listsetArgs() []string {
 	return []string{"listset", "--", s.Path}
 }
 
+// AnnotationJSONSuffixes lists the recognized Bakta annotation JSON filename
+// suffixes, in the order checked. It's exported so cmd/bakpack's
+// sampleIDFromPath (used by reduce/restore/gff3, which take an explicit JSON
+// path rather than scanning a directory) can derive a sample ID from the
+// same suffix list instead of maintaining its own separate copy.
+var AnnotationJSONSuffixes = []string{".bakta.json", ".json"}
+
 func sampleIDFromName(name, role string) string {
 	base := filepath.Base(name)
 	suffixes := []string{}
 	if role == "annotation" {
-		suffixes = []string{".bakta.json", ".json"}
+		suffixes = AnnotationJSONSuffixes
 	} else {
 		suffixes = []string{".fasta", ".fa", ".fna"}
 	}

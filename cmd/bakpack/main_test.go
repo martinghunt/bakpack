@@ -10,6 +10,18 @@ import (
 	"github.com/martinghunt/bakpack"
 )
 
+func TestSampleIDFromPathUsesSharedAnnotationSuffixes(t *testing.T) {
+	if got, want := sampleIDFromPath("sample1.bakta.json"), "sample1"; got != want {
+		t.Fatalf("sampleIDFromPath(%q) = %q, want %q", "sample1.bakta.json", got, want)
+	}
+	if got, want := sampleIDFromPath("sample1.json"), "sample1"; got != want {
+		t.Fatalf("sampleIDFromPath(%q) = %q, want %q", "sample1.json", got, want)
+	}
+	if len(bakpack.AnnotationJSONSuffixes) == 0 {
+		t.Fatal("bakpack.AnnotationJSONSuffixes is empty")
+	}
+}
+
 func TestCLIWorkflowWithDirectoryInputs(t *testing.T) {
 	dir := t.TempDir()
 	annotationsDir := filepath.Join(dir, "annotations")

@@ -324,8 +324,9 @@ func readNameFile(path string) ([]string, error) {
 
 func sampleIDFromPath(path string) string {
 	base := filepath.Base(path)
-	base = strings.TrimSuffix(base, ".bakta.json")
-	base = strings.TrimSuffix(base, ".json")
+	for _, suffix := range bakpack.AnnotationJSONSuffixes {
+		base = strings.TrimSuffix(base, suffix)
+	}
 	return base
 }
 
