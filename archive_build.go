@@ -59,6 +59,12 @@ func buildArchiveFromChunks(ctx context.Context, opts BuildOptions, chunkSize in
 	if err != nil {
 		return err
 	}
+	// Force any OS-buffered writes to storage now, so a delayed write
+	// failure (e.g. on NFS, or a local filesystem near ENOSPC) surfaces here
+	// instead of silently going unnoticed.
+	if err := chunkFile.Sync(); err != nil {
+		return err
+	}
 	if _, err := chunkFile.Seek(0, io.SeekStart); err != nil {
 		return err
 	}

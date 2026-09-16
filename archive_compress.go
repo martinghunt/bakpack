@@ -58,17 +58,21 @@ func isXZ(data []byte) bool {
 	return len(data) >= 6 && bytes.Equal(data[:6], []byte{0xfd, '7', 'z', 'X', 'Z', 0x00})
 }
 
-func writeUvarint(w io.Writer, value uint64) {
+// writeUvarint, writeString, and writeBytes take a *bytes.Buffer rather than
+// a general io.Writer specifically because bytes.Buffer.Write is documented
+// to never return an error, which is what lets them discard its result
+// without silently swallowing a real write failure.
+func writeUvarint(w *bytes.Buffer, value uint64) {
 	var buf [10]byte
 	n := binary.PutUvarint(buf[:], value)
-	_, _ = w.Write(buf[:n])
+	w.Write(buf[:n])
 }
 
 func readUvarint(r io.ByteReader) (uint64, error) {
 	return binary.ReadUvarint(r)
 }
 
-func writeString(w io.Writer, value string) {
+func writeString(w *bytes.Buffer, value string) {
 	writeBytes(w, []byte(value))
 }
 
@@ -77,9 +81,9 @@ func readString(r *bytes.Reader) (string, error) {
 	return string(data), err
 }
 
-func writeBytes(w io.Writer, data []byte) {
+func writeBytes(w *bytes.Buffer, data []byte) {
 	writeUvarint(w, uint64(len(data)))
-	_, _ = w.Write(data)
+	w.Write(data)
 }
 
 func readBytes(r *bytes.Reader) ([]byte, error) {

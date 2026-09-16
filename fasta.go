@@ -63,17 +63,21 @@ func (g *Genome) Contig(name string) ([]byte, bool) {
 	return seqBytes, ok
 }
 
-func (g Genome) FASTABytes(wrap int) []byte {
+func (g Genome) FASTABytes(wrap int) ([]byte, error) {
 	if wrap <= 0 {
 		wrap = 80
 	}
 	var buf bytes.Buffer
 	writer := seqio.NewFASTAWriter(&buf, seqio.WithWrap(wrap))
 	for _, contig := range g.Contigs {
-		_ = writer.Write(&contig)
+		if err := writer.Write(&contig); err != nil {
+			return nil, err
+		}
 	}
-	_ = writer.Close()
-	return buf.Bytes()
+	if err := writer.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 func FeatureNT(feature map[string]any, genome Genome) (string, bool) {

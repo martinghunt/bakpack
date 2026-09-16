@@ -190,7 +190,11 @@ func buildExtractedSample(ctx context.Context, req ExtractRequest, genomes genom
 			return ExtractedSample{}, err
 		}
 		if req.Genome {
-			result.GenomeFASTA = genome.FASTABytes(80)
+			genomeFASTA, err := genome.FASTABytes(80)
+			if err != nil {
+				return ExtractedSample{}, err
+			}
+			result.GenomeFASTA = genomeFASTA
 		}
 	}
 	if req.GFF3 {
