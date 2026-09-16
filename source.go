@@ -653,7 +653,7 @@ func (s AGCGenomeSource) Get(ctx context.Context, sample string) (FileRecord, er
 }
 
 func (s AGCGenomeSource) Order(ctx context.Context) ([]string, error) {
-	cmd := exec.CommandContext(ctx, s.commandName(), "listset", s.Path)
+	cmd := exec.CommandContext(ctx, s.commandName(), s.listsetArgs()...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
@@ -685,7 +685,11 @@ func (s AGCGenomeSource) threadCount() int {
 }
 
 func (s AGCGenomeSource) getsetArgs(sample string) []string {
-	return []string{"getset", "-t", strconv.Itoa(s.threadCount()), s.Path, sample}
+	return []string{"getset", "-t", strconv.Itoa(s.threadCount()), "--", s.Path, sample}
+}
+
+func (s AGCGenomeSource) listsetArgs() []string {
+	return []string{"listset", "--", s.Path}
 }
 
 func sampleIDFromName(name, role string) string {

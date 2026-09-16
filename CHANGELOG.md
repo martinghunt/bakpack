@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reject a wraparound gap feature whose start is beyond its contig's length in `featureSpan`, matching the equivalent bounds check already in `FeatureNT`.
 - Give `Genome.Contig` a pointer receiver so its lazily-built contig lookup cache actually persists across calls on a `Genome` constructed directly (rather than via `ReadGenome`), instead of silently rebuilding it from scratch every call.
 - Propagate a genome FASTA write failure from `Genome.FASTABytes` as an error instead of silently discarding it, and fsync the build's temporary chunk file before reading it back so a delayed write failure (e.g. on NFS, or a filesystem near ENOSPC) is caught instead of going unnoticed.
+- Insert `--` before the archive path and sample name arguments to the external `agc` command, so a sample name or path starting with `-` can't be misread as an `agc` flag (verified against the real `agc` CLI, which supports the convention).
 
 ## [0.3.0] - 2026-08-11
 

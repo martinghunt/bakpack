@@ -40,13 +40,27 @@ func TestListSourcePathOnlyLinesAllowSpacesInPaths(t *testing.T) {
 
 func TestAGCGenomeSourceGetsetArgsUseOneThreadByDefault(t *testing.T) {
 	source := AGCGenomeSource{Path: "genomes.agc"}
-	if got, want := strings.Join(source.getsetArgs("sampleA"), " "), "getset -t 1 genomes.agc sampleA"; got != want {
+	if got, want := strings.Join(source.getsetArgs("sampleA"), " "), "getset -t 1 -- genomes.agc sampleA"; got != want {
 		t.Fatalf("default getset args = %q, want %q", got, want)
 	}
 
 	source.Threads = 4
-	if got, want := strings.Join(source.getsetArgs("sampleA"), " "), "getset -t 4 genomes.agc sampleA"; got != want {
+	if got, want := strings.Join(source.getsetArgs("sampleA"), " "), "getset -t 4 -- genomes.agc sampleA"; got != want {
 		t.Fatalf("overridden getset args = %q, want %q", got, want)
+	}
+}
+
+func TestAGCGenomeSourceGetsetArgsProtectSampleNamesStartingWithDash(t *testing.T) {
+	source := AGCGenomeSource{Path: "genomes.agc"}
+	if got, want := strings.Join(source.getsetArgs("-sampleA"), " "), "getset -t 1 -- genomes.agc -sampleA"; got != want {
+		t.Fatalf("getset args for dash-prefixed sample = %q, want %q", got, want)
+	}
+}
+
+func TestAGCGenomeSourceListsetArgsProtectPathStartingWithDash(t *testing.T) {
+	source := AGCGenomeSource{Path: "-genomes.agc"}
+	if got, want := strings.Join(source.listsetArgs(), " "), "listset -- -genomes.agc"; got != want {
+		t.Fatalf("listset args for dash-prefixed path = %q, want %q", got, want)
 	}
 }
 
