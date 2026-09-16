@@ -53,6 +53,15 @@ func TestReduceAndRestoreBaktaJSONChecksCanonicalContent(t *testing.T) {
 	}
 }
 
+func TestFeatureSpanRejectsOutOfRangeWraparoundStart(t *testing.T) {
+	genome := mustGenome(t, "sample1", toyFASTA("sample1")) // contig1 is 9bp
+	feature := map[string]any{"contig": "contig1", "start": 100, "stop": 2}
+
+	if _, ok := featureSpan(feature, genome); ok {
+		t.Fatal("featureSpan() with start beyond contig length = ok, want not ok")
+	}
+}
+
 func TestReduceBaktaJSONErrorsOnUnsupportedFeatureType(t *testing.T) {
 	genome := mustGenome(t, "sample1", toyFASTA("sample1"))
 	annotation := bytes.Replace(toyBaktaJSON("sample1", "gene one"), []byte(`"type": "cds"`), []byte(`"type": "new-feature"`), 1)

@@ -444,7 +444,7 @@ func featureSpan(feature map[string]any, genome Genome) (int, bool) {
 	}
 	contigName, _ := feature["contig"].(string)
 	contig, ok := genome.Contig(contigName)
-	if !ok {
+	if !ok || start > len(contig) {
 		return 0, false
 	}
 	return len(contig) - start + 1 + stop, true
