@@ -8,6 +8,7 @@ import (
 	"io"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/ulikunitz/xz"
 )
@@ -22,6 +23,11 @@ func xzCompress(ctx context.Context, data []byte, opts BuildOptions) ([]byte, er
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+	// Without WaitDelay, Wait blocks until xz's stdout pipe reaches EOF, which
+	// (per os/exec's own documentation) can be held open by an orphaned
+	// subprocess of xz even after xz itself has been killed on cancellation.
+	// Bound that wait instead of risking Run hanging past context cancellation.
+	cmd.WaitDelay = 2 * time.Second
 	if err := cmd.Run(); err != nil {
 		return nil, fmt.Errorf("xz compression failed: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}

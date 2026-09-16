@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve the exact decimal text of integer JSON numbers in canonical JSON regardless of magnitude, instead of rounding integers larger than int64 through float64, which could make distinct large integers canonicalize to the same checksum.
 - Reject building from paired `.tar.xz` annotation/genome sources that contain no samples, instead of silently producing an empty archive.
 - Reject non-positive sequence lengths and feature coordinates when rendering GFF3, instead of emitting invalid GFF3 lines (a feature's `start > stop` is still allowed, as that's the convention for a feature wrapping a circular contig's origin).
-- Cancel the `xz` compression subprocess when a build's context is canceled, instead of letting it keep running to completion after the caller has given up.
+- Cancel the `xz` compression subprocess when a build's context is canceled, instead of letting it keep running to completion after the caller has given up, and bound how long that cancellation can be blocked by an orphaned subprocess holding xz's output pipe open (`Cmd.WaitDelay`).
 - Reject an archive index that contains a duplicate sample ID or chunk ID, instead of silently keeping only the last entry.
 - Report a duplicate genome sample in a `.tar.xz` genome source during build with a clear error, instead of a confusing "file not found" error from the second copy's spool file already having been removed.
 - Give a GFF3 feature with neither `locus` nor `id` set a fallback ID derived from its own coordinates, instead of the constant `.`, so two such features no longer collide on the same (invalid, ambiguous) GFF3 ID.

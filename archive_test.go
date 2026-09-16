@@ -861,7 +861,7 @@ func TestXZCompressKillsProcessOnContextCancellation(t *testing.T) {
 	if err == nil {
 		t.Fatal("xzCompress() with canceled context = nil error, want error")
 	}
-	if elapsed > 2*time.Second {
+	if elapsed > 3*time.Second {
 		t.Fatalf("xzCompress() took %v, want it to be killed shortly after context cancellation instead of running to completion", elapsed)
 	}
 }
