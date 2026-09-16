@@ -445,7 +445,14 @@ func gffFeatureID(feature map[string]any) string {
 	if id, _ := feature["id"].(string); id != "" {
 		return id
 	}
-	return "."
+	// Neither field is set: fall back to a value derived from the feature's
+	// own coordinates instead of a constant, so two such features don't end
+	// up sharing the same (invalid, ambiguous) GFF3 ID.
+	featureType, _ := feature["type"].(string)
+	contig, _ := feature["contig"].(string)
+	start, _ := jsonInt(feature["start"])
+	stop, _ := jsonInt(feature["stop"])
+	return fmt.Sprintf("%s_%s_%d_%d", contig, featureType, start, stop)
 }
 
 func isTruncated(feature map[string]any) bool {

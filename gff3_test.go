@@ -60,6 +60,21 @@ func TestBaktaGFF3AllowsWraparoundFeatureCoordinates(t *testing.T) {
 	}
 }
 
+func TestGFFFeatureIDFallsBackToDistinctValuesWithoutLocusOrID(t *testing.T) {
+	featureA := map[string]any{"type": "gap", "contig": "contig1", "start": 1, "stop": 4}
+	featureB := map[string]any{"type": "gap", "contig": "contig1", "start": 5, "stop": 9}
+
+	idA := gffFeatureID(featureA)
+	idB := gffFeatureID(featureB)
+
+	if idA == "." || idB == "." {
+		t.Fatalf("gffFeatureID() = %q, %q, want no fallback to the ambiguous constant \".\"", idA, idB)
+	}
+	if idA == idB {
+		t.Fatalf("gffFeatureID() returned the same ID %q for two different features", idA)
+	}
+}
+
 func TestBaktaGFF3FromOriginalAndReducedJSON(t *testing.T) {
 	genome := mustGenome(t, "sample1", toyFASTA("sample1"))
 	original := toyBaktaJSON("sample1", "gene one")
