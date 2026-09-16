@@ -31,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Derive the CLI's `reduce`/`restore`/`gff3` sample ID from the same exported `bakpack.AnnotationJSONSuffixes` list used internally for source discovery, instead of a second hardcoded copy of the suffixes that could silently drift out of sync.
 - Wire up the archive chunk encoder's already-decoded-JSON reuse path, which previously always went unused: `ReduceBaktaJSON`'s result now carries the JSON object it already decoded internally, so building a chunk no longer redundantly decodes each sample's reduced JSON a second time.
 
+### Changed
+
+- CI now runs `go vet` and `go test -race` in addition to plain `go test`, to catch static-analysis findings and data races going forward.
+
 ## [0.3.0] - 2026-08-11
 
 ### Added
