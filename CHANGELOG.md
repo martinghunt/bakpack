@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Give a GFF3 feature with neither `locus` nor `id` set a fallback ID derived from its own coordinates, instead of the constant `.`, so two such features no longer collide on the same (invalid, ambiguous) GFF3 ID.
 - Reject a feature missing its contig, start, or stop when rendering GFF3, instead of silently omitting it from the output with no error.
 - Reject a wraparound gap feature whose start is beyond its contig's length in `featureSpan`, matching the equivalent bounds check already in `FeatureNT`.
+- Give `Genome.Contig` a pointer receiver so its lazily-built contig lookup cache actually persists across calls on a `Genome` constructed directly (rather than via `ReadGenome`), instead of silently rebuilding it from scratch every call.
 
 ## [0.3.0] - 2026-08-11
 

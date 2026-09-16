@@ -48,7 +48,11 @@ func ReadGenome(sampleID, filename string, data []byte) (Genome, error) {
 	return genome, nil
 }
 
-func (g Genome) Contig(name string) ([]byte, bool) {
+// Contig has a pointer receiver so the lazily-built byName cache actually
+// persists on the caller's Genome instead of being discarded with a copy;
+// ReadGenome always populates byName up front, but a Genome built directly
+// (e.g. Genome{Contigs: ...}) relies on this cache being retained across calls.
+func (g *Genome) Contig(name string) ([]byte, bool) {
 	if g.byName == nil {
 		g.byName = map[string][]byte{}
 		for _, contig := range g.Contigs {
