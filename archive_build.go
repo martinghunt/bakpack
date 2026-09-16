@@ -465,7 +465,8 @@ func packReducedSample(sample string, annotation, genomeRecord FileRecord) (pack
 			OriginalJSONCanonicalSHA256: reduced.Original.CanonicalSHA256,
 			ReducedJSONCanonicalSHA256:  reduced.Reduced.CanonicalSHA256,
 		},
-		reduced: reduced.ReducedJSON,
+		reduced:     reduced.ReducedJSON,
+		reducedRoot: reduced.reducedRoot,
 	}, nil
 }
 

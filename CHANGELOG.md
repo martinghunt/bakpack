@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Propagate a genome FASTA write failure from `Genome.FASTABytes` as an error instead of silently discarding it, and fsync the build's temporary chunk file before reading it back so a delayed write failure (e.g. on NFS, or a filesystem near ENOSPC) is caught instead of going unnoticed.
 - Insert `--` before the archive path and sample name arguments to the external `agc` command, so a sample name or path starting with `-` can't be misread as an `agc` flag (verified against the real `agc` CLI, which supports the convention).
 - Derive the CLI's `reduce`/`restore`/`gff3` sample ID from the same exported `bakpack.AnnotationJSONSuffixes` list used internally for source discovery, instead of a second hardcoded copy of the suffixes that could silently drift out of sync.
+- Wire up the archive chunk encoder's already-decoded-JSON reuse path, which previously always went unused: `ReduceBaktaJSON`'s result now carries the JSON object it already decoded internally, so building a chunk no longer redundantly decodes each sample's reduced JSON a second time.
 
 ## [0.3.0] - 2026-08-11
 

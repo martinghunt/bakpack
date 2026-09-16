@@ -19,6 +19,10 @@ type ReduceResult struct {
 	ReducedJSON []byte
 	Original    JSONChecksums
 	Reduced     JSONChecksums
+
+	// reducedRoot is the already-decoded root object backing ReducedJSON, so
+	// archive building can reuse it instead of decoding ReducedJSON again.
+	reducedRoot map[string]any
 }
 
 type RestoreResult struct {
@@ -85,6 +89,7 @@ func ReduceBaktaJSON(original []byte, genome Genome) (ReduceResult, error) {
 		Reduced: JSONChecksums{
 			CanonicalSHA256: reducedCanonical,
 		},
+		reducedRoot: data,
 	}, nil
 }
 

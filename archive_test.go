@@ -58,6 +58,69 @@ func TestOptimizedArchiveCodecMetadataErrorsOnUnsupportedFeatureType(t *testing.
 	}
 }
 
+func TestPackReducedSamplePopulatesReducedRoot(t *testing.T) {
+	packed, err := packReducedSample("sample1",
+		FileRecord{SampleID: "sample1", Name: "sample1.bakta.json", Bytes: toyBaktaJSON("sample1", "gene one")},
+		FileRecord{SampleID: "sample1", Name: "sample1.fa", Bytes: toyFASTA("sample1")},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if packed.reducedRoot == nil {
+		t.Fatal("packReducedSample() did not populate reducedRoot")
+	}
+	if _, ok := packed.reducedRoot["features"]; !ok {
+		t.Fatalf("packReducedSample() reducedRoot = %#v, want a decoded object with a features key", packed.reducedRoot)
+	}
+}
+
+func TestEncodeChunkUsesReducedRootInsteadOfReDecodingReduced(t *testing.T) {
+	genome := mustGenome(t, "sample1", toyFASTA("sample1"))
+	reduced, err := ReduceBaktaJSON(toyBaktaJSON("sample1", "gene one"), genome)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Build the codec's schemas from a normal sample so they match what the
+	// reducedRoot-only sample below needs.
+	codec, err := newOptimizedArchiveCodec([]packedSampleForArchive{
+		{index: SampleIndex{SampleID: "control"}, reduced: reduced.ReducedJSON},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	root, err := DecodeJSON(reduced.ReducedJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootMap, ok := root.(map[string]any)
+	if !ok {
+		t.Fatal("decoded reduced JSON root is not an object")
+	}
+
+	// reduced is deliberately invalid: if encodeChunk fell back to decoding
+	// it instead of using reducedRoot, this would fail with a decode error.
+	sample := packedSampleForArchive{
+		index:       SampleIndex{SampleID: "sample1", AnnotationName: "sample1.bakta.json"},
+		reduced:     []byte("not valid json"),
+		reducedRoot: rootMap,
+	}
+	chunkBytes, sampleIndexes, err := codec.encodeChunk(0, []packedSampleForArchive{sample})
+	if err != nil {
+		t.Fatalf("encodeChunk() with reducedRoot set = error %v, want success (reduced bytes should not be touched)", err)
+	}
+	if len(sampleIndexes) != 1 || sampleIndexes[0].SampleID != "sample1" {
+		t.Fatalf("encodeChunk() sampleIndexes = %#v, want one entry for sample1", sampleIndexes)
+	}
+
+	decoded, err := codec.decodeChunk(chunkBytes, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertCanonicalBytesEqual(t, decoded["sample1"], reduced.ReducedJSON)
+}
+
 func TestBuildTempPatternUsesOutputBasename(t *testing.T) {
 	if got, want := buildTempPattern(filepath.Join("results", "run42.bakpack"), "chunks"), "run42.bakpack.tmp-chunks-*"; got != want {
 		t.Fatalf("buildTempPattern() = %q, want %q", got, want)
