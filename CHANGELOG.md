@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-09
+
 ### Changed
 
 - Upgrade `github.com/martinghunt/faqt` to v0.10.0 and require Go 1.25.
@@ -78,7 +80,8 @@ Initial release of `bakpack`.
 - AGC genome extraction uses `agc getset -t 1` by default and fetches non-tar genome sources one sample at a time during extraction.
 - Archive format compatibility is not guaranteed before a future stable release.
 
-[Unreleased]: https://github.com/martinghunt/bakpack/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/martinghunt/bakpack/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/martinghunt/bakpack/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/martinghunt/bakpack/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/martinghunt/bakpack/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/martinghunt/bakpack/releases/tag/v0.1.0
