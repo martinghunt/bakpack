@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Upgrade `github.com/martinghunt/faqt` to v0.10.0 and require Go 1.25.
+
 ### Fixed
 
 - Reject sample IDs that would resolve outside the output directory during extraction, preventing a crafted or corrupted archive index from writing files elsewhere on disk.
