@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Support the Bakta `oriV` feature type (replication origins on plasmids), which previously failed with `unsupported Bakta feature type "oriV"`.
+- Support Bakta >= v1.10.0 JSON, which stores `sequences[]` nucleotides under `nt` and feature sequence IDs under `sequence` instead of `sequence` and `contig`. Output from older Bakta versions is still supported, and an archive chunk may mix both layouts. Reduced JSON and archives built from older-layout Bakta JSON are unchanged and remain readable by earlier bakpack releases. Samples in the newer layout are written with reduced JSON metadata version 2, which bakpack v0.4.0 and earlier reject with an unsupported version error.
+
 ## [0.4.0] - 2026-10-09
 
 ### Changed

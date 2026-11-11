@@ -53,6 +53,43 @@ func TestReduceAndRestoreBaktaJSONChecksCanonicalContent(t *testing.T) {
 	}
 }
 
+func TestReduceAndRestoreBaktaJSONv110Layout(t *testing.T) {
+	genome := mustGenome(t, "sample1", toyFASTA("sample1"))
+	original := toyBaktaJSONv110("sample1", "gene one")
+
+	reduced, err := ReduceBaktaJSON(original, genome)
+	if err != nil {
+		t.Fatalf("ReduceBaktaJSON() error = %v", err)
+	}
+	for _, key := range []string{`"nt": "ATGAAATAA"`, `"aa"`, `"aa_hexdigest"`, `"start_type"`, `"length"`} {
+		if bytes.Contains(reduced.ReducedJSON, []byte(key)) {
+			t.Fatalf("reduced JSON still contains %s: %s", key, reduced.ReducedJSON)
+		}
+	}
+	if !bytes.Contains(reduced.ReducedJSON, []byte(`"version": 2`)) {
+		t.Fatalf("reduced JSON from v1.10 layout is not metadata version 2: %s", reduced.ReducedJSON)
+	}
+
+	restored, err := RestoreBaktaJSON(reduced.ReducedJSON, genome)
+	if err != nil {
+		t.Fatalf("RestoreBaktaJSON() error = %v", err)
+	}
+	if restored.Original.CanonicalSHA256 != reduced.Original.CanonicalSHA256 {
+		t.Fatalf("restored canonical SHA = %s, want %s", restored.Original.CanonicalSHA256, reduced.Original.CanonicalSHA256)
+	}
+}
+
+func TestReduceBaktaJSONLegacyLayoutIsMetadataVersion1(t *testing.T) {
+	genome := mustGenome(t, "sample1", toyFASTA("sample1"))
+	reduced, err := ReduceBaktaJSON(toyBaktaJSON("sample1", "gene one"), genome)
+	if err != nil {
+		t.Fatalf("ReduceBaktaJSON() error = %v", err)
+	}
+	if !bytes.Contains(reduced.ReducedJSON, []byte(`"version": 1`)) {
+		t.Fatalf("reduced JSON from legacy layout is not metadata version 1: %s", reduced.ReducedJSON)
+	}
+}
+
 func TestFeatureSpanRejectsOutOfRangeWraparoundStart(t *testing.T) {
 	genome := mustGenome(t, "sample1", toyFASTA("sample1")) // contig1 is 9bp
 	feature := map[string]any{"contig": "contig1", "start": 100, "stop": 2}

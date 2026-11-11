@@ -328,6 +328,84 @@ func TestBuildAndExtractArchiveFromTarXZUsesGenomeArchiveOrder(t *testing.T) {
 	}
 }
 
+func TestBuildAndExtractArchiveWithMixedBaktaLayouts(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	annotationsTar := filepath.Join(dir, "annotations.tar.xz")
+	genomesTar := filepath.Join(dir, "genomes.tar.xz")
+	archivePath := filepath.Join(dir, "mixed.bakpack")
+	outDir := filepath.Join(dir, "out")
+
+	originals := map[string][]byte{
+		"sampleA": toyBaktaJSON("sampleA", "gene A"),
+		"sampleB": toyBaktaJSONv110("sampleB", "gene B"),
+	}
+	writeTarXZ(t, genomesTar, []tarEntry{
+		{Name: "genomes/sampleA.fa", Data: toyFASTA("sampleA")},
+		{Name: "genomes/sampleB.fa", Data: toyFASTA("sampleB")},
+	})
+	writeTarXZ(t, annotationsTar, []tarEntry{
+		{Name: "bakta/sampleA.bakta.json", Data: originals["sampleA"]},
+		{Name: "bakta/sampleB.bakta.json", Data: originals["sampleB"]},
+	})
+
+	annotations, err := OpenSource(annotationsTar, "tar.xz", "annotation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	genomes, err := OpenSource(genomesTar, "tar.xz", "genome")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := BuildArchive(ctx, BuildOptions{
+		Annotations: annotations,
+		Genomes:     genomes,
+		ChunkSize:   2,
+		OutputPath:  archivePath,
+	}); err != nil {
+		t.Fatalf("BuildArchive() error = %v", err)
+	}
+
+	index, err := ReadArchiveIndex(archivePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	codecs := map[string]string{}
+	for _, codec := range index.Chunks[0].FieldCodecs {
+		codecs[codec.Field] = codec.Kind
+	}
+	if codecs["contig"] != "sequence_index" || codecs["sequence"] != "sequence_index" {
+		t.Fatalf("contig/sequence codecs = %q/%q, want sequence_index", codecs["contig"], codecs["sequence"])
+	}
+
+	if err := ExtractArchive(ctx, ExtractOptions{
+		ArchivePath: archivePath,
+		Genomes:     genomes,
+		Samples:     []string{"sampleA", "sampleB"},
+		OutputDir:   outDir,
+		Original:    true,
+	}); err != nil {
+		t.Fatalf("ExtractArchive() error = %v", err)
+	}
+	for sample, original := range originals {
+		got, err := os.ReadFile(filepath.Join(outDir, sample+".bakta.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		gotCanonical, err := JSONBytesCanonicalSHA256(got)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantCanonical, err := JSONBytesCanonicalSHA256(original)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if gotCanonical != wantCanonical {
+			t.Fatalf("%s original canonical SHA = %s, want %s", sample, gotCanonical, wantCanonical)
+		}
+	}
+}
+
 func TestBuildArchiveFromEmptyPairedTarXZSourcesFails(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()

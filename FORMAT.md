@@ -174,6 +174,15 @@ reduced JSON file has this additional top-level object:
 }
 ```
 
+Bakta v1.10.0 renamed two fields: `sequences[]` nucleotide strings moved from
+`sequence` to `nt`, and feature sequence IDs moved from `contig` to `sequence`.
+bakpack accepts both layouts. Reduced JSON from the older layout has `_bakpack`
+`"version": 1`, and reduced JSON from the newer layout has `"version": 2`.
+Restore uses the version to decide which key the `sequences[]` nucleotides go
+back under. bakpack v0.4.0 and earlier accept only version 1, so they fail
+with an unsupported version error on samples from the newer layout instead of
+restoring them incorrectly.
+
 The `_bakpack` object is bakpack metadata, not part of the original Bakta JSON.
 It is removed during restore.
 
@@ -181,7 +190,7 @@ During reduction, bakpack removes a value only when it can independently derive
 the same value from the matching genome FASTA and the remaining annotation
 content. The current reducer can remove:
 
-- `sequences[].sequence`
+- `sequences[].sequence` (or `sequences[].nt` for Bakta >= v1.10.0)
 - feature `nt`
 - feature `aa`
 - `stats.no_sequences`

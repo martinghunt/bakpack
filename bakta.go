@@ -31,9 +31,19 @@ type RestoreResult struct {
 }
 
 const (
-	reducedMetadataKey     = "_bakpack"
-	reducedMetadataFormat  = "bakpack_reduced_bakta_json"
-	reducedMetadataVersion = 1
+	reducedMetadataKey    = "_bakpack"
+	reducedMetadataFormat = "bakpack_reduced_bakta_json"
+	// Bakta v1.10.0 renamed the nucleotide field of sequences[] entries from
+	// "sequence" to "nt", and the sequence ID field of features from "contig"
+	// to "sequence". Reduced JSON from the older layout is written as version
+	// 1, which older bakpack releases can read. Reduced JSON from the newer
+	// layout is written as version 2, so that older bakpack releases reject it
+	// with a clear version error instead of restoring it incorrectly.
+	reducedMetadataVersionLegacyLayout  = 1
+	reducedMetadataVersionCurrentLayout = 2
+
+	legacySequenceNTKey  = "sequence"
+	currentSequenceNTKey = "nt"
 )
 
 func ReduceBaktaJSON(original []byte, genome Genome) (ReduceResult, error) {
@@ -48,7 +58,8 @@ func ReduceBaktaJSON(original []byte, genome Genome) (ReduceResult, error) {
 		return ReduceResult{}, err
 	}
 
-	stripContigSequences(data, genome)
+	currentLayout := usesCurrentBaktaLayout(data)
+	stripContigSequences(data, genome, sequenceNTKey(currentLayout))
 	table := translationTable(data)
 	for _, feature := range baktaFeatures(data) {
 		nt, haveNT := FeatureNT(feature, genome)
@@ -67,9 +78,13 @@ func ReduceBaktaJSON(original []byte, genome Genome) (ReduceResult, error) {
 	if err != nil {
 		return ReduceResult{}, err
 	}
+	version := reducedMetadataVersionLegacyLayout
+	if currentLayout {
+		version = reducedMetadataVersionCurrentLayout
+	}
 	data[reducedMetadataKey] = map[string]any{
 		"format":                         reducedMetadataFormat,
-		"version":                        reducedMetadataVersion,
+		"version":                        version,
 		"original_json_canonical_sha256": originalCanonical,
 	}
 
@@ -108,7 +123,7 @@ func RestoreBaktaJSON(reduced []byte, genome Genome) (RestoreResult, error) {
 	delete(data, reducedMetadataKey)
 
 	restoreDerivableFields(data, genome)
-	restoreContigSequences(data, genome)
+	restoreContigSequences(data, genome, sequenceNTKey(metadata.CurrentLayout))
 	table := translationTable(data)
 	for _, feature := range baktaFeatures(data) {
 		info, _ := baktaFeatureTypeString(feature)
@@ -166,6 +181,7 @@ func decodeBaktaJSONObject(data []byte) (map[string]any, error) {
 
 type reducedJSONMetadata struct {
 	OriginalJSONCanonicalSHA256 string
+	CurrentLayout               bool
 }
 
 func reducedMetadata(data map[string]any) (reducedJSONMetadata, error) {
@@ -186,41 +202,78 @@ func reducedMetadata(data map[string]any) (reducedJSONMetadata, error) {
 		return reducedJSONMetadata{}, fmt.Errorf("reduced JSON metadata version is missing or not a number")
 	}
 	version, err := versionNumber.Int64()
-	if err != nil || version != reducedMetadataVersion {
+	if err != nil || (version != reducedMetadataVersionLegacyLayout && version != reducedMetadataVersionCurrentLayout) {
 		return reducedJSONMetadata{}, fmt.Errorf("unsupported reduced JSON metadata version %s", versionNumber.String())
 	}
 	canonical, _ := metadata["original_json_canonical_sha256"].(string)
 	if canonical == "" {
 		return reducedJSONMetadata{}, fmt.Errorf("reduced JSON metadata is missing original_json_canonical_sha256")
 	}
-	return reducedJSONMetadata{OriginalJSONCanonicalSHA256: canonical}, nil
+	return reducedJSONMetadata{
+		OriginalJSONCanonicalSHA256: canonical,
+		CurrentLayout:               version == reducedMetadataVersionCurrentLayout,
+	}, nil
 }
 
-func stripContigSequences(data map[string]any, genome Genome) {
+func stripContigSequences(data map[string]any, genome Genome, ntKey string) {
 	for _, entry := range baktaSequences(data) {
 		id, _ := entry["id"].(string)
-		existing, ok := entry["sequence"].(string)
+		existing, ok := entry[ntKey].(string)
 		if id == "" || !ok {
 			continue
 		}
 		contig, ok := genome.Contig(id)
 		if ok && normalizeNT(existing) == string(contig) {
-			delete(entry, "sequence")
+			delete(entry, ntKey)
 		}
 	}
 }
 
-func restoreContigSequences(data map[string]any, genome Genome) {
+func restoreContigSequences(data map[string]any, genome Genome, ntKey string) {
 	for _, entry := range baktaSequences(data) {
-		if _, exists := entry["sequence"]; exists {
+		if _, exists := entry[ntKey]; exists {
 			continue
 		}
 		id, _ := entry["id"].(string)
 		contig, ok := genome.Contig(id)
 		if id != "" && ok {
-			entry["sequence"] = string(contig)
+			entry[ntKey] = string(contig)
 		}
 	}
+}
+
+// usesCurrentBaktaLayout reports whether data uses the Bakta >= 1.10.0 field
+// names: sequences[].nt or a string feature "sequence" ID.
+func usesCurrentBaktaLayout(data map[string]any) bool {
+	for _, entry := range baktaSequences(data) {
+		if _, ok := entry[currentSequenceNTKey].(string); ok {
+			return true
+		}
+	}
+	for _, feature := range baktaFeatures(data) {
+		if _, ok := feature["sequence"].(string); ok {
+			return true
+		}
+	}
+	return false
+}
+
+// sequenceNTKey returns the key holding sequences[] nucleotide strings.
+func sequenceNTKey(currentLayout bool) string {
+	if currentLayout {
+		return currentSequenceNTKey
+	}
+	return legacySequenceNTKey
+}
+
+// featureContig returns the ID of the sequence a feature is on, from
+// "sequence" (Bakta >= 1.10.0) or "contig" (older Bakta).
+func featureContig(feature map[string]any) (string, bool) {
+	if id, ok := feature["sequence"].(string); ok {
+		return id, true
+	}
+	id, ok := feature["contig"].(string)
+	return id, ok
 }
 
 func stripDerivableFields(data map[string]any, genome Genome) {
@@ -447,7 +500,7 @@ func featureSpan(feature map[string]any, genome Genome) (int, bool) {
 	if start <= stop {
 		return stop - start + 1, true
 	}
-	contigName, _ := feature["contig"].(string)
+	contigName, _ := featureContig(feature)
 	contig, ok := genome.Contig(contigName)
 	if !ok || start > len(contig) {
 		return 0, false
@@ -465,7 +518,7 @@ func translationTable(data map[string]any) int {
 }
 
 func hasFeatureCoords(feature map[string]any) bool {
-	if _, ok := feature["contig"].(string); !ok {
+	if _, ok := featureContig(feature); !ok {
 		return false
 	}
 	if _, ok := jsonInt(feature["start"]); !ok {

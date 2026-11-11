@@ -81,7 +81,7 @@ func (g Genome) FASTABytes(wrap int) ([]byte, error) {
 }
 
 func FeatureNT(feature map[string]any, genome Genome) (string, bool) {
-	contigName, ok := feature["contig"].(string)
+	contigName, ok := featureContig(feature)
 	if !ok {
 		return "", false
 	}

@@ -175,7 +175,7 @@ func (s *fieldStats) addSampleValues(field string, values []any) {
 }
 
 func chooseFieldCodec(field string, stats *fieldStats) FieldCodec {
-	if field == "contig" {
+	if field == "contig" || field == "sequence" {
 		return FieldCodec{Field: field, Kind: fieldCodecSequenceIndex}
 	}
 	if (field == "id" || field == "locus") && stats.prefixCandidate {

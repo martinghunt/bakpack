@@ -2,6 +2,7 @@ package bakpack
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -63,4 +64,13 @@ func toyBaktaJSON(sample, product string) []byte {
   ]
 }
 `)
+}
+
+// toyBaktaJSONv110 is toyBaktaJSON in the Bakta >= 1.10.0 layout, which keys
+// sequences[] nucleotides as "nt" and feature sequence IDs as "sequence".
+func toyBaktaJSONv110(sample, product string) []byte {
+	out := string(toyBaktaJSON(sample, product))
+	out = strings.Replace(out, `"sequence": "ATGAAATAA"`, `"nt": "ATGAAATAA"`, 1)
+	out = strings.Replace(out, `"contig": "contig1"`, `"sequence": "contig1"`, 1)
+	return []byte(out)
 }
