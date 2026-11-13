@@ -261,7 +261,7 @@ func TestCLISingleAndBatchArguments(t *testing.T) {
 
 func TestCLIGFF3Compliant(t *testing.T) {
 	dir := t.TempDir()
-	testdata := filepath.Join("..", "..", "testdata", "gff3")
+	testdata := filepath.Join("..", "..", "testdata", "bakta")
 	jsonPath := filepath.Join(testdata, "synthetic.bakta.json")
 	fastaPath := filepath.Join(testdata, "synthetic.fa")
 	want, err := os.ReadFile(filepath.Join(testdata, "synthetic.bakta-1.12.2.compliant.gff3"))

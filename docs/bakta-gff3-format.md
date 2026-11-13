@@ -4,7 +4,7 @@ This describes the GFF3 that current Bakta (1.10.0 to 1.12.2 write the same)
 writes for an annotation JSON, in its default mode and in `--compliant` mode,
 as observed from its output. bakpack reproduces it byte for byte. It is a
 description of the output only. The tests in `gff3_test.go` and
-`testdata/gff3/` compare bakpack with GFF3 written by Bakta itself.
+`testdata/bakta/` compare bakpack with GFF3 written by Bakta itself.
 
 ## Which JSON
 

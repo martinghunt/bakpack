@@ -116,13 +116,13 @@ func TestBaktaGFF3WritesOriVAsOriC(t *testing.T) {
 }
 
 // TestBaktaGFF3MatchesBakta112 compares bakpack's GFF3 with GFF3 written by
-// Bakta 1.12.2's own writer; see testdata/gff3/README.md.
+// Bakta 1.12.2's own writer; see testdata/bakta/README.md.
 func TestBaktaGFF3MatchesBakta112(t *testing.T) {
-	annotation, err := os.ReadFile(filepath.Join("testdata", "gff3", "synthetic.bakta.json"))
+	annotation, err := os.ReadFile(filepath.Join("testdata", "bakta", "synthetic.bakta.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	fasta, err := os.ReadFile(filepath.Join("testdata", "gff3", "synthetic.fa"))
+	fasta, err := os.ReadFile(filepath.Join("testdata", "bakta", "synthetic.fa"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +139,7 @@ func TestBaktaGFF3MatchesBakta112(t *testing.T) {
 		{name: "default", want: "synthetic.bakta-1.12.2.gff3"},
 		{name: "compliant", compliant: true, want: "synthetic.bakta-1.12.2.compliant.gff3"},
 	} {
-		want, err := os.ReadFile(filepath.Join("testdata", "gff3", tt.want))
+		want, err := os.ReadFile(filepath.Join("testdata", "bakta", tt.want))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -160,17 +160,17 @@ func TestBaktaGFF3MatchesBakta112(t *testing.T) {
 
 // TestCompliantGFF3FromNonCompliantJSON checks compliant output for JSON from
 // a Bakta run without --compliant against Bakta's own code: its annotation
-// changes followed by its compliant GFF3 writer (see testdata/gff3/README.md).
+// changes followed by its compliant GFF3 writer (see testdata/bakta/README.md).
 func TestCompliantGFF3FromNonCompliantJSON(t *testing.T) {
-	annotation, err := os.ReadFile(filepath.Join("testdata", "gff3", "synthetic.noncompliant.bakta.json"))
+	annotation, err := os.ReadFile(filepath.Join("testdata", "bakta", "synthetic.noncompliant.bakta.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	fasta, err := os.ReadFile(filepath.Join("testdata", "gff3", "synthetic.noncompliant.fa"))
+	fasta, err := os.ReadFile(filepath.Join("testdata", "bakta", "synthetic.noncompliant.fa"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	want, err := os.ReadFile(filepath.Join("testdata", "gff3", "synthetic.noncompliant.bakta-1.12.2.compliant.gff3"))
+	want, err := os.ReadFile(filepath.Join("testdata", "bakta", "synthetic.noncompliant.bakta-1.12.2.compliant.gff3"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,11 +275,11 @@ func TestPyFloatRepr(t *testing.T) {
 // TestBaktaGFF3OldLayoutMatchesBakta checks JSON in the Bakta < 1.10 layout
 // against GFF3 written for it by Bakta 1.12.2, as bakta_io does for old JSON.
 func TestBaktaGFF3OldLayoutMatchesBakta(t *testing.T) {
-	annotation, err := os.ReadFile(filepath.Join("testdata", "gff3", "synthetic.v1.9.bakta.json"))
+	annotation, err := os.ReadFile(filepath.Join("testdata", "bakta", "synthetic.v1.9.bakta.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	fasta, err := os.ReadFile(filepath.Join("testdata", "gff3", "synthetic.fa"))
+	fasta, err := os.ReadFile(filepath.Join("testdata", "bakta", "synthetic.fa"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -291,7 +291,7 @@ func TestBaktaGFF3OldLayoutMatchesBakta(t *testing.T) {
 		{want: "synthetic.v1.9.bakta-1.12.2.gff3"},
 		{compliant: true, want: "synthetic.v1.9.bakta-1.12.2.compliant.gff3"},
 	} {
-		want, err := os.ReadFile(filepath.Join("testdata", "gff3", tt.want))
+		want, err := os.ReadFile(filepath.Join("testdata", "bakta", tt.want))
 		if err != nil {
 			t.Fatal(err)
 		}
