@@ -27,6 +27,40 @@ Use `--annotation-only` to omit the terminal `##FASTA` section:
 bakpack gff3 BAKTA_JSON GENOME_FASTA -o SAMPLE.gff3 --annotation-only
 ```
 
+The GFF3 matches what the Bakta version recorded in the JSON writes. Bakta
+changed its GFF3 output in v1.10.0, so JSON from Bakta 1.10 or later is written
+in the newer style and older JSON in the older one. If the JSON has no Bakta
+version, its layout decides (Bakta 1.10 changed the JSON layout too).
+
+Use `--compliant` to write GFF3 as Bakta's `--compliant` (Genbank/ENA/DDBJ)
+mode does. Bakta's JSON does not record whether `--compliant` was used, and
+`bakta_io` cannot write compliant files from JSON, so this is the way to get
+compliant GFF3 from a bakpack archive or reduced JSON. It is available for JSON
+from Bakta 1.10 or later:
+
+```
+bakpack gff3 BAKTA_JSON GENOME_FASTA -o SAMPLE.gff3 --compliant
+```
+
+Compliant GFF3 has no `##FASTA` section, as with Bakta.
+
+Bakta's `--compliant` mode also changes the annotation itself, before any file
+is written. bakpack applies those changes too, so the GFF3 is compliant even
+when Bakta was run without `--compliant`:
+
+- CDS and sORF product names are revised as Bakta does: "uncharacterized" and
+  "uncharacterised" become "putative", and unbalanced brackets are removed.
+- Contigs shorter than 200 bp are left out, with their features.
+- Contig IDs and locus tag prefixes that INSDC would reject are reported as
+  warnings. Bakta refuses to run with them; bakpack cannot rename them.
+
+These changes leave JSON from a `--compliant` run unchanged, so its output
+matches Bakta's exactly. For JSON from a run without `--compliant`, two things
+can still differ from what a `--compliant` run would have produced: if short
+contigs were left out, the remaining contigs and locus tags keep their
+original numbers, and in the rare case that removing unbalanced brackets
+reveals a gene symbol (e.g. `(abcD`), Bakta would also add it as a gene.
+
 ## Many samples at once
 
 Run `reduce`, `restore` or `gff3` without positional arguments to process every

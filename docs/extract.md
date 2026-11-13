@@ -18,6 +18,8 @@ support byte-range requests.
 --gff3       write SAMPLE.gff3
 --gff3-annotation-only
              write SAMPLE.gff3 without the terminal ##FASTA section
+--gff3-compliant
+             write SAMPLE.gff3 as Bakta --compliant mode does (Bakta 1.10+ samples)
 ```
 
 If no output mode is selected, `--reduced` is used.

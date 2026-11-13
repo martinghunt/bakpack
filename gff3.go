@@ -18,6 +18,14 @@ type BaktaGFF3Options struct {
 	// BakpackVersion overrides the version written in the generated-by header.
 	// When empty, the build-time bakpack version is used.
 	BakpackVersion string
+	// Compliant writes GFF3 as Bakta's --compliant (INSDC) mode does. It is
+	// supported for JSON from Bakta 1.10 and later. It also applies the
+	// changes Bakta's --compliant mode makes while annotating, so the output
+	// is compliant even when Bakta was run without --compliant.
+	Compliant bool
+	// Warn, if set, receives problems found in compliant mode that bakpack
+	// cannot fix, and contigs it leaves out.
+	Warn func(message string)
 }
 
 // BaktaGFF3 renders a Bakta JSON annotation as GFF3 using the observed Bakta
@@ -54,6 +62,13 @@ func BaktaGFF3WithOptions(annotation []byte, genome Genome, opts BaktaGFF3Option
 	}
 	if err := validateBaktaFeatureTypes(data); err != nil {
 		return nil, err
+	}
+	if usesCurrentBaktaGFF3Style(data) {
+		return writeCurrentBaktaGFF3(data, opts)
+	}
+	if opts.Compliant {
+		version, _ := data["version"].(map[string]any)
+		return nil, fmt.Errorf("compliant GFF3 needs JSON from Bakta 1.10 or later, but this JSON is from Bakta %v", version["bakta"])
 	}
 	genome = withBaktaContigAliases(data, genome)
 

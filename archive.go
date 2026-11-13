@@ -85,6 +85,11 @@ type ExtractOptions struct {
 	// GFF3AnnotationOnly writes SAMPLE.gff3 without the terminal ##FASTA
 	// section. It implies GFF3.
 	GFF3AnnotationOnly bool
+	// GFF3Compliant writes SAMPLE.gff3 as Bakta's --compliant (INSDC) mode
+	// does, for samples annotated with Bakta 1.10 or later. It implies GFF3.
+	GFF3Compliant bool
+	// Warnings, if set, receives compliant GFF3 warnings, one line each.
+	Warnings io.Writer
 }
 
 // OpenArchiveOptions configures archive reads.
@@ -121,6 +126,13 @@ type ExtractRequest struct {
 	// GFF3AnnotationOnly returns GFF3 output without the terminal ##FASTA section.
 	// It implies GFF3.
 	GFF3AnnotationOnly bool
+	// GFF3Compliant returns GFF3 as Bakta's --compliant (INSDC) mode writes
+	// it, for samples annotated with Bakta 1.10 or later. It implies GFF3.
+	GFF3Compliant bool
+	// Warnings, if set, receives compliant GFF3 warnings, one line each.
+	// Samples may be extracted concurrently, so it must be safe for
+	// concurrent use (os.Stderr is).
+	Warnings io.Writer
 	// OnSample is called for each extracted sample. When nil, Extract returns
 	// accumulated results in the same order as Samples.
 	OnSample func(ExtractedSample) error
