@@ -331,6 +331,86 @@ func TestCLIGFF3Compliant(t *testing.T) {
 	}
 }
 
+func TestCLIConvertGenBankAndEMBL(t *testing.T) {
+	dir := t.TempDir()
+	testdata := filepath.Join("..", "..", "testdata", "bakta")
+	jsonPath := filepath.Join(testdata, "synthetic.bakta.json")
+	fastaPath := filepath.Join(testdata, "synthetic.fa")
+	for format, extension := range map[string]string{"genbank": ".gbff", "embl": ".embl"} {
+		want, err := os.ReadFile(filepath.Join(testdata, "synthetic.bakta-1.12.2"+extension))
+		if err != nil {
+			t.Fatal(err)
+		}
+		outPath := filepath.Join(dir, "single"+extension)
+		if _, stderr, err := executeCommand("convert", jsonPath, fastaPath, "-o", outPath, "--format", format); err != nil {
+			t.Fatalf("convert --format %s error = %v, stderr = %s", format, err, stderr)
+		}
+		got, err := os.ReadFile(outPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(got, want) {
+			t.Fatalf("convert --format %s output differs from Bakta's", format)
+		}
+	}
+
+	// Extract both from an archive.
+	annotationsDir := filepath.Join(dir, "annotations")
+	genomesDir := filepath.Join(dir, "genomes")
+	mustMkdir(t, annotationsDir)
+	mustMkdir(t, genomesDir)
+	for src, dst := range map[string]string{jsonPath: filepath.Join(annotationsDir, "synthetic.bakta.json"), fastaPath: filepath.Join(genomesDir, "synthetic.fa")} {
+		data, err := os.ReadFile(src)
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, dst, data)
+	}
+	archivePath := filepath.Join(dir, "synthetic.bakpack")
+	if _, stderr, err := executeCommand("build", "--annotations", annotationsDir, "--genomes", genomesDir, "-o", archivePath); err != nil {
+		t.Fatalf("build error = %v, stderr = %s", err, stderr)
+	}
+	outDir := filepath.Join(dir, "extracted")
+	if _, stderr, err := executeCommand("extract", archivePath, "synthetic", "--genomes", genomesDir, "--convert", "genbank,embl", "--compliant", "-o", outDir); err != nil {
+		t.Fatalf("extract --convert genbank,embl error = %v, stderr = %s", err, stderr)
+	}
+	for _, extension := range []string{".gbff", ".embl"} {
+		want, err := os.ReadFile(filepath.Join(testdata, "synthetic.bakta-1.12.2.compliant"+extension))
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := os.ReadFile(filepath.Join(outDir, "synthetic"+extension))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(got, want) {
+			t.Fatalf("extracted compliant %s differs from Bakta's", extension)
+		}
+	}
+
+	// JSON without Bakta's run section needs --annotation-date.
+	noRun := filepath.Join(dir, "sampleA.bakta.json")
+	writeFile(t, noRun, toyBaktaJSON("gene A"))
+	writeFile(t, filepath.Join(dir, "sampleA.fa"), toyFASTA())
+	_, _, err := executeCommand("convert", noRun, filepath.Join(dir, "sampleA.fa"), "-o", filepath.Join(dir, "a.gbff"), "--format", "genbank")
+	if err == nil || !strings.Contains(err.Error(), "--annotation-date") {
+		t.Fatalf("convert JSON without run error = %v, want --annotation-date", err)
+	}
+	if _, stderr, err := executeCommand("convert", noRun, filepath.Join(dir, "sampleA.fa"), "-o", filepath.Join(dir, "a.gbff"), "--format", "genbank", "--annotation-date", "2024-03-05"); err != nil {
+		t.Fatalf("convert with --annotation-date error = %v, stderr = %s", err, stderr)
+	}
+	got, err := os.ReadFile(filepath.Join(dir, "a.gbff"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(got, []byte(" 05-MAR-2024\n")) || !bytes.Contains(got, []byte("03/05/2024, 00:00:00")) {
+		t.Fatalf("GenBank does not use the annotation date:\n%s", got)
+	}
+	if _, _, err := executeCommand("convert", noRun, filepath.Join(dir, "sampleA.fa"), "-o", filepath.Join(dir, "a.x"), "--format", "fasta"); err == nil || !strings.Contains(err.Error(), "unknown output format") {
+		t.Fatalf("convert --format fasta error = %v, want unknown output format", err)
+	}
+}
+
 func executeCommand(args ...string) ([]byte, []byte, error) {
 	cmd := newRootCommand()
 	var stdout, stderr bytes.Buffer

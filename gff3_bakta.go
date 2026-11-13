@@ -65,13 +65,9 @@ func writeBaktaGFF3(data map[string]any, opts BaktaGFF3Options) ([]byte, error) 
 
 	// seen holds every sequence ID in sequences, including those compliant
 	// mode leaves out, so that their features are not written afterwards.
-	seen := map[string]bool{}
-	for _, sequence := range sequences {
-		seen[pyStr(sequence["id"])] = true
-	}
+	seen := sequenceIDSet(sequences)
 	if opts.Compliant {
-		sequences = dropShortSequences(sequences, featuresByContig, opts.Warn)
-		warnNonCompliantIDs(sequences, seen, featuresByContig, featureOrder, opts.Warn)
+		sequences = compliantSequences(sequences, seen, featuresByContig, featureOrder, opts.Warn)
 	}
 
 	w.writeHeader(data, opts.bakpackVersion())
@@ -104,6 +100,24 @@ func writeBaktaGFF3(data map[string]any, opts BaktaGFF3Options) ([]byte, error) 
 		w.writeFASTA(sequences, sequenceNTKey(usesCurrentBaktaLayout(data)))
 	}
 	return w.buf.Bytes(), nil
+}
+
+// sequenceIDSet returns the IDs of sequences.
+func sequenceIDSet(sequences []map[string]any) map[string]bool {
+	ids := map[string]bool{}
+	for _, sequence := range sequences {
+		ids[pyStr(sequence["id"])] = true
+	}
+	return ids
+}
+
+// compliantSequences returns the sequences Bakta --compliant keeps, and
+// reports what was left out and the IDs INSDC rejects. seen holds every
+// sequence ID in the JSON's sequences.
+func compliantSequences(sequences []map[string]any, seen map[string]bool, featuresByContig map[string][]map[string]any, featureOrder []string, warn func(string)) []map[string]any {
+	sequences = dropShortSequences(sequences, featuresByContig, warn)
+	warnNonCompliantIDs(sequences, seen, featuresByContig, featureOrder, warn)
+	return sequences
 }
 
 // dropShortSequences returns sequences without those shorter than Bakta
@@ -472,7 +486,7 @@ func (w *baktaGFF3Writer) writeCDS(feature map[string]any, line featureLine) {
 	if userProvided {
 		source = "?"
 	}
-	product := w.proteinProduct(feature)
+	product := proteinProduct(feature, w.compliant)
 	attrs := locusAttrs(feature, locus, product)
 	attrs.set("product", product)
 	attrs.setList("Dbxref", featureList(feature, "db_xrefs"))
@@ -521,7 +535,7 @@ func (w *baktaGFF3Writer) writeCDS(feature map[string]any, line featureLine) {
 
 func (w *baktaGFF3Writer) writeSORF(feature map[string]any, line featureLine) {
 	locus := featureLocus(feature)
-	product := w.proteinProduct(feature)
+	product := proteinProduct(feature, w.compliant)
 	attrs := locusAttrs(feature, locus, product)
 	attrs.set("product", product)
 	attrs.setList("Dbxref", featureList(feature, "db_xrefs"))
@@ -542,8 +556,8 @@ func (w *baktaGFF3Writer) writeSORF(feature map[string]any, line featureLine) {
 
 // proteinProduct returns a cds or sorf feature's product, revised as Bakta
 // --compliant does in compliant mode.
-func (w *baktaGFF3Writer) proteinProduct(feature map[string]any) string {
-	if product, ok := feature["product"].(string); ok && w.compliant {
+func proteinProduct(feature map[string]any, compliant bool) string {
+	if product, ok := feature["product"].(string); ok && compliant {
 		return reviseProductINSDC(product)
 	}
 	return pyStr(feature["product"])
@@ -681,46 +695,71 @@ func dbxrefDatabase(dbxref string) string {
 	return database
 }
 
-// setINSDCDbxrefs sets Dbxref to the db_xrefs INSDC accepts and Note to the
-// others.
-func setINSDCDbxrefs(attrs *baktaAttrs, feature map[string]any) {
-	var valid, invalid []string
-	for _, dbxref := range featureList(feature, "db_xrefs") {
+// splitINSDCDbxrefs splits db_xrefs into those INSDC accepts and the others.
+func splitINSDCDbxrefs(dbxrefs []string) (valid, invalid []string) {
+	for _, dbxref := range dbxrefs {
 		if insdcDbxrefDatabases[dbxrefDatabase(dbxref)] {
 			valid = append(valid, dbxref)
 		} else {
 			invalid = append(invalid, dbxref)
 		}
 	}
+	return valid, invalid
+}
+
+// setINSDCDbxrefs sets Dbxref to the db_xrefs INSDC accepts and Note to the
+// others.
+func setINSDCDbxrefs(attrs *baktaAttrs, feature map[string]any) {
+	valid, invalid := splitINSDCDbxrefs(featureList(feature, "db_xrefs"))
 	attrs.setList("Dbxref", valid)
 	attrs.setList("Note", invalid)
 }
 
-// setRfamInference sets inference from the last RFAM Dbxref, if any.
-func setRfamInference(attrs *baktaAttrs) {
-	for _, dbxref := range attrs.list("Dbxref") {
+// rfamInference returns the inference from the last RFAM entry of dbxrefs,
+// if any.
+func rfamInference(dbxrefs []string) (string, bool) {
+	inference, ok := "", false
+	for _, dbxref := range dbxrefs {
 		if dbxrefDatabase(dbxref) != "RFAM" {
 			continue
 		}
 		_, rest, _ := strings.Cut(dbxref, ":")
 		accession, _, _ := strings.Cut(rest, ":")
-		attrs.set("inference", "profile:Rfam:"+accession)
+		inference, ok = "profile:Rfam:"+accession, true
 	}
+	return inference, ok
+}
+
+// setRfamInference sets inference from the last RFAM Dbxref, if any.
+func setRfamInference(attrs *baktaAttrs) {
+	if inference, ok := rfamInference(attrs.list("Dbxref")); ok {
+		attrs.set("inference", inference)
+	}
+}
+
+// splitECNumbers removes EC entries from notes, returning the remaining notes
+// and the EC number of the last one removed, if any.
+func splitECNumbers(notes []string) ([]string, string, bool) {
+	var rest, ecs []string
+	for _, note := range notes {
+		if dbxrefDatabase(note) == "EC" {
+			ecs = append(ecs, note)
+		} else {
+			rest = append(rest, note)
+		}
+	}
+	if len(ecs) == 0 {
+		return rest, "", false
+	}
+	return rest, strings.ReplaceAll(ecs[len(ecs)-1], "EC:", ""), true
 }
 
 // setECNumbers moves EC entries from Note to ec_number.
 func setECNumbers(attrs *baktaAttrs) {
-	var notes, ecs []string
-	for _, note := range attrs.list("Note") {
-		if dbxrefDatabase(note) == "EC" {
-			ecs = append(ecs, note)
-		} else {
-			notes = append(notes, note)
-		}
-	}
+	notes, ec, ok := splitECNumbers(attrs.list("Note"))
 	attrs.setList("Note", notes)
-	if len(ecs) != 0 {
-		attrs.set("ec_number", strings.ReplaceAll(ecs[len(ecs)-1], "EC:", ""))
+	if ok {
+		attrs.set("ec_number", ec)
 	}
 }
 

@@ -26,7 +26,10 @@ bakpack convert BAKTA_JSON GENOME_FASTA -o SAMPLE.embl --format embl
 The output is what current Bakta writes for the JSON (as its `bakta_io` does),
 for JSON from any Bakta version. For JSON from Bakta before 1.10 this can
 differ from the files the older Bakta wrote itself; see the format
-descriptions for [GFF3](bakta-gff3-format.md).
+descriptions for [GFF3](bakta-gff3-format.md) and
+[GenBank and EMBL](bakta-insdc-format.md). GenBank and EMBL match Bakta 1.12;
+earlier 1.10 and 1.11 releases differed in a few details, mostly since fixed
+in Bakta (notes on some feature types, reverse-strand tmRNA tag peptides).
 
 Use `--annotation-only` to omit the terminal `##FASTA` section of GFF3.
 

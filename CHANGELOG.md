@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reduced JSON named `SAMPLE.reduced.bakta.json` or `SAMPLE.reduced.json` is recognised as sample `SAMPLE`, so it pairs with that sample's genome.
 - `reduce` and `build` warn when a sample's sequences cannot be matched to its genome FASTA, since those sequences and their features are left unreduced.
 - `reduce` and `build` verify that each reduced JSON restores to the original before writing it.
+- `convert --format genbank` and `--format embl` (and `extract --convert genbank,embl`) write GenBank and EMBL as current Bakta writes them for the JSON, checked byte for byte against Bakta 1.12.2's own writers, for JSON from any Bakta version, in default and `--compliant` mode. They are dated with the Bakta run's end, from the JSON's `run` section; JSON without it (which Bakta always writes) needs `--annotation-date`. The layout is written by faqt's `insdc` package.
 - `--compliant` for `convert` and `extract --convert` writes GFF3 as Bakta's `--compliant` (Genbank/ENA/DDBJ) mode does, also in batch mode. Bakta's own `bakta_io` cannot write compliant files from JSON. Compliant output also applies the changes Bakta's `--compliant` mode makes while annotating (revised CDS/sORF product names, contigs under 200 bp left out, warnings for contig IDs and locus tags INSDC would reject), so it is compliant even when Bakta was run without `--compliant`. Library users can set `ConvertOptions.Compliant` and `Warn`.
 
 ### Changed
