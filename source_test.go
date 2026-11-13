@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -149,6 +150,103 @@ func TestOpenSourceReadsPlainTar(t *testing.T) {
 	}
 	if got := string(genome.Contigs[0].Seq); got != "ATGAAATAA" {
 		t.Fatalf("genome sequence from compressed tar member = %q", got)
+	}
+}
+
+func TestOpenSourceDetectsTarCompressionFromSuffix(t *testing.T) {
+	ctx := context.Background()
+	for _, tt := range []struct {
+		name        string
+		compression string
+		wantType    string
+	}{
+		{name: "annotations.tar", compression: "", wantType: "TarSource"},
+		{name: "annotations.tar.gz", compression: "gz", wantType: "TarSource"},
+		{name: "annotations.tgz", compression: "gz", wantType: "TarSource"},
+		{name: "annotations.TAR.GZ", compression: "gz", wantType: "TarSource"},
+		{name: "annotations.tar.bz2", compression: "bz2", wantType: "TarSource"},
+		{name: "annotations.tbz2", compression: "bz2", wantType: "TarSource"},
+		{name: "annotations.tar.xz", compression: "xz", wantType: "TarXZSource"},
+		{name: "annotations.txz", compression: "xz", wantType: "TarXZSource"},
+		{name: "annotations.tar.zst", compression: "zst", wantType: "TarSource"},
+		{name: "annotations.tzst", compression: "zst", wantType: "TarSource"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), tt.name)
+			writeTarArchive(t, path, []tarEntry{
+				{Name: "sampleB.bakta.json", Data: toyBaktaJSON("sampleB", "gene B")},
+				{Name: "sampleA.bakta.json", Data: toyBaktaJSON("sampleA", "gene A")},
+			}, tt.compression)
+
+			source, err := OpenSource(path, "auto", "annotation")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := strings.TrimPrefix(fmt.Sprintf("%T", source), "bakpack."); got != tt.wantType {
+				t.Fatalf("OpenSource() = %s, want %s", got, tt.wantType)
+			}
+			if tarSource, ok := source.(TarSource); ok && tarSource.Compression != tt.compression {
+				t.Fatalf("TarSource.Compression = %q, want %q", tarSource.Compression, tt.compression)
+			}
+			order, err := source.Order(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Join(order, ",") != "sampleB,sampleA" {
+				t.Fatalf("Order() = %v, want [sampleB sampleA]", order)
+			}
+			record, err := source.Get(ctx, "sampleA")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(record.Bytes, toyBaktaJSON("sampleA", "gene A")) {
+				t.Fatalf("Get(sampleA) returned %d unexpected bytes", len(record.Bytes))
+			}
+		})
+	}
+}
+
+func TestOpenSourceExplicitTarFormat(t *testing.T) {
+	ctx := context.Background()
+	for _, tt := range []struct {
+		format      string
+		compression string
+	}{
+		{format: "tar.gz", compression: "gz"},
+		{format: "tgz", compression: "gz"},
+		{format: "tar.bz2", compression: "bz2"},
+		{format: "tar.zst", compression: "zst"},
+		{format: "tar", compression: ""},
+	} {
+		t.Run(tt.format, func(t *testing.T) {
+			// No recognisable suffix, so only the format names the compression.
+			path := filepath.Join(t.TempDir(), "genomes.bin")
+			writeTarArchive(t, path, []tarEntry{{Name: "sampleA.fa", Data: toyFASTA("sampleA")}}, tt.compression)
+			source, err := OpenSource(path, tt.format, "genome")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := source.Get(ctx, "sampleA"); err != nil {
+				t.Fatalf("Get(sampleA) error = %v", err)
+			}
+		})
+	}
+}
+
+func TestTarSourceRejectsWrongCompression(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "annotations.tar.gz")
+	writeTarArchive(t, path, []tarEntry{{Name: "sampleA.bakta.json", Data: toyBaktaJSON("sampleA", "gene A")}}, "zst")
+	source, err := OpenSource(path, "auto", "annotation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := source.Order(ctx); err == nil || !strings.Contains(err.Error(), path) {
+		t.Fatalf("Order() on zstd data named .tar.gz error = %v, want error naming the file", err)
+	}
+	unknown := TarSource{Path: path, Role: "annotation", Compression: "lz4"}
+	if _, err := unknown.Order(ctx); err == nil || !strings.Contains(err.Error(), `unsupported tar compression "lz4"`) {
+		t.Fatalf("Order() with unknown compression error = %v, want unsupported compression", err)
 	}
 }
 

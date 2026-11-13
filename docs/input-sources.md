@@ -5,14 +5,14 @@ Annotation sources support:
 - directory
 - file list
 - combined manifest
-- `.tar` or `.tar.xz`
+- tar archive: `.tar`, `.tar.gz`, `.tar.bz2`, `.tar.xz` or `.tar.zst`
 
 Genome sources support:
 
 - directory
 - file list
 - combined manifest
-- `.tar` or `.tar.xz`
+- tar archive: `.tar`, `.tar.gz`, `.tar.bz2`, `.tar.xz` or `.tar.zst`
 - `.agc`
 
 ## Sample IDs
@@ -34,11 +34,24 @@ sample.fa.zst     -> sample
 Genome FASTA sources can use faqt-supported gzip, bzip2, xz, or zstd
 compression. This applies to a standalone genome passed to `--genomes`, as
 well as genome files discovered in a directory or listed in a file list, or
-stored as members of a `.tar` or `.tar.xz` source.
+stored as members of a tar source.
 
-For `.tar` and `.tar.xz` sources, `bakpack` uses regular tar member basenames in
-tar order. In auto mode, a `.tar` suffix selects an uncompressed tar source and
-`.tar.xz` or `.txz` an xz-compressed one.
+For tar sources, `bakpack` uses regular tar member basenames in tar order. In
+auto mode the suffix selects the tar compression:
+
+| Suffix | Compression |
+|---|---|
+| `.tar` | none |
+| `.tar.gz`, `.tgz` | gzip |
+| `.tar.bz2`, `.tbz2`, `.tbz` | bzip2 |
+| `.tar.xz`, `.txz` | xz |
+| `.tar.zst`, `.tzst` | zstd |
+
+A file without one of these suffixes can be read with an explicit format such
+as `--annotations-format tar.gz`. With `--annotations-format tar` or
+`--genomes-format tar`, the compression is still taken from the suffix.
+bzip2 is much slower to decompress than the others.
+
 For directories, it uses lexicographic file path order. For AGC genome sources,
 sample names come from `agc listset`, and genome extraction uses `agc getset -t 1`.
 

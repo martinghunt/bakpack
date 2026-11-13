@@ -67,8 +67,8 @@ _, err = archive.Extract(ctx, bakpack.ExtractRequest{
 ```
 
 During extraction, non-tar genome sources such as `.agc`, directories, manifests,
-and file lists are fetched one sample at a time. `.tar` and `.tar.xz` genome
-sources are streamed once and selected genomes are kept in memory, which avoids repeatedly
+and file lists are fetched one sample at a time. Tar genome sources, compressed
+or not, are streamed once and selected genomes are kept in memory, which avoids repeatedly
 decompressing the same tar archive.
 
 ## Extract files to a directory

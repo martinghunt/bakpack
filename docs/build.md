@@ -14,8 +14,8 @@ Common options:
 
 ```text
 --manifest           tab-delimited manifest with sample, annotation, and genome paths
---annotations-format auto|dir|list|manifest|tar|tar.xz
---genomes-format     auto|dir|list|manifest|tar|tar.xz|agc
+--annotations-format auto|dir|list|manifest|tar|tar.gz|tar.bz2|tar.xz|tar.zst
+--genomes-format     auto|dir|list|manifest|tar|tar.gz|tar.bz2|tar.xz|tar.zst|agc
 --chunk-size         samples per compressed chunk, default 25
 --order              file of sample IDs defining archive order
 --xz-threads         threads passed as xz -T, default 1
@@ -43,8 +43,8 @@ Blank lines and lines starting with `#` are ignored.
 
 ## Reading tar sources
 
-A tar source can only be read from start to end, so `build` reads each `.tar`
-or `.tar.xz` source once:
+A tar source can only be read from start to end, so `build` reads each tar
+source once, whatever its compression:
 
 - When both sources are tars, `build` walks them together while their sample
   IDs agree. If the orders diverge, it writes the rest of the annotations to

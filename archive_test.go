@@ -7,7 +7,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -489,23 +488,28 @@ func TestBuildArchiveWarnsOnUnmatchedSequences(t *testing.T) {
 	}
 }
 
-func TestBuildAndExtractArchiveFromPlainTar(t *testing.T) {
-	// Same-order sources take the paired streaming path; a differently
-	// ordered genome archive makes the build spool the annotation tar.
-	for _, tt := range []struct {
-		name         string
-		genomesName  string
-		writeGenomes func(*testing.T, string, []tarEntry)
-		genomeOrder  []string
-	}{
-		{name: "both tar same order", genomesName: "genomes.tar", writeGenomes: writeTar, genomeOrder: []string{"sampleA", "sampleB"}},
-		{name: "tar annotations with tar.xz genomes in other order", genomesName: "genomes.tar.xz", writeGenomes: writeTarXZ, genomeOrder: []string{"sampleB", "sampleA"}},
-	} {
+func TestBuildAndExtractArchiveFromCompressedTars(t *testing.T) {
+	// Same-order tars are walked together; a different genome order makes
+	// the build spool the annotations once the orders diverge.
+	type testCase struct {
+		name        string
+		compression string
+		genomeOrder []string
+	}
+	var cases []testCase
+	for _, compression := range []string{"", "gz", "bz2", "xz", "zst"} {
+		suffix := tarTestSuffixes[compression]
+		cases = append(cases,
+			testCase{name: suffix + " same order", compression: compression, genomeOrder: []string{"sampleA", "sampleB"}},
+			testCase{name: suffix + " other order", compression: compression, genomeOrder: []string{"sampleB", "sampleA"}},
+		)
+	}
+	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 			dir := t.TempDir()
-			annotationsPath := filepath.Join(dir, "annotations.tar")
-			genomesPath := filepath.Join(dir, tt.genomesName)
+			annotationsPath := filepath.Join(dir, "annotations"+tarTestSuffixes[tt.compression])
+			genomesPath := filepath.Join(dir, "genomes"+tarTestSuffixes[tt.compression])
 			archivePath := filepath.Join(dir, "toy.bakpack")
 			outDir := filepath.Join(dir, "out")
 
@@ -513,22 +517,19 @@ func TestBuildAndExtractArchiveFromPlainTar(t *testing.T) {
 				"sampleA": toyBaktaJSON("sampleA", "gene A"),
 				"sampleB": toyBaktaJSONv110("sampleB", "gene B"),
 			}
-			writeTar(t, annotationsPath, []tarEntry{
+			writeTarArchive(t, annotationsPath, []tarEntry{
 				{Name: "bakta/sampleA.bakta.json", Data: originals["sampleA"]},
 				{Name: "bakta/sampleB.bakta.json", Data: originals["sampleB"]},
-			})
+			}, tt.compression)
 			var genomeEntries []tarEntry
 			for _, sample := range tt.genomeOrder {
 				genomeEntries = append(genomeEntries, tarEntry{Name: "genomes/" + sample + ".fa", Data: toyFASTA(sample)})
 			}
-			tt.writeGenomes(t, genomesPath, genomeEntries)
+			writeTarArchive(t, genomesPath, genomeEntries, tt.compression)
 
 			annotations, err := OpenSource(annotationsPath, "auto", "annotation")
 			if err != nil {
 				t.Fatal(err)
-			}
-			if _, ok := annotations.(TarSource); !ok {
-				t.Fatalf("OpenSource(%q) = %T, want TarSource", annotationsPath, annotations)
 			}
 			genomes, err := OpenSource(genomesPath, "auto", "genome")
 			if err != nil {
@@ -540,6 +541,9 @@ func TestBuildAndExtractArchiveFromPlainTar(t *testing.T) {
 				OutputPath:  archivePath,
 			}); err != nil {
 				t.Fatalf("BuildArchive() error = %v", err)
+			}
+			if got := archiveSampleOrder(t, archivePath); strings.Join(got, ",") != strings.Join(tt.genomeOrder, ",") {
+				t.Fatalf("archive order = %v, want genome order %v", got, tt.genomeOrder)
 			}
 			if err := ExtractArchive(ctx, ExtractOptions{
 				ArchivePath: archivePath,
@@ -1538,29 +1542,21 @@ func TestOpenArchiveRejectsDuplicateChunkID(t *testing.T) {
 
 func writeTarXZ(t *testing.T, path string, entries []tarEntry) {
 	t.Helper()
-	writeTarArchive(t, path, entries, true)
+	writeTarArchive(t, path, entries, "xz")
 }
 
 func writeTar(t *testing.T, path string, entries []tarEntry) {
 	t.Helper()
-	writeTarArchive(t, path, entries, false)
+	writeTarArchive(t, path, entries, "")
 }
 
-func writeTarArchive(t *testing.T, path string, entries []tarEntry, compress bool) {
+// tarTestSuffixes gives a file suffix for each TarSource compression.
+var tarTestSuffixes = map[string]string{"": ".tar", "gz": ".tar.gz", "bz2": ".tar.bz2", "xz": ".tar.xz", "zst": ".tar.zst"}
+
+func writeTarArchive(t *testing.T, path string, entries []tarEntry, compression string) {
 	t.Helper()
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var out io.WriteCloser = file
-	if compress {
-		xzw, err := xz.NewWriter(file)
-		if err != nil {
-			t.Fatal(err)
-		}
-		out = xzw
-	}
-	tw := tar.NewWriter(out)
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
 	for _, entry := range entries {
 		header := &tar.Header{Name: entry.Name, Mode: 0o644, Size: int64(len(entry.Data))}
 		if err := tw.WriteHeader(header); err != nil {
@@ -1573,12 +1569,19 @@ func writeTarArchive(t *testing.T, path string, entries []tarEntry, compress boo
 	if err := tw.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if compress {
-		if err := out.Close(); err != nil {
-			t.Fatal(err)
-		}
+	data := buf.Bytes()
+	switch compression {
+	case "":
+	case "gz":
+		data = gzipBytes(t, data)
+	case "bz2":
+		data = bzip2Bytes(t, data)
+	case "xz":
+		data = xzBytes(t, data)
+	case "zst":
+		data = zstdBytes(t, data)
+	default:
+		t.Fatalf("unknown test tar compression %q", compression)
 	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	writeFile(t, path, data)
 }

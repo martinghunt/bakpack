@@ -2,7 +2,9 @@ package bakpack
 
 import (
 	"archive/tar"
+	"bufio"
 	"bytes"
+	"compress/bzip2"
 	"context"
 	"fmt"
 	"io"
@@ -13,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/klauspost/compress/gzip"
+	"github.com/klauspost/compress/zstd"
 	"github.com/ulikunitz/xz"
 )
 
@@ -132,9 +136,7 @@ func OpenSource(path, kind, role string) (FileSource, error) {
 		switch {
 		case info.IsDir():
 			kind = "dir"
-		case strings.HasSuffix(path, ".tar.xz") || strings.HasSuffix(path, ".txz"):
-			kind = "tar.xz"
-		case strings.HasSuffix(path, ".tar"):
+		case isTarPath(path):
 			kind = "tar"
 		case strings.HasSuffix(path, ".agc"):
 			kind = "agc"
@@ -168,10 +170,15 @@ func OpenSource(path, kind, role string) (FileSource, error) {
 			return nil, err
 		}
 		return ManifestSource{Manifest: manifest, Role: role}, nil
-	case "tar.xz", "txz":
-		return TarXZSource{Path: path, Role: role}, nil
-	case "tar":
-		return TarSource{Path: path, Role: role}, nil
+	case "tar", "tar.gz", "tgz", "tar.bz2", "tbz2", "tbz", "tar.xz", "txz", "tar.zst", "tzst":
+		compression := tarCompressionFromKind(kind)
+		if kind == "tar" {
+			compression = tarCompressionFromPath(path)
+		}
+		if compression == "xz" {
+			return TarXZSource{Path: path, Role: role}, nil
+		}
+		return TarSource{Path: path, Role: role, Compression: compression}, nil
 	case "agc":
 		if role != "genome" {
 			return nil, fmt.Errorf("agc source is only supported for genomes")
@@ -493,13 +500,15 @@ func (s TarXZSource) Order(ctx context.Context) ([]string, error) {
 }
 
 func (s TarXZSource) tar() tarSource {
-	return tarSource{Path: s.Path, Role: s.Role, XZ: true}
+	return tarSource{Path: s.Path, Role: s.Role, Compression: "xz"}
 }
 
-// TarSource reads members of an uncompressed tar archive.
+// TarSource reads members of a tar archive. Compression is "" for an
+// uncompressed tar, or "gz", "bz2", "xz" or "zst".
 type TarSource struct {
-	Path string
-	Role string
+	Path        string
+	Role        string
+	Compression string
 }
 
 func (s TarSource) Records(ctx context.Context) ([]FileRecord, error) {
@@ -515,14 +524,58 @@ func (s TarSource) Order(ctx context.Context) ([]string, error) {
 }
 
 func (s TarSource) tar() tarSource {
-	return tarSource{Path: s.Path, Role: s.Role}
+	return tarSource{Path: s.Path, Role: s.Role, Compression: s.Compression}
+}
+
+// tarSuffixes lists the file suffixes of each tar compression, uncompressed
+// last so ".tar" does not shadow the longer suffixes.
+var tarSuffixes = []struct {
+	compression string
+	suffixes    []string
+}{
+	{"gz", []string{".tar.gz", ".tgz"}},
+	{"bz2", []string{".tar.bz2", ".tbz2", ".tbz"}},
+	{"xz", []string{".tar.xz", ".txz"}},
+	{"zst", []string{".tar.zst", ".tzst"}},
+	{"", []string{".tar"}},
+}
+
+func isTarPath(path string) bool {
+	_, ok := tarCompressionFromSuffix(path)
+	return ok
+}
+
+// tarCompressionFromPath returns the compression a tar path's suffix implies,
+// or "" for an uncompressed or unrecognised name.
+func tarCompressionFromPath(path string) string {
+	compression, _ := tarCompressionFromSuffix(path)
+	return compression
+}
+
+func tarCompressionFromSuffix(path string) (string, bool) {
+	lower := strings.ToLower(path)
+	for _, entry := range tarSuffixes {
+		for _, suffix := range entry.suffixes {
+			if strings.HasSuffix(lower, suffix) {
+				return entry.compression, true
+			}
+		}
+	}
+	return "", false
+}
+
+// tarCompressionFromKind maps a source format name such as "tar.gz" or
+// "tgz" to its compression.
+func tarCompressionFromKind(kind string) string {
+	compression, _ := tarCompressionFromSuffix("." + kind)
+	return compression
 }
 
 // tarSource is the shared implementation of TarSource and TarXZSource.
 type tarSource struct {
-	Path string
-	Role string
-	XZ   bool
+	Path        string
+	Role        string
+	Compression string
 }
 
 func (s tarSource) Records(ctx context.Context) ([]FileRecord, error) {
@@ -596,9 +649,10 @@ func streamTarRecords(ctx context.Context, s tarSource, fn func(FileRecord) erro
 }
 
 type tarRecordStream struct {
-	source tarSource
-	file   *os.File
-	tr     *tar.Reader
+	source       tarSource
+	file         *os.File
+	closeDecoder func()
+	tr           *tar.Reader
 }
 
 // tarStreamOpened, if set, is called each time a tar source is opened, so
@@ -613,22 +667,51 @@ func newTarRecordStream(source tarSource) (*tarRecordStream, error) {
 	if err != nil {
 		return nil, err
 	}
-	var r io.Reader = file
-	if source.XZ {
-		xzr, err := xz.NewReader(file)
-		if err != nil {
-			file.Close()
-			return nil, err
-		}
-		r = xzr
+	r, closeDecoder, err := tarDecoder(source, file)
+	if err != nil {
+		file.Close()
+		return nil, err
 	}
-	return &tarRecordStream{source: source, file: file, tr: tar.NewReader(r)}, nil
+	return &tarRecordStream{source: source, file: file, closeDecoder: closeDecoder, tr: tar.NewReader(r)}, nil
+}
+
+// tarDecoder wraps file in the decompressor for source's compression. Each
+// tar member is still read through maxDecompressedComponentSize, so a small
+// compressed archive cannot expand into unbounded memory.
+func tarDecoder(source tarSource, file *os.File) (io.Reader, func(), error) {
+	switch source.Compression {
+	case "":
+		return file, func() {}, nil
+	case "gz":
+		r, err := gzip.NewReader(bufio.NewReader(file))
+		if err != nil {
+			return nil, nil, fmt.Errorf("%s: %w", source.Path, err)
+		}
+		return r, func() { r.Close() }, nil
+	case "bz2":
+		return bzip2.NewReader(bufio.NewReader(file)), func() {}, nil
+	case "xz":
+		r, err := xz.NewReader(bufio.NewReader(file))
+		if err != nil {
+			return nil, nil, fmt.Errorf("%s: %w", source.Path, err)
+		}
+		return r, func() {}, nil
+	case "zst":
+		r, err := zstd.NewReader(bufio.NewReader(file))
+		if err != nil {
+			return nil, nil, fmt.Errorf("%s: %w", source.Path, err)
+		}
+		return r, r.Close, nil
+	default:
+		return nil, nil, fmt.Errorf("unsupported tar compression %q for %s", source.Compression, source.Path)
+	}
 }
 
 func (s *tarRecordStream) Close() error {
 	if s.file == nil {
 		return nil
 	}
+	s.closeDecoder()
 	return s.file.Close()
 }
 
