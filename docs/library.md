@@ -67,8 +67,8 @@ _, err = archive.Extract(ctx, bakpack.ExtractRequest{
 ```
 
 During extraction, non-tar genome sources such as `.agc`, directories, manifests,
-and file lists are fetched one sample at a time. `.tar.xz` genome sources are
-streamed once and selected genomes are kept in memory, which avoids repeatedly
+and file lists are fetched one sample at a time. Tar genome sources, compressed
+or not, are streamed once and selected genomes are kept in memory, which avoids repeatedly
 decompressing the same tar archive.
 
 ## Extract files to a directory
@@ -220,6 +220,20 @@ err = bakpack.BuildArchive(ctx, bakpack.BuildOptions{
 })
 ```
 
+Reduce, restore or render every sample in a pair of sources, writing to a
+directory or a tar file chosen by the output path:
+
+```go
+err = bakpack.ReduceBatch(ctx, bakpack.BatchOptions{
+	Annotations: annotations,
+	Genomes:     genomes,
+	OutputPath:  "reduced.tar.xz",
+	Warnings:    os.Stderr,
+})
+```
+
+`RestoreBatch` and `GFF3Batch` take the same options.
+
 Core entry points:
 
 ```go
@@ -229,6 +243,9 @@ err := archive.ExtractFiles(ctx, bakpack.ExtractRequest{...}, "out")
 index, err := bakpack.ReadArchiveIndexContext(ctx, archivePath)
 genome, err := bakpack.ReadGenome(sampleID, filename, fastaBytes)
 reduced, err := bakpack.ReduceBaktaJSON(originalJSON, genome)
+err := bakpack.ReduceBatch(ctx, bakpack.BatchOptions{...})
+err := bakpack.RestoreBatch(ctx, bakpack.BatchOptions{...})
+err := bakpack.GFF3Batch(ctx, bakpack.BatchOptions{...})
 restored, err := bakpack.RestoreBaktaJSON(reduced.ReducedJSON, genome)
 gff3, err := bakpack.BaktaGFF3(reduced.ReducedJSON, genome)
 gff3, err := bakpack.BaktaGFF3WithOptions(reduced.ReducedJSON, genome, bakpack.BaktaGFF3Options{AnnotationOnly: true})

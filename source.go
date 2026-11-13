@@ -2,7 +2,9 @@ package bakpack
 
 import (
 	"archive/tar"
+	"bufio"
 	"bytes"
+	"compress/bzip2"
 	"context"
 	"fmt"
 	"io"
@@ -13,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/klauspost/compress/gzip"
+	"github.com/klauspost/compress/zstd"
 	"github.com/ulikunitz/xz"
 )
 
@@ -132,8 +136,8 @@ func OpenSource(path, kind, role string) (FileSource, error) {
 		switch {
 		case info.IsDir():
 			kind = "dir"
-		case strings.HasSuffix(path, ".tar.xz") || strings.HasSuffix(path, ".txz"):
-			kind = "tar.xz"
+		case isTarPath(path):
+			kind = "tar"
 		case strings.HasSuffix(path, ".agc"):
 			kind = "agc"
 		case role == "genome" && isGenomeFilename(filepath.Base(path)):
@@ -166,8 +170,15 @@ func OpenSource(path, kind, role string) (FileSource, error) {
 			return nil, err
 		}
 		return ManifestSource{Manifest: manifest, Role: role}, nil
-	case "tar.xz", "txz":
-		return TarXZSource{Path: path, Role: role}, nil
+	case "tar", "tar.gz", "tgz", "tar.bz2", "tbz2", "tbz", "tar.xz", "txz", "tar.zst", "tzst":
+		compression := tarCompressionFromKind(kind)
+		if kind == "tar" {
+			compression = tarCompressionFromPath(path)
+		}
+		if compression == "xz" {
+			return TarXZSource{Path: path, Role: role}, nil
+		}
+		return TarSource{Path: path, Role: role, Compression: compression}, nil
 	case "agc":
 		if role != "genome" {
 			return nil, fmt.Errorf("agc source is only supported for genomes")
@@ -477,16 +488,107 @@ type TarXZSource struct {
 }
 
 func (s TarXZSource) Records(ctx context.Context) ([]FileRecord, error) {
+	return s.tar().Records(ctx)
+}
+
+func (s TarXZSource) Get(ctx context.Context, sample string) (FileRecord, error) {
+	return s.tar().Get(ctx, sample)
+}
+
+func (s TarXZSource) Order(ctx context.Context) ([]string, error) {
+	return s.tar().Order(ctx)
+}
+
+func (s TarXZSource) tar() tarSource {
+	return tarSource{Path: s.Path, Role: s.Role, Compression: "xz"}
+}
+
+// TarSource reads members of a tar archive. Compression is "" for an
+// uncompressed tar, or "gz", "bz2", "xz" or "zst".
+type TarSource struct {
+	Path        string
+	Role        string
+	Compression string
+}
+
+func (s TarSource) Records(ctx context.Context) ([]FileRecord, error) {
+	return s.tar().Records(ctx)
+}
+
+func (s TarSource) Get(ctx context.Context, sample string) (FileRecord, error) {
+	return s.tar().Get(ctx, sample)
+}
+
+func (s TarSource) Order(ctx context.Context) ([]string, error) {
+	return s.tar().Order(ctx)
+}
+
+func (s TarSource) tar() tarSource {
+	return tarSource{Path: s.Path, Role: s.Role, Compression: s.Compression}
+}
+
+// tarSuffixes lists the file suffixes of each tar compression, uncompressed
+// last so ".tar" does not shadow the longer suffixes.
+var tarSuffixes = []struct {
+	compression string
+	suffixes    []string
+}{
+	{"gz", []string{".tar.gz", ".tgz"}},
+	{"bz2", []string{".tar.bz2", ".tbz2", ".tbz"}},
+	{"xz", []string{".tar.xz", ".txz"}},
+	{"zst", []string{".tar.zst", ".tzst"}},
+	{"", []string{".tar"}},
+}
+
+func isTarPath(path string) bool {
+	_, ok := tarCompressionFromSuffix(path)
+	return ok
+}
+
+// tarCompressionFromPath returns the compression a tar path's suffix implies,
+// or "" for an uncompressed or unrecognised name.
+func tarCompressionFromPath(path string) string {
+	compression, _ := tarCompressionFromSuffix(path)
+	return compression
+}
+
+func tarCompressionFromSuffix(path string) (string, bool) {
+	lower := strings.ToLower(path)
+	for _, entry := range tarSuffixes {
+		for _, suffix := range entry.suffixes {
+			if strings.HasSuffix(lower, suffix) {
+				return entry.compression, true
+			}
+		}
+	}
+	return "", false
+}
+
+// tarCompressionFromKind maps a source format name such as "tar.gz" or
+// "tgz" to its compression.
+func tarCompressionFromKind(kind string) string {
+	compression, _ := tarCompressionFromSuffix("." + kind)
+	return compression
+}
+
+// tarSource is the shared implementation of TarSource and TarXZSource.
+type tarSource struct {
+	Path        string
+	Role        string
+	Compression string
+}
+
+func (s tarSource) Records(ctx context.Context) ([]FileRecord, error) {
 	var records []FileRecord
-	err := streamTarXZRecords(ctx, s, func(record FileRecord) error {
+	err := streamTarRecords(ctx, s, func(record FileRecord) error {
 		records = append(records, record)
 		return nil
 	})
 	return records, err
 }
 
-func (s TarXZSource) Get(ctx context.Context, sample string) (FileRecord, error) {
-	stream, err := newTarXZRecordStream(s)
+func (s tarSource) Get(ctx context.Context, sample string) (FileRecord, error) {
+	stream, err := newTarRecordStream(s)
 	if err != nil {
 		return FileRecord{}, err
 	}
@@ -506,8 +608,8 @@ func (s TarXZSource) Get(ctx context.Context, sample string) (FileRecord, error)
 	return FileRecord{}, fmt.Errorf("sample %q not found", sample)
 }
 
-func (s TarXZSource) Order(ctx context.Context) ([]string, error) {
-	stream, err := newTarXZRecordStream(s)
+func (s tarSource) Order(ctx context.Context) ([]string, error) {
+	stream, err := newTarRecordStream(s)
 	if err != nil {
 		return nil, err
 	}
@@ -526,8 +628,8 @@ func (s TarXZSource) Order(ctx context.Context) ([]string, error) {
 	return order, nil
 }
 
-func streamTarXZRecords(ctx context.Context, s TarXZSource, fn func(FileRecord) error) error {
-	stream, err := newTarXZRecordStream(s)
+func streamTarRecords(ctx context.Context, s tarSource, fn func(FileRecord) error) error {
+	stream, err := newTarRecordStream(s)
 	if err != nil {
 		return err
 	}
@@ -546,35 +648,74 @@ func streamTarXZRecords(ctx context.Context, s TarXZSource, fn func(FileRecord) 
 	}
 }
 
-type tarXZRecordStream struct {
-	source TarXZSource
-	file   *os.File
-	xzr    *xz.Reader
-	tr     *tar.Reader
+type tarRecordStream struct {
+	source       tarSource
+	file         *os.File
+	closeDecoder func()
+	tr           *tar.Reader
 }
 
-func newTarXZRecordStream(source TarXZSource) (*tarXZRecordStream, error) {
+// tarStreamOpened, if set, is called each time a tar source is opened, so
+// tests can check how many times a build reads each tar.
+var tarStreamOpened func(path string)
+
+func newTarRecordStream(source tarSource) (*tarRecordStream, error) {
+	if tarStreamOpened != nil {
+		tarStreamOpened(source.Path)
+	}
 	file, err := os.Open(source.Path)
 	if err != nil {
 		return nil, err
 	}
-	xzr, err := xz.NewReader(file)
+	r, closeDecoder, err := tarDecoder(source, file)
 	if err != nil {
 		file.Close()
 		return nil, err
 	}
-	tr := tar.NewReader(xzr)
-	return &tarXZRecordStream{source: source, file: file, xzr: xzr, tr: tr}, nil
+	return &tarRecordStream{source: source, file: file, closeDecoder: closeDecoder, tr: tar.NewReader(r)}, nil
 }
 
-func (s *tarXZRecordStream) Close() error {
+// tarDecoder wraps file in the decompressor for source's compression. Each
+// tar member is still read through maxDecompressedComponentSize, so a small
+// compressed archive cannot expand into unbounded memory.
+func tarDecoder(source tarSource, file *os.File) (io.Reader, func(), error) {
+	switch source.Compression {
+	case "":
+		return file, func() {}, nil
+	case "gz":
+		r, err := gzip.NewReader(bufio.NewReader(file))
+		if err != nil {
+			return nil, nil, fmt.Errorf("%s: %w", source.Path, err)
+		}
+		return r, func() { r.Close() }, nil
+	case "bz2":
+		return bzip2.NewReader(bufio.NewReader(file)), func() {}, nil
+	case "xz":
+		r, err := xz.NewReader(bufio.NewReader(file))
+		if err != nil {
+			return nil, nil, fmt.Errorf("%s: %w", source.Path, err)
+		}
+		return r, func() {}, nil
+	case "zst":
+		r, err := zstd.NewReader(bufio.NewReader(file))
+		if err != nil {
+			return nil, nil, fmt.Errorf("%s: %w", source.Path, err)
+		}
+		return r, r.Close, nil
+	default:
+		return nil, nil, fmt.Errorf("unsupported tar compression %q for %s", source.Compression, source.Path)
+	}
+}
+
+func (s *tarRecordStream) Close() error {
 	if s.file == nil {
 		return nil
 	}
+	s.closeDecoder()
 	return s.file.Close()
 }
 
-func (s *tarXZRecordStream) Next(ctx context.Context) (FileRecord, bool, error) {
+func (s *tarRecordStream) Next(ctx context.Context) (FileRecord, bool, error) {
 	header, sampleID, ok, err := s.nextHeader(ctx)
 	if err != nil || !ok {
 		return FileRecord{}, ok, err
@@ -589,12 +730,12 @@ func (s *tarXZRecordStream) Next(ctx context.Context) (FileRecord, bool, error) 
 	return FileRecord{SampleID: sampleID, Name: header.Name, Bytes: data}, true, nil
 }
 
-func (s *tarXZRecordStream) NextSampleID(ctx context.Context) (string, bool, error) {
+func (s *tarRecordStream) NextSampleID(ctx context.Context) (string, bool, error) {
 	_, sampleID, ok, err := s.nextHeader(ctx)
 	return sampleID, ok, err
 }
 
-func (s *tarXZRecordStream) nextHeader(ctx context.Context) (*tar.Header, string, bool, error) {
+func (s *tarRecordStream) nextHeader(ctx context.Context) (*tar.Header, string, bool, error) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -696,8 +837,10 @@ func (s AGCGenomeSource) listsetArgs() []string {
 // suffixes, in the order checked. It's exported so cmd/bakpack's
 // sampleIDFromPath (used by reduce/restore/gff3, which take an explicit JSON
 // path rather than scanning a directory) can derive a sample ID from the
-// same suffix list instead of maintaining its own separate copy.
-var AnnotationJSONSuffixes = []string{".bakta.json", ".json"}
+// same suffix list instead of maintaining its own separate copy. Reduced JSON
+// names come first so that sampleA.reduced.bakta.json, as written by extract
+// and reduce, pairs with sampleA's genome.
+var AnnotationJSONSuffixes = []string{".reduced.bakta.json", ".reduced.json", ".bakta.json", ".json"}
 
 func sampleIDFromName(name, role string) string {
 	base := filepath.Base(name)

@@ -15,8 +15,8 @@ func getGenomeRecords(ctx context.Context, source FileSource, samples []string) 
 		wanted[sample] = true
 	}
 	records := map[string]FileRecord{}
-	if genomesTar, ok := asTarXZSource(source); ok {
-		err := streamTarXZRecords(ctx, genomesTar, func(record FileRecord) error {
+	if genomesTar, ok := asTarSource(source); ok {
+		err := streamTarRecords(ctx, genomesTar, func(record FileRecord) error {
 			if !wanted[record.SampleID] {
 				return nil
 			}
@@ -73,7 +73,7 @@ func (p sourceGenomeRecordProvider) Get(ctx context.Context, sample string) (Fil
 }
 
 func newGenomeRecordProvider(ctx context.Context, source FileSource, samples []string) (genomeRecordProvider, error) {
-	if genomesTar, ok := asTarXZSource(source); ok {
+	if genomesTar, ok := asTarSource(source); ok {
 		records, err := getGenomeRecords(ctx, genomesTar, samples)
 		if err != nil {
 			return nil, err

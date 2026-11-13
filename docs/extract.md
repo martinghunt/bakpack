@@ -26,7 +26,7 @@ Original JSON, genome FASTA, and GFF3 extraction require a genome source:
 
 ```text
 --genomes genomes.tar.xz
---genomes-format auto|dir|list|manifest|tar.xz|agc
+--genomes-format auto|dir|list|manifest|tar|tar.gz|tar.bz2|tar.xz|tar.zst|agc
 ```
 
 `--genomes` may also be a single genome FASTA file. In auto mode, sample IDs

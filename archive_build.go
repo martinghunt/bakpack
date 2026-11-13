@@ -27,24 +27,31 @@ func BuildArchive(ctx context.Context, opts BuildOptions) error {
 	if chunkSize <= 0 {
 		chunkSize = 25
 	}
-	annotationsTar, annotationsOK := asTarXZSource(opts.Annotations)
-	genomesTar, genomesOK := asTarXZSource(opts.Genomes)
-	if len(opts.Order) == 0 {
-		if annotationsOK && genomesOK {
-			sameOrder, err := tarXZSourcesHaveSameOrder(ctx, annotationsTar, genomesTar)
+	pairing := samplePairing{
+		annotations:      opts.Annotations,
+		genomes:          opts.Genomes,
+		order:            opts.Order,
+		outputPath:       opts.OutputPath,
+		spoolCompression: opts.AnnotationSpoolCompression,
+	}
+	return buildArchiveFromChunks(ctx, opts, chunkSize, func(chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
+		batcher := newArchiveChunkBatcher(ctx, opts, chunkSize, chunkWriter)
+		err := pairing.run(ctx, func(sample string, annotation, genome FileRecord) error {
+			packed, err := packReducedSample(opts, sample, annotation, genome)
 			if err != nil {
 				return err
 			}
-			if sameOrder {
-				return buildArchiveFromPairedTarXZ(ctx, opts, annotationsTar, genomesTar, chunkSize)
-			}
+			return batcher.add(packed)
+		})
+		if err != nil {
+			return nil, nil, err
 		}
-	}
-	if annotationsOK {
-		return buildArchiveFromSpooledAnnotationTar(ctx, opts, annotationsTar, chunkSize)
-	}
-
-	return buildArchiveFromIndexedSources(ctx, opts, chunkSize)
+		if err := batcher.flush(); err != nil {
+			return nil, nil, err
+		}
+		chunks, samples := batcher.indexes()
+		return chunks, samples, nil
+	})
 }
 
 func buildArchiveFromChunks(ctx context.Context, opts BuildOptions, chunkSize int, buildChunks func(io.Writer) ([]ChunkIndex, []SampleIndex, error)) error {
@@ -141,222 +148,6 @@ func (b *archiveChunkBatcher) indexes() ([]ChunkIndex, []SampleIndex) {
 	return b.chunks, b.samples
 }
 
-func buildArchiveFromIndexedSources(ctx context.Context, opts BuildOptions, chunkSize int) error {
-	order, err := buildOrderFromSources(ctx, opts)
-	if err != nil {
-		return err
-	}
-	return buildArchiveFromChunks(ctx, opts, chunkSize, func(chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
-		return makeArchiveChunksFromIndexedSources(ctx, opts, order, chunkSize, chunkWriter)
-	})
-}
-
-func makeArchiveChunksFromIndexedSources(ctx context.Context, opts BuildOptions, order []string, chunkSize int, chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
-	batcher := newArchiveChunkBatcher(ctx, opts, chunkSize, chunkWriter)
-
-	for _, sample := range order {
-		select {
-		case <-ctx.Done():
-			return nil, nil, ctx.Err()
-		default:
-		}
-		packed, err := packSampleFromSources(ctx, opts, sample)
-		if err != nil {
-			return nil, nil, err
-		}
-		if err := batcher.add(packed); err != nil {
-			return nil, nil, err
-		}
-	}
-	if err := batcher.flush(); err != nil {
-		return nil, nil, err
-	}
-	chunks, samples := batcher.indexes()
-	return chunks, samples, nil
-}
-
-func buildArchiveFromPairedTarXZ(ctx context.Context, opts BuildOptions, annotationsTar, genomesTar TarXZSource, chunkSize int) error {
-	return buildArchiveFromChunks(ctx, opts, chunkSize, func(chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
-		return makeArchiveChunksFromPairedTarXZ(ctx, opts, annotationsTar, genomesTar, chunkSize, chunkWriter)
-	})
-}
-
-func makeArchiveChunksFromPairedTarXZ(ctx context.Context, opts BuildOptions, annotationsTar, genomesTar TarXZSource, chunkSize int, chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
-	batcher := newArchiveChunkBatcher(ctx, opts, chunkSize, chunkWriter)
-
-	count := 0
-	if err := streamPairedTarXZRecords(ctx, annotationsTar, genomesTar, func(annotation, genomeRecord FileRecord) error {
-		packed, err := packReducedSample(opts, annotation.SampleID, annotation, genomeRecord)
-		if err != nil {
-			return err
-		}
-		count++
-		return batcher.add(packed)
-	}); err != nil {
-		return nil, nil, err
-	}
-	if count == 0 {
-		return nil, nil, fmt.Errorf("no annotation JSON files found in %s", annotationsTar.Path)
-	}
-	if err := batcher.flush(); err != nil {
-		return nil, nil, err
-	}
-	chunks, samples := batcher.indexes()
-	return chunks, samples, nil
-}
-
-type spooledAnnotation struct {
-	SampleID string
-	Name     string
-	Path     string
-}
-
-func buildArchiveFromSpooledAnnotationTar(ctx context.Context, opts BuildOptions, annotationsTar TarXZSource, chunkSize int) error {
-	spoolCompression, err := normalizeSpoolCompression(opts.AnnotationSpoolCompression)
-	if err != nil {
-		return err
-	}
-	spoolDir, err := os.MkdirTemp(filepath.Dir(opts.OutputPath), buildTempPattern(opts.OutputPath, "annotations"))
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(spoolDir)
-
-	annotations, err := spoolAnnotationTar(ctx, annotationsTar, spoolDir, spoolCompression)
-	if err != nil {
-		return err
-	}
-	order, err := buildOrderFromSpooledAnnotations(ctx, opts, annotations)
-	if err != nil {
-		return err
-	}
-
-	return buildArchiveFromChunks(ctx, opts, chunkSize, func(chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
-		return makeArchiveChunksFromSpooledAnnotations(ctx, opts, annotations, order, chunkSize, chunkWriter)
-	})
-}
-
-func spoolAnnotationTar(ctx context.Context, annotationsTar TarXZSource, spoolDir, spoolCompression string) (map[string]spooledAnnotation, error) {
-	annotations := map[string]spooledAnnotation{}
-	count := 0
-	err := streamTarXZRecords(ctx, annotationsTar, func(record FileRecord) error {
-		if _, exists := annotations[record.SampleID]; exists {
-			return fmt.Errorf("duplicate annotation sample %q", record.SampleID)
-		}
-		path := filepath.Join(spoolDir, fmt.Sprintf("%06d%s", count, spoolFileSuffix(spoolCompression)))
-		count++
-		if err := writeSpoolFile(path, record.Bytes, spoolCompression); err != nil {
-			return err
-		}
-		annotations[record.SampleID] = spooledAnnotation{
-			SampleID: record.SampleID,
-			Name:     record.Name,
-			Path:     path,
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	if len(annotations) == 0 {
-		return nil, fmt.Errorf("no annotation JSON files found in %s", annotationsTar.Path)
-	}
-	return annotations, nil
-}
-
-func buildOrderFromSpooledAnnotations(ctx context.Context, opts BuildOptions, annotations map[string]spooledAnnotation) ([]string, error) {
-	annotationRecords := make(map[string]FileRecord, len(annotations))
-	for sample, annotation := range annotations {
-		annotationRecords[sample] = FileRecord{SampleID: sample, Name: annotation.Name}
-	}
-	return buildOrder(ctx, opts, annotationRecords)
-}
-
-func makeArchiveChunksFromSpooledAnnotations(ctx context.Context, opts BuildOptions, annotations map[string]spooledAnnotation, order []string, chunkSize int, chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
-	batcher := newArchiveChunkBatcher(ctx, opts, chunkSize, chunkWriter)
-
-	err := forEachSpooledAnnotationSample(ctx, opts, annotations, order, func(packed packedSampleForArchive) error {
-		if annotation, ok := annotations[packed.index.SampleID]; ok {
-			_ = os.Remove(annotation.Path)
-		}
-		return batcher.add(packed)
-	})
-	if err != nil {
-		return nil, nil, err
-	}
-	if err := batcher.flush(); err != nil {
-		return nil, nil, err
-	}
-	chunks, samples := batcher.indexes()
-	return chunks, samples, nil
-}
-
-func forEachSpooledAnnotationSample(ctx context.Context, opts BuildOptions, annotations map[string]spooledAnnotation, order []string, fn func(packedSampleForArchive) error) error {
-	if genomesTar, ok := asTarXZSource(opts.Genomes); ok && len(opts.Order) == 0 {
-		wanted := map[string]bool{}
-		for _, sample := range order {
-			wanted[sample] = true
-		}
-		seen := map[string]bool{}
-		err := streamTarXZRecords(ctx, genomesTar, func(genomeRecord FileRecord) error {
-			if !wanted[genomeRecord.SampleID] {
-				return nil
-			}
-			if seen[genomeRecord.SampleID] {
-				return fmt.Errorf("duplicate genome sample %q in %s", genomeRecord.SampleID, genomesTar.Path)
-			}
-			seen[genomeRecord.SampleID] = true
-			annotation, err := loadSpooledAnnotation(annotations[genomeRecord.SampleID])
-			if err != nil {
-				return err
-			}
-			packed, err := packReducedSample(opts, genomeRecord.SampleID, annotation, genomeRecord)
-			if err != nil {
-				return err
-			}
-			return fn(packed)
-		})
-		if err != nil {
-			return err
-		}
-		if len(seen) != len(order) {
-			return fmt.Errorf("genome source did not include all annotation samples")
-		}
-		return nil
-	}
-
-	for _, sample := range order {
-		annotation, ok := annotations[sample]
-		if !ok {
-			return fmt.Errorf("annotation for sample %q not found", sample)
-		}
-		annotationRecord, err := loadSpooledAnnotation(annotation)
-		if err != nil {
-			return err
-		}
-		genomeRecord, err := opts.Genomes.Get(ctx, sample)
-		if err != nil {
-			return err
-		}
-		packed, err := packReducedSample(opts, sample, annotationRecord, genomeRecord)
-		if err != nil {
-			return err
-		}
-		if err := fn(packed); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func loadSpooledAnnotation(annotation spooledAnnotation) (FileRecord, error) {
-	data, err := readSpoolFile(annotation.Path)
-	if err != nil {
-		return FileRecord{}, err
-	}
-	return FileRecord{SampleID: annotation.SampleID, Name: annotation.Name, Bytes: data}, nil
-}
-
 func normalizeSpoolCompression(value string) (string, error) {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "", "gzip", "gz":
@@ -370,9 +161,9 @@ func normalizeSpoolCompression(value string) (string, error) {
 
 func spoolFileSuffix(compression string) string {
 	if compression == "gzip" {
-		return ".json.gz"
+		return ".gz"
 	}
-	return ".json"
+	return ""
 }
 
 func writeSpoolFile(path string, data []byte, compression string) error {
@@ -412,42 +203,6 @@ func readSpoolFile(path string) ([]byte, error) {
 	return io.ReadAll(reader)
 }
 
-func streamPairedTarXZRecords(ctx context.Context, annotationsTar, genomesTar TarXZSource, fn func(annotation, genome FileRecord) error) error {
-	annotationStream, err := newTarXZRecordStream(annotationsTar)
-	if err != nil {
-		return err
-	}
-	defer annotationStream.Close()
-	genomeStream, err := newTarXZRecordStream(genomesTar)
-	if err != nil {
-		return err
-	}
-	defer genomeStream.Close()
-
-	for {
-		annotation, annotationOK, err := annotationStream.Next(ctx)
-		if err != nil {
-			return err
-		}
-		genome, genomeOK, err := genomeStream.Next(ctx)
-		if err != nil {
-			return err
-		}
-		if !annotationOK && !genomeOK {
-			return nil
-		}
-		if annotationOK != genomeOK {
-			return fmt.Errorf("annotation and genome tar.xz sources have different sample counts")
-		}
-		if annotation.SampleID != genome.SampleID {
-			return fmt.Errorf("annotation sample %q does not match genome sample %q in tar.xz stream", annotation.SampleID, genome.SampleID)
-		}
-		if err := fn(annotation, genome); err != nil {
-			return err
-		}
-	}
-}
-
 func packReducedSample(opts BuildOptions, sample string, annotation, genomeRecord FileRecord) (packedSampleForArchive, error) {
 	genome, err := ReadGenome(sample, genomeRecord.Name, genomeRecord.Bytes)
 	if err != nil {
@@ -473,47 +228,18 @@ func packReducedSample(opts BuildOptions, sample string, annotation, genomeRecor
 	}, nil
 }
 
-func asTarXZSource(source FileSource) (TarXZSource, bool) {
+func asTarSource(source FileSource) (tarSource, bool) {
 	switch source := source.(type) {
 	case TarXZSource:
-		return source, true
+		return source.tar(), true
 	case *TarXZSource:
-		return *source, true
+		return source.tar(), true
+	case TarSource:
+		return source.tar(), true
+	case *TarSource:
+		return source.tar(), true
 	default:
-		return TarXZSource{}, false
-	}
-}
-
-func tarXZSourcesHaveSameOrder(ctx context.Context, annotationsTar, genomesTar TarXZSource) (bool, error) {
-	annotationStream, err := newTarXZRecordStream(annotationsTar)
-	if err != nil {
-		return false, err
-	}
-	defer annotationStream.Close()
-	genomeStream, err := newTarXZRecordStream(genomesTar)
-	if err != nil {
-		return false, err
-	}
-	defer genomeStream.Close()
-
-	for {
-		annotationSample, annotationOK, err := annotationStream.NextSampleID(ctx)
-		if err != nil {
-			return false, err
-		}
-		genomeSample, genomeOK, err := genomeStream.NextSampleID(ctx)
-		if err != nil {
-			return false, err
-		}
-		if !annotationOK && !genomeOK {
-			return true, nil
-		}
-		if annotationOK != genomeOK {
-			return false, nil
-		}
-		if annotationSample != genomeSample {
-			return false, nil
-		}
+		return tarSource{}, false
 	}
 }
 
@@ -605,48 +331,35 @@ type packedSampleForArchive struct {
 	reducedRoot map[string]any
 }
 
-func buildOrder(ctx context.Context, opts BuildOptions, annotations map[string]FileRecord) ([]string, error) {
-	if len(opts.Order) > 0 {
-		return validateOrder(opts.Order, annotations)
+// pairingOrder returns order checked against the annotation sample IDs, or
+// if order is empty, the genome source order of those samples.
+func pairingOrder(ctx context.Context, order []string, genomes FileSource, annotations map[string]bool) ([]string, error) {
+	if len(order) > 0 {
+		return validateOrder(order, annotations)
 	}
-	genomeOrder, err := opts.Genomes.Order(ctx)
+	genomeOrder, err := genomes.Order(ctx)
 	if err != nil {
 		return nil, err
 	}
-	order := make([]string, 0, len(annotations))
+	paired := make([]string, 0, len(annotations))
+	seen := map[string]bool{}
 	for _, sample := range genomeOrder {
-		if _, ok := annotations[sample]; ok {
-			order = append(order, sample)
+		if !annotations[sample] {
+			continue
 		}
+		if seen[sample] {
+			return nil, fmt.Errorf("duplicate genome sample %q", sample)
+		}
+		seen[sample] = true
+		paired = append(paired, sample)
 	}
-	if len(order) != len(annotations) {
+	if len(paired) != len(annotations) {
 		return nil, fmt.Errorf("genome order did not include all annotation samples")
 	}
-	return order, nil
+	return paired, nil
 }
 
-func buildOrderFromSources(ctx context.Context, opts BuildOptions) ([]string, error) {
-	annotationOrder, err := opts.Annotations.Order(ctx)
-	if err != nil {
-		return nil, err
-	}
-	annotations := make(map[string]FileRecord, len(annotationOrder))
-	for _, sample := range annotationOrder {
-		if sample == "" {
-			return nil, fmt.Errorf("annotation source contains an empty sample ID")
-		}
-		if _, exists := annotations[sample]; exists {
-			return nil, fmt.Errorf("duplicate annotation sample %q", sample)
-		}
-		annotations[sample] = FileRecord{SampleID: sample}
-	}
-	if len(annotations) == 0 {
-		return nil, fmt.Errorf("no annotation JSON files found")
-	}
-	return buildOrder(ctx, opts, annotations)
-}
-
-func validateOrder(order []string, annotations map[string]FileRecord) ([]string, error) {
+func validateOrder(order []string, annotations map[string]bool) ([]string, error) {
 	seen := map[string]bool{}
 	for _, sample := range order {
 		if _, ok := annotations[sample]; !ok {
@@ -668,16 +381,4 @@ func validateOrder(order []string, annotations map[string]FileRecord) ([]string,
 		return nil, fmt.Errorf("order missing annotation sample %q", missing[0])
 	}
 	return append([]string(nil), order...), nil
-}
-
-func packSampleFromSources(ctx context.Context, opts BuildOptions, sample string) (packedSampleForArchive, error) {
-	annotation, err := opts.Annotations.Get(ctx, sample)
-	if err != nil {
-		return packedSampleForArchive{}, err
-	}
-	genomeRecord, err := opts.Genomes.Get(ctx, sample)
-	if err != nil {
-		return packedSampleForArchive{}, err
-	}
-	return packReducedSample(opts, sample, annotation, genomeRecord)
 }

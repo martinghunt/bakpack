@@ -76,6 +76,14 @@ Omit the terminal FASTA section when only annotation rows are needed:
 bakpack gff3 sample.bakta.json sample.fa -o sample.gff3 --annotation-only
 ```
 
+Reduce, restore or render many samples at once, from and to directories or tar
+files:
+
+```bash
+bakpack reduce --annotations bakta_jsons.tar --genomes genomes.tar -o reduced.tar.xz
+bakpack restore --annotations reduced.tar.xz --genomes genomes.tar -o restored/
+```
+
 Build a compressed archive:
 
 ```bash

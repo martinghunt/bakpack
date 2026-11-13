@@ -14,8 +14,8 @@ Common options:
 
 ```text
 --manifest           tab-delimited manifest with sample, annotation, and genome paths
---annotations-format auto|dir|list|manifest|tar.xz
---genomes-format     auto|dir|list|manifest|tar.xz|agc
+--annotations-format auto|dir|list|manifest|tar|tar.gz|tar.bz2|tar.xz|tar.zst
+--genomes-format     auto|dir|list|manifest|tar|tar.gz|tar.bz2|tar.xz|tar.zst|agc
 --chunk-size         samples per compressed chunk, default 25
 --order              file of sample IDs defining archive order
 --xz-threads         threads passed as xz -T, default 1
@@ -40,6 +40,23 @@ sampleC
 ```
 
 Blank lines and lines starting with `#` are ignored.
+
+## Reading tar sources
+
+A tar source can only be read from start to end, so `build` reads each tar
+source once, whatever its compression:
+
+- When both sources are tars, `build` walks them together while their sample
+  IDs agree. If the orders diverge, it writes the rest of the annotations to
+  temporary files beside the output and pairs them with the rest of the genome
+  tar as it streams.
+- When only the annotations are a tar, they are written to temporary files
+  first, then paired with the genome source.
+- When the genomes are a tar and `--order` is given, the genomes needed are
+  written to temporary files first, then read back in `--order` order.
+
+Temporary files are gzip-compressed unless `--annotation-spool-compression none`
+is given, and are deleted as each sample is paired.
 
 ## Examples
 

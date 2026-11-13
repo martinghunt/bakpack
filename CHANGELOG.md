@@ -9,8 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Accept `.tar`, `.tar.gz`, `.tar.bz2` and `.tar.zst` archives as annotation and genome sources for `build` and `extract`, alongside `.tar.xz`. The compression is detected from the suffix (including `.tgz`, `.tbz2` and `.tzst`), or set with `--annotations-format` / `--genomes-format`, e.g. `tar.gz`. Library users can use the new `TarSource`, whose `Compression` field selects the format.
+- `reduce`, `restore` and `gff3` have a batch mode: without positional arguments they process every sample in `--annotations` and `--genomes` (or `--manifest`), using the same sources as `build`, and write one file per sample to a directory or a `.tar`, `.tar.gz`, `.tar.bz2`, `.tar.xz` or `.tar.zst` file given by `--output`. Library users can call `ReduceBatch`, `RestoreBatch` and `GFF3Batch`.
+- Reduced JSON named `SAMPLE.reduced.bakta.json` or `SAMPLE.reduced.json` is recognised as sample `SAMPLE`, so it pairs with that sample's genome.
 - `reduce` and `build` warn when a sample's sequences cannot be matched to its genome FASTA, since those sequences and their features are left unreduced.
 - `reduce` and `build` verify that each reduced JSON restores to the original before writing it.
+
+### Changed
+
+- `build` now reads each tar source once. Matching annotation and genome tars are no longer read twice, and a genome tar used with a non-tar annotation source or with `--order` is no longer rescanned for every sample, which made those builds slow down quadratically with sample count. Archives are byte-identical to before.
 
 ### Fixed
 
