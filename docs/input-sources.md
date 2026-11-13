@@ -52,8 +52,9 @@ as `--annotations-format tar.gz`. With `--annotations-format tar` or
 `--genomes-format tar`, the compression is still taken from the suffix.
 bzip2 is much slower to decompress than the others.
 
-For directories, it uses lexicographic file path order. For AGC genome sources,
-sample names come from `agc listset`, and genome extraction uses `agc getset -t 1`.
+For directories, it uses lexicographic file path order. AGC genome archives are
+read directly, without the `agc` program, in archive sample order. AGC format
+version 3 (made by `agc` 3.x) is supported.
 
 ## File lists
 
