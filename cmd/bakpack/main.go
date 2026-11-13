@@ -177,6 +177,9 @@ tar file (.tar, .tar.gz, .tar.bz2, .tar.xz, .tar.zst).`,
 			gff3, err := bakpack.BaktaGFF3WithOptions(annotation, genome, bakpack.BaktaGFF3Options{
 				AnnotationOnly: annotationOnly,
 				Compliant:      compliant,
+				Warn: func(message string) {
+					fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s: %s\n", args[0], message)
+				},
 			})
 			if err != nil {
 				return err
@@ -382,6 +385,7 @@ func newExtractCommand() *cobra.Command {
 				GFF3:               gff3,
 				GFF3AnnotationOnly: gff3AnnotationOnly,
 				GFF3Compliant:      gff3Compliant,
+				Warnings:           cmd.ErrOrStderr(),
 			})
 		},
 	}

@@ -317,6 +317,18 @@ func TestCLIGFF3Compliant(t *testing.T) {
 		t.Fatal("extract --gff3-compliant output differs from Bakta 1.12.2 compliant GFF3")
 	}
 
+	// JSON from a run without --compliant gets Bakta's annotation changes,
+	// and problems bakpack cannot fix are reported.
+	_, stderr, err := executeCommand("gff3", filepath.Join(testdata, "synthetic.noncompliant.bakta.json"), filepath.Join(testdata, "synthetic.noncompliant.fa"), "-o", filepath.Join(dir, "nc.gff3"), "--compliant")
+	if err != nil {
+		t.Fatalf("gff3 --compliant on non-compliant JSON error = %v", err)
+	}
+	for _, want := range []string{"left out 1 contig(s) shorter than 200 bp", "contig ID(s) are not INSDC compliant", "locus tag prefix(es) are not INSDC compliant"} {
+		if !strings.Contains(string(stderr), want) {
+			t.Errorf("stderr missing %q:\n%s", want, stderr)
+		}
+	}
+
 	// JSON from Bakta before 1.10 cannot be written in compliant mode.
 	oldJSON := filepath.Join(dir, "old.bakta.json")
 	writeFile(t, oldJSON, toyBaktaJSON("gene A"))

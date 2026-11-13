@@ -158,6 +158,100 @@ func TestBaktaGFF3MatchesBakta112(t *testing.T) {
 	}
 }
 
+// TestCompliantGFF3FromNonCompliantJSON checks compliant output for JSON from
+// a Bakta run without --compliant against Bakta's own code: its annotation
+// changes followed by its compliant GFF3 writer (see testdata/gff3/README.md).
+func TestCompliantGFF3FromNonCompliantJSON(t *testing.T) {
+	annotation, err := os.ReadFile(filepath.Join("testdata", "gff3", "synthetic.noncompliant.bakta.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fasta, err := os.ReadFile(filepath.Join("testdata", "gff3", "synthetic.noncompliant.fa"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := os.ReadFile(filepath.Join("testdata", "gff3", "synthetic.noncompliant.bakta-1.12.2.compliant.gff3"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	genome := mustGenome(t, "synthetic", fasta)
+	reduced, err := ReduceBaktaJSON(annotation, genome)
+	if err != nil {
+		t.Fatalf("ReduceBaktaJSON() error = %v", err)
+	}
+	for input, json := range map[string][]byte{"original": annotation, "reduced": reduced.ReducedJSON} {
+		t.Run(input, func(t *testing.T) {
+			var warnings []string
+			got, err := BaktaGFF3WithOptions(json, genome, BaktaGFF3Options{
+				Compliant: true,
+				Warn:      func(message string) { warnings = append(warnings, message) },
+			})
+			if err != nil {
+				t.Fatalf("BaktaGFF3WithOptions() error = %v", err)
+			}
+			if got := stripBakpackGFF3Header(got); !bytes.Equal(got, want) {
+				t.Fatalf("compliant GFF3 differs from Bakta: %s", firstDiff(got, want))
+			}
+			joined := strings.Join(warnings, "\n")
+			for _, wantWarning := range []string{
+				"left out 1 contig(s) shorter than 200 bp and their 1 feature(s), as Bakta --compliant does: contig_3",
+				"1 contig ID(s) are not INSDC compliant",
+				"contig_4_with_a_longer_name",
+				"locus tag prefix(es) are not INSDC compliant (3-12 upper case letters and digits, starting with a letter): syn",
+			} {
+				if !strings.Contains(joined, wantWarning) {
+					t.Errorf("warnings missing %q:\n%s", wantWarning, joined)
+				}
+			}
+		})
+	}
+
+	// Default output keeps everything as annotated.
+	got, err := BaktaGFF3(annotation, genome)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, kept := range []string{"##sequence-region contig_3 1 150", "product=Uncharacterized protein (fragment"} {
+		if !bytes.Contains(got, []byte(kept)) {
+			t.Errorf("default GFF3 missing %q", kept)
+		}
+	}
+}
+
+// TestReviseProductINSDC compares with Bakta's revise_product_insdc, whose
+// output for these names was taken from Bakta 1.12.2.
+func TestReviseProductINSDC(t *testing.T) {
+	for product, want := range map[string]string{
+		"Uncharacterized protein YbaB":                             "putative protein YbaB",
+		"uncharacterised membrane protein":                         "putative membrane protein",
+		"UNCHARACTERIZED protein":                                  "putative protein",
+		"Putative uncharacterized protein, uncharacterised domain": "Putative putative protein, putative domain",
+		"Protein (abcD":                                            "Protein abcD",
+		"Protein abcD)":                                            "Protein abcD",
+		"Balanced (abcD) protein":                                  "Balanced (abcD) protein",
+		"Iron [Fe-S cluster protein":                               "Iron Fe-S cluster protein",
+		"Iron [Fe-S] cluster (protein":                             "Iron [Fe-S] cluster protein",
+		"Nested ((one) two":                                        "Nested one two",
+		"hypothetical protein":                                     "hypothetical protein",
+		"DNA-binding protein HU-beta":                              "DNA-binding protein HU-beta",
+		"Uncharacterized protein (fragment":                        "putative protein fragment",
+		"Characterized protein":                                    "Characterized protein",
+		"":                                                         "",
+		"[[unbalanced]":                                            "unbalanced",
+		"(x)(y))":                                                  "xy",
+	} {
+		got := reviseProductINSDC(product)
+		if got != want {
+			t.Errorf("reviseProductINSDC(%q) = %q, want %q", product, got, want)
+		}
+		// Revising a revised name changes nothing, so JSON from a compliant
+		// run renders exactly as Bakta wrote it.
+		if again := reviseProductINSDC(got); again != got {
+			t.Errorf("reviseProductINSDC(%q) = %q, want it unchanged", got, again)
+		}
+	}
+}
+
 func TestPyFloatRepr(t *testing.T) {
 	for value, want := range map[float64]string{
 		0:                   "0.0",

@@ -19,8 +19,13 @@ type BaktaGFF3Options struct {
 	// When empty, the build-time bakpack version is used.
 	BakpackVersion string
 	// Compliant writes GFF3 as Bakta's --compliant (INSDC) mode does. It is
-	// supported for JSON from Bakta 1.10 and later.
+	// supported for JSON from Bakta 1.10 and later. It also applies the
+	// changes Bakta's --compliant mode makes while annotating, so the output
+	// is compliant even when Bakta was run without --compliant.
 	Compliant bool
+	// Warn, if set, receives problems found in compliant mode that bakpack
+	// cannot fix, and contigs it leaves out.
+	Warn func(message string)
 }
 
 // BaktaGFF3 renders a Bakta JSON annotation as GFF3 using the observed Bakta

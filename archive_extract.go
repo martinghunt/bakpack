@@ -201,6 +201,7 @@ func buildExtractedSample(ctx context.Context, req ExtractRequest, genomes genom
 		gff3, err := BaktaGFF3WithOptions(reducedJSON, genome, BaktaGFF3Options{
 			AnnotationOnly: req.GFF3AnnotationOnly,
 			Compliant:      req.GFF3Compliant,
+			Warn:           sampleWarner(req.Warnings, entry.SampleID),
 		})
 		if err != nil {
 			return ExtractedSample{}, err
@@ -238,6 +239,7 @@ func extractRequestFromOptions(opts ExtractOptions) ExtractRequest {
 		GFF3:               opts.GFF3,
 		GFF3AnnotationOnly: opts.GFF3AnnotationOnly,
 		GFF3Compliant:      opts.GFF3Compliant,
+		Warnings:           opts.Warnings,
 	}
 }
 

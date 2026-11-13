@@ -136,6 +136,30 @@ data = {
     'run': {'start': '2026-01-01 00:00:00', 'end': '2026-01-01 00:10:00', 'duration': '10.00 min'},
     'version': {'bakta': '1.12.2', 'db': {'version': '6.0', 'type': 'full'}},
 }
+# A variant as Bakta writes without --compliant: product names Bakta
+# --compliant would revise, a contig under 200 bp, and a contig ID and locus
+# tag prefix that INSDC rejects.
+import copy
+noncompliant = copy.deepcopy(data)
+contig3 = ''.join(random.choice('ACGT') for _ in range(150))
+contig4 = ''.join(random.choice('ACGT') for _ in range(600))
+noncompliant['sequences'] += [
+    {'id': 'contig_3', 'description': '', 'nt': contig3, 'length': len(contig3), 'complete': False, 'type': 'contig', 'topology': 'linear', 'orig_id': '3', 'orig_description': ''},
+    {'id': 'contig_4_with_a_longer_name', 'description': '', 'nt': contig4, 'length': len(contig4), 'complete': False, 'type': 'contig', 'topology': 'linear', 'orig_id': '4', 'orig_description': ''},
+]
+extra = [
+    feat(type='cds', sequence='contig_3', start=1, stop=90, strand='+', frame=1, gene=None, product='Uncharacterized protein',
+         db_xrefs=[], locus='SYN_00020', id='SYN20'),
+    feat(type='cds', sequence='contig_4_with_a_longer_name', start=1, stop=300, strand='+', frame=1, gene=None, product='Uncharacterized protein (fragment',
+         db_xrefs=['UniRef:UniRef90_U'], locus='syn_00021', id='SYN21'),
+    feat(type='sorf', sequence='contig_4_with_a_longer_name', start=310, stop=360, strand='-', frame=1, gene=None, product='uncharacterised [peptide',
+         db_xrefs=[], locus='syn_00022', id='SYN22'),
+]
+add_sequences(extra, {'contig_3': contig3, 'contig_4_with_a_longer_name': contig4})
+noncompliant['features'] += extra
+
 out.mkdir(parents=True, exist_ok=True)
 (out / 'synthetic.bakta.json').write_text(json.dumps(data, indent=4))
 (out / 'synthetic.fa').write_text(f'>1\n{contig1}\n>2\n{contig2}\n')
+(out / 'synthetic.noncompliant.bakta.json').write_text(json.dumps(noncompliant, indent=4))
+(out / 'synthetic.noncompliant.fa').write_text(f'>1\n{contig1}\n>2\n{contig2}\n>3\n{contig3}\n>4\n{contig4}\n')

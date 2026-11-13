@@ -15,6 +15,15 @@ python3 bakta_gff_ref.py BAKTA_CHECKOUT synthetic.bakta.json synthetic.bakta-1.1
 python3 bakta_gff_ref.py BAKTA_CHECKOUT synthetic.bakta.json synthetic.bakta-1.12.2.compliant.gff3 --compliant
 ```
 
+`synthetic.noncompliant.bakta.json` is the same annotation as Bakta writes
+without `--compliant`, with product names to revise, a contig under 200 bp,
+and a contig ID and locus tag prefix that INSDC rejects. Its expected compliant
+GFF3 applies Bakta's own annotation-time compliant changes first:
+
+```
+python3 bakta_gff_ref.py BAKTA_CHECKOUT synthetic.noncompliant.bakta.json synthetic.noncompliant.bakta-1.12.2.compliant.gff3 --compliant --annotate-compliant
+```
+
 `BAKTA_CHECKOUT` is a checkout of the Bakta repository at v1.12.2. Biopython
 and xopen must be installed. Bakta's GFF3 output is the same for every release
 from 1.10.0 to 1.12.2.

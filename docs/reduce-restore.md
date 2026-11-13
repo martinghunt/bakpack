@@ -44,6 +44,23 @@ bakpack gff3 BAKTA_JSON GENOME_FASTA -o SAMPLE.gff3 --compliant
 
 Compliant GFF3 has no `##FASTA` section, as with Bakta.
 
+Bakta's `--compliant` mode also changes the annotation itself, before any file
+is written. bakpack applies those changes too, so the GFF3 is compliant even
+when Bakta was run without `--compliant`:
+
+- CDS and sORF product names are revised as Bakta does: "uncharacterized" and
+  "uncharacterised" become "putative", and unbalanced brackets are removed.
+- Contigs shorter than 200 bp are left out, with their features.
+- Contig IDs and locus tag prefixes that INSDC would reject are reported as
+  warnings. Bakta refuses to run with them; bakpack cannot rename them.
+
+These changes leave JSON from a `--compliant` run unchanged, so its output
+matches Bakta's exactly. For JSON from a run without `--compliant`, two things
+can still differ from what a `--compliant` run would have produced: if short
+contigs were left out, the remaining contigs and locus tags keep their
+original numbers, and in the rare case that removing unbalanced brackets
+reveals a gene symbol (e.g. `(abcD`), Bakta would also add it as a gene.
+
 ## Many samples at once
 
 Run `reduce`, `restore` or `gff3` without positional arguments to process every

@@ -33,7 +33,8 @@ type BatchOptions struct {
 	// SpoolCompression controls temporary files holding tar members until
 	// they are paired, as BuildOptions.AnnotationSpoolCompression does.
 	SpoolCompression string
-	// Warnings, if set, receives ReduceBatch's unmatched sequence warnings.
+	// Warnings, if set, receives ReduceBatch's unmatched sequence warnings and
+	// GFF3Batch's compliant mode warnings.
 	Warnings io.Writer
 	// GFF3AnnotationOnly makes GFF3Batch omit the ##FASTA section.
 	GFF3AnnotationOnly bool
@@ -73,12 +74,27 @@ func RestoreBatch(ctx context.Context, opts BatchOptions) error {
 // named SAMPLE.gff3.
 func GFF3Batch(ctx context.Context, opts BatchOptions) error {
 	return runBatch(ctx, opts, func(sample string, annotation []byte, genome Genome) (string, []byte, error) {
-		gff3, err := BaktaGFF3WithOptions(annotation, genome, BaktaGFF3Options{AnnotationOnly: opts.GFF3AnnotationOnly, Compliant: opts.GFF3Compliant})
+		gff3, err := BaktaGFF3WithOptions(annotation, genome, BaktaGFF3Options{
+			AnnotationOnly: opts.GFF3AnnotationOnly,
+			Compliant:      opts.GFF3Compliant,
+			Warn:           sampleWarner(opts.Warnings, sample),
+		})
 		if err != nil {
 			return "", nil, err
 		}
 		return sample + ".gff3", gff3, nil
 	})
+}
+
+// sampleWarner returns a function writing warnings about sample to w, or nil
+// if w is nil.
+func sampleWarner(w io.Writer, sample string) func(string) {
+	if w == nil {
+		return nil
+	}
+	return func(message string) {
+		fmt.Fprintf(w, "warning: %s: %s\n", sample, message)
+	}
 }
 
 // runBatch pairs the sources and writes one output file per sample. It stops

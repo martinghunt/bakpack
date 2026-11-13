@@ -46,6 +46,12 @@ var baktaINSDCValidDBXrefs = map[string]bool{"UniProtKB/TrEMBL": true, "GO": tru
 // baktaGeneSymbolPattern is Bakta's RE_GENE_SYMBOL, used with fullmatch.
 var baktaGeneSymbolPattern = regexp.MustCompile(`^[a-z]{3}[A-Z][0-9]?$`)
 
+func (opts BaktaGFF3Options) warn(message string) {
+	if opts.Warn != nil {
+		opts.Warn(message)
+	}
+}
+
 func writeCurrentBaktaGFF3(data map[string]any, opts BaktaGFF3Options) ([]byte, error) {
 	compliant := opts.Compliant
 	var buf bytes.Buffer
@@ -75,6 +81,10 @@ func writeCurrentBaktaGFF3(data map[string]any, opts BaktaGFF3Options) ([]byte, 
 	featuresBySequence, featureOrder := gffFeaturesByContig(data)
 	sequences := mapSlice(data["sequences"])
 	written := map[string]bool{}
+	if compliant {
+		sequences = compliantSequences(sequences, featuresBySequence, written, opts.warn)
+		warnNonCompliantIDs(sequences, data, opts.warn)
+	}
 	for _, seq := range sequences {
 		id := pyStr(seq["id"])
 		written[id] = true
@@ -338,11 +348,12 @@ func writeCurrentBaktaGFF3Feature(buf *bytes.Buffer, feat map[string]any, seqLen
 		}
 
 	case "cds":
+		product := compliantProduct(feat["product"], compliant)
 		attrs := newPyAttrs()
 		attrs.set("ID", feat["locus"])
-		attrs.set("Name", feat["product"])
+		attrs.set("Name", product)
 		attrs.set("locus_tag", feat["locus"])
-		attrs.set("product", feat["product"])
+		attrs.set("product", product)
 		attrs.set("Dbxref", feat["db_xrefs"])
 		pseudogeneType := ""
 		if pseudogene {
@@ -401,11 +412,12 @@ func writeCurrentBaktaGFF3Feature(buf *bytes.Buffer, feat map[string]any, seqLen
 		writeCurrentSignalPeptide(buf, seqID, feat)
 
 	case "sorf":
+		product := compliantProduct(feat["product"], compliant)
 		attrs := newPyAttrs()
 		attrs.set("ID", feat["locus"])
-		attrs.set("Name", feat["product"])
+		attrs.set("Name", product)
 		attrs.set("locus_tag", feat["locus"])
-		attrs.set("product", feat["product"])
+		attrs.set("product", product)
 		attrs.set("Dbxref", feat["db_xrefs"])
 		if pyTruthy(feat["gene"]) {
 			attrs.set("gene", feat["gene"])
@@ -499,6 +511,105 @@ func writeCurrentSignalPeptide(buf *bytes.Buffer, seqID string, feat map[string]
 	attrs.set("Parent", feat["locus"])
 	score, _ := jsonFloat(peptide["score"])
 	fmt.Fprintf(buf, "%s\tDeepSig\tsignal_peptide\t%s\t%s\t%s\t%s\t.\t%s\n", seqID, pyStr(peptide["start"]), pyStr(peptide["stop"]), strconv.FormatFloat(score, 'f', 2, 64), pyStr(feat["strand"]), attrs.encode())
+}
+
+// Bakta's --compliant mode also changes the annotation itself, before any
+// file is written: it drops contigs shorter than 200 bp, revises CDS and sORF
+// product names, and stops if contig IDs or locus tags break INSDC rules. The
+// JSON does not record whether --compliant was used, so compliant output
+// applies the first two here. Both leave JSON from a compliant run unchanged.
+// IDs cannot be fixed, so they are only reported.
+
+const baktaCompliantMinSequenceLength = 200
+
+var (
+	baktaINSDCIDPattern             = regexp.MustCompile(`^[A-Za-z\d_.:*#-]{1,25}$`)
+	baktaINSDCLocusTagPrefixPattern = regexp.MustCompile(`^[A-Z][A-Z0-9]{2,11}$`)
+	baktaUncharacterizedPattern     = regexp.MustCompile(`(?i)uncharacteri[sz]ed`)
+)
+
+// compliantSequences returns the sequences Bakta --compliant would keep,
+// marking the features of dropped sequences as written so they are skipped.
+func compliantSequences(sequences []map[string]any, featuresBySequence map[string][]map[string]any, written map[string]bool, warn func(string)) []map[string]any {
+	kept := make([]map[string]any, 0, len(sequences))
+	var dropped []string
+	for _, seq := range sequences {
+		if length, ok := jsonInt(seq["length"]); ok && length < baktaCompliantMinSequenceLength {
+			id := pyStr(seq["id"])
+			dropped = append(dropped, id)
+			written[id] = true
+			continue
+		}
+		kept = append(kept, seq)
+	}
+	if len(dropped) != 0 {
+		features := 0
+		for _, id := range dropped {
+			features += len(featuresBySequence[id])
+		}
+		warn(fmt.Sprintf("left out %d contig(s) shorter than %d bp and their %d feature(s), as Bakta --compliant does: %s",
+			len(dropped), baktaCompliantMinSequenceLength, features, shortList(dropped)))
+	}
+	return kept
+}
+
+// warnNonCompliantIDs reports contig IDs and locus tag prefixes that INSDC
+// would reject. Bakta --compliant refuses to run with them.
+func warnNonCompliantIDs(sequences []map[string]any, data map[string]any, warn func(string)) {
+	var badIDs []string
+	for _, seq := range sequences {
+		if id := pyStr(seq["id"]); !baktaINSDCIDPattern.MatchString(id) {
+			badIDs = append(badIDs, id)
+		}
+	}
+	if len(badIDs) != 0 {
+		warn(fmt.Sprintf("%d contig ID(s) are not INSDC compliant (at most 25 characters from A-Z a-z 0-9 _ . : * # -): %s", len(badIDs), shortList(badIDs)))
+	}
+	seen := map[string]bool{}
+	var badPrefixes []string
+	for _, feature := range mapSlice(data["features"]) {
+		locus, _ := feature["locus"].(string)
+		cut := strings.LastIndex(locus, "_")
+		if cut < 0 {
+			continue
+		}
+		prefix := locus[:cut]
+		if !seen[prefix] && !baktaINSDCLocusTagPrefixPattern.MatchString(prefix) {
+			badPrefixes = append(badPrefixes, prefix)
+		}
+		seen[prefix] = true
+	}
+	if len(badPrefixes) != 0 {
+		warn(fmt.Sprintf("locus tag prefix(es) are not INSDC compliant (3-12 upper case letters and digits, starting with a letter): %s", shortList(badPrefixes)))
+	}
+}
+
+// compliantProduct revises a CDS or sORF product name in compliant mode.
+func compliantProduct(product any, compliant bool) any {
+	name, ok := product.(string)
+	if !compliant || !ok || name == "" {
+		return product
+	}
+	return reviseProductINSDC(name)
+}
+
+// reviseProductINSDC is Bakta's revise_product_insdc.
+func reviseProductINSDC(product string) string {
+	product = baktaUncharacterizedPattern.ReplaceAllString(product, "putative")
+	if strings.Count(product, "(") != strings.Count(product, ")") {
+		product = strings.NewReplacer("(", "", ")", "").Replace(product)
+	}
+	if strings.Count(product, "[") != strings.Count(product, "]") {
+		product = strings.NewReplacer("[", "", "]", "").Replace(product)
+	}
+	return product
+}
+
+func shortList(items []string) string {
+	if len(items) > 5 {
+		return strings.Join(items[:5], ", ") + ", ..."
+	}
+	return strings.Join(items, ", ")
 }
 
 // reviseDBXrefsINSDC splits Dbxrefs into those valid for INSDC and the rest,
