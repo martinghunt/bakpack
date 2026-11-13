@@ -198,7 +198,7 @@ func newBuildCommand() *cobra.Command {
 	cmd.Flags().StringVar(&manifestPath, "manifest", "", "Tab-delimited manifest with columns: sample_id, annotation_json, genome_fasta")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output archive path, default annotations.bakpack")
 	cmd.Flags().StringVar(&orderPath, "order", "", "Optional file of sample IDs defining archive order")
-	cmd.Flags().StringVar(&annotationSpoolCompression, "annotation-spool-compression", "gzip", "Temporary annotation spool compression: gzip or none")
+	cmd.Flags().StringVar(&annotationSpoolCompression, "annotation-spool-compression", "gzip", "Compression of temporary files holding tar members until they are paired: gzip or none")
 	cmd.Flags().IntVar(&chunkSize, "chunk-size", 25, "Samples per compressed chunk")
 	cmd.Flags().IntVar(&xzThreads, "xz-threads", 1, "Threads passed to xz as -T")
 	return cmd

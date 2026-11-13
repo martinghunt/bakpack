@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `reduce` and `build` warn when a sample's sequences cannot be matched to its genome FASTA, since those sequences and their features are left unreduced.
 - `reduce` and `build` verify that each reduced JSON restores to the original before writing it.
 
+### Changed
+
+- `build` now reads each tar source once. Matching annotation and genome tars are no longer read twice, and a genome tar used with a non-tar annotation source or with `--order` is no longer rescanned for every sample, which made those builds slow down quadratically with sample count. Archives are byte-identical to before.
+
 ### Fixed
 
 - Support the Bakta `oriV` feature type (replication origins on plasmids), which previously failed with `unsupported Bakta feature type "oriV"`.

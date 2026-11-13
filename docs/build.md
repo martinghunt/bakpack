@@ -41,6 +41,23 @@ sampleC
 
 Blank lines and lines starting with `#` are ignored.
 
+## Reading tar sources
+
+A tar source can only be read from start to end, so `build` reads each `.tar`
+or `.tar.xz` source once:
+
+- When both sources are tars, `build` walks them together while their sample
+  IDs agree. If the orders diverge, it writes the rest of the annotations to
+  temporary files beside the output and pairs them with the rest of the genome
+  tar as it streams.
+- When only the annotations are a tar, they are written to temporary files
+  first, then paired with the genome source.
+- When the genomes are a tar and `--order` is given, the genomes needed are
+  written to temporary files first, then read back in `--order` order.
+
+Temporary files are gzip-compressed unless `--annotation-spool-compression none`
+is given, and are deleted as each sample is paired.
+
 ## Examples
 
 Build from tar archives:

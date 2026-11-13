@@ -601,7 +601,14 @@ type tarRecordStream struct {
 	tr     *tar.Reader
 }
 
+// tarStreamOpened, if set, is called each time a tar source is opened, so
+// tests can check how many times a build reads each tar.
+var tarStreamOpened func(path string)
+
 func newTarRecordStream(source tarSource) (*tarRecordStream, error) {
+	if tarStreamOpened != nil {
+		tarStreamOpened(source.Path)
+	}
 	file, err := os.Open(source.Path)
 	if err != nil {
 		return nil, err

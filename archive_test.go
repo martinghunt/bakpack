@@ -575,6 +575,230 @@ func TestBuildAndExtractArchiveFromPlainTar(t *testing.T) {
 	}
 }
 
+// countTarOpens records how many times each tar source is opened until the
+// test ends.
+func countTarOpens(t *testing.T) map[string]int {
+	t.Helper()
+	opens := map[string]int{}
+	tarStreamOpened = func(path string) { opens[filepath.Base(path)]++ }
+	t.Cleanup(func() { tarStreamOpened = nil })
+	return opens
+}
+
+func archiveSampleOrder(t *testing.T, archivePath string) []string {
+	t.Helper()
+	index, err := ReadArchiveIndex(archivePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	order := make([]string, len(index.Samples))
+	for i, sample := range index.Samples {
+		order[i] = sample.SampleID
+	}
+	return order
+}
+
+func TestBuildArchiveReadsEachTarOnce(t *testing.T) {
+	samples := []string{"sampleA", "sampleB", "sampleC", "sampleD"}
+	annotationEntries := func(order []string) []tarEntry {
+		var entries []tarEntry
+		for _, sample := range order {
+			entries = append(entries, tarEntry{Name: sample + ".bakta.json", Data: toyBaktaJSON(sample, "gene "+sample)})
+		}
+		return entries
+	}
+	genomeEntries := func(order []string) []tarEntry {
+		var entries []tarEntry
+		for _, sample := range order {
+			entries = append(entries, tarEntry{Name: sample + ".fa", Data: toyFASTA(sample)})
+		}
+		return entries
+	}
+	for _, tt := range []struct {
+		name            string
+		annotationOrder []string
+		genomeOrder     []string
+		annotationsDir  bool
+		order           []string
+		wantOrder       []string
+		wantOpens       map[string]int
+	}{
+		{
+			name:            "same order",
+			annotationOrder: samples,
+			genomeOrder:     samples,
+			wantOrder:       samples,
+			wantOpens:       map[string]int{"annotations.tar": 1, "genomes.tar": 1},
+		},
+		{
+			name:            "orders diverge part way",
+			annotationOrder: samples,
+			genomeOrder:     []string{"sampleA", "sampleB", "sampleD", "sampleC"},
+			wantOrder:       []string{"sampleA", "sampleB", "sampleD", "sampleC"},
+			wantOpens:       map[string]int{"annotations.tar": 1, "genomes.tar": 1},
+		},
+		{
+			name:            "orders differ from the start",
+			annotationOrder: []string{"sampleD", "sampleC", "sampleB", "sampleA"},
+			genomeOrder:     samples,
+			wantOrder:       samples,
+			wantOpens:       map[string]int{"annotations.tar": 1, "genomes.tar": 1},
+		},
+		{
+			name:           "annotation directory with genome tar",
+			annotationsDir: true,
+			genomeOrder:    []string{"sampleC", "sampleA", "sampleD", "sampleB"},
+			wantOrder:      []string{"sampleC", "sampleA", "sampleD", "sampleB"},
+			wantOpens:      map[string]int{"genomes.tar": 1},
+		},
+		{
+			name:            "explicit order with tars",
+			annotationOrder: samples,
+			genomeOrder:     samples,
+			order:           []string{"sampleC", "sampleA", "sampleD", "sampleB"},
+			wantOrder:       []string{"sampleC", "sampleA", "sampleD", "sampleB"},
+			wantOpens:       map[string]int{"annotations.tar": 1, "genomes.tar": 1},
+		},
+		{
+			name:           "explicit order with annotation directory and genome tar",
+			annotationsDir: true,
+			genomeOrder:    samples,
+			order:          []string{"sampleB", "sampleD", "sampleA", "sampleC"},
+			wantOrder:      []string{"sampleB", "sampleD", "sampleA", "sampleC"},
+			wantOpens:      map[string]int{"genomes.tar": 1},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			dir := t.TempDir()
+			archivePath := filepath.Join(dir, "out", "toy.bakpack")
+			if err := os.MkdirAll(filepath.Dir(archivePath), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			genomesPath := filepath.Join(dir, "genomes.tar")
+			writeTar(t, genomesPath, genomeEntries(tt.genomeOrder))
+			var annotations FileSource
+			if tt.annotationsDir {
+				annotationsDir := filepath.Join(dir, "annotations")
+				if err := os.MkdirAll(annotationsDir, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				for _, sample := range samples {
+					writeFile(t, filepath.Join(annotationsDir, sample+".bakta.json"), toyBaktaJSON(sample, "gene "+sample))
+				}
+				annotations = DirSource{Dir: annotationsDir, Role: "annotation"}
+			} else {
+				annotationsPath := filepath.Join(dir, "annotations.tar")
+				writeTar(t, annotationsPath, annotationEntries(tt.annotationOrder))
+				annotations = TarSource{Path: annotationsPath, Role: "annotation"}
+			}
+			genomes := TarSource{Path: genomesPath, Role: "genome"}
+
+			opens := countTarOpens(t)
+			if err := BuildArchive(ctx, BuildOptions{
+				Annotations: annotations,
+				Genomes:     genomes,
+				Order:       tt.order,
+				ChunkSize:   3,
+				OutputPath:  archivePath,
+			}); err != nil {
+				t.Fatalf("BuildArchive() error = %v", err)
+			}
+			if fmt.Sprint(opens) != fmt.Sprint(tt.wantOpens) {
+				t.Fatalf("tar opens = %v, want %v", opens, tt.wantOpens)
+			}
+			if got := archiveSampleOrder(t, archivePath); strings.Join(got, ",") != strings.Join(tt.wantOrder, ",") {
+				t.Fatalf("archive order = %v, want %v", got, tt.wantOrder)
+			}
+			// Temporary spool directories must be gone.
+			entries, err := os.ReadDir(filepath.Dir(archivePath))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(entries) != 1 {
+				t.Fatalf("output directory has %d entries, want just the archive: %v", len(entries), entries)
+			}
+
+			outDir := filepath.Join(dir, "extracted")
+			if err := ExtractArchive(ctx, ExtractOptions{
+				ArchivePath: archivePath,
+				Genomes:     genomes,
+				Samples:     samples,
+				OutputDir:   outDir,
+				Original:    true,
+			}); err != nil {
+				t.Fatalf("ExtractArchive() error = %v", err)
+			}
+			for _, sample := range samples {
+				got, err := os.ReadFile(filepath.Join(outDir, sample+".bakta.json"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				gotCanonical, err := JSONBytesCanonicalSHA256(got)
+				if err != nil {
+					t.Fatal(err)
+				}
+				wantCanonical, err := JSONBytesCanonicalSHA256(toyBaktaJSON(sample, "gene "+sample))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if gotCanonical != wantCanonical {
+					t.Fatalf("%s original canonical SHA = %s, want %s", sample, gotCanonical, wantCanonical)
+				}
+			}
+		})
+	}
+}
+
+func TestBuildArchiveFromTarsReportsMismatchedSamples(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		annotations []string
+		genomes     []string
+		wantErr     string
+	}{
+		{
+			name:        "annotation without genome after divergence",
+			annotations: []string{"sampleA", "sampleB", "sampleC"},
+			genomes:     []string{"sampleA", "sampleC"},
+			wantErr:     `did not include annotation sample "sampleB"`,
+		},
+		{
+			name:        "duplicate annotation while orders agree",
+			annotations: []string{"sampleA", "sampleA"},
+			genomes:     []string{"sampleA", "sampleA"},
+			wantErr:     `duplicate annotation sample "sampleA"`,
+		},
+		{
+			name:        "duplicate genome after divergence",
+			annotations: []string{"sampleA", "sampleB", "sampleC"},
+			genomes:     []string{"sampleA", "sampleC", "sampleA", "sampleB"},
+			wantErr:     `duplicate genome sample "sampleA"`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			var annotationEntries, genomeEntries []tarEntry
+			for _, sample := range tt.annotations {
+				annotationEntries = append(annotationEntries, tarEntry{Name: sample + ".bakta.json", Data: toyBaktaJSON(sample, "gene")})
+			}
+			for _, sample := range tt.genomes {
+				genomeEntries = append(genomeEntries, tarEntry{Name: sample + ".fa", Data: toyFASTA(sample)})
+			}
+			writeTar(t, filepath.Join(dir, "annotations.tar"), annotationEntries)
+			writeTar(t, filepath.Join(dir, "genomes.tar"), genomeEntries)
+			err := BuildArchive(context.Background(), BuildOptions{
+				Annotations: TarSource{Path: filepath.Join(dir, "annotations.tar"), Role: "annotation"},
+				Genomes:     TarSource{Path: filepath.Join(dir, "genomes.tar"), Role: "genome"},
+				OutputPath:  filepath.Join(dir, "toy.bakpack"),
+			})
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("BuildArchive() error = %v, want %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestBuildArchiveFromEmptyPairedTarXZSourcesFails(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
