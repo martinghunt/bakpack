@@ -9,14 +9,14 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/klauspost/compress/gzip"
 	"github.com/klauspost/compress/zstd"
+	"github.com/martinghunt/faqt/agc"
 	"github.com/ulikunitz/xz"
 )
 
@@ -183,7 +183,7 @@ func OpenSource(path, kind, role string) (FileSource, error) {
 		if role != "genome" {
 			return nil, fmt.Errorf("agc source is only supported for genomes")
 		}
-		return AGCGenomeSource{Path: path, Command: "agc"}, nil
+		return AGCGenomeSource{Path: path, archive: &agcArchive{path: path}}, nil
 	default:
 		return nil, fmt.Errorf("unknown source kind %q", kind)
 	}
@@ -760,10 +760,31 @@ func (s *tarRecordStream) nextHeader(ctx context.Context) (*tar.Header, string, 
 	}
 }
 
+// AGCGenomeSource reads genomes from an AGC archive with faqt's pure Go AGC
+// reader, so no agc program is needed. Each sample is returned as FASTA text,
+// named SAMPLE.fa.
 type AGCGenomeSource struct {
-	Path    string
+	Path string
+	// Command is ignored. Deprecated: AGC archives are read without the agc
+	// program.
 	Command string
+	// Threads is ignored. Deprecated: AGC archives are read without the agc
+	// program.
 	Threads int
+
+	// archive, when set by OpenSource, keeps the archive open across calls so
+	// its index is read once. Without it each call opens the archive.
+	archive *agcArchive
+}
+
+// agcArchive is an AGC archive opened on first use and shared by copies of an
+// AGCGenomeSource. The lock serializes reads, as the archive is not documented
+// as safe for concurrent use.
+type agcArchive struct {
+	mu      sync.Mutex
+	path    string
+	archive *agc.Archive
+	err     error
 }
 
 func (s AGCGenomeSource) Records(ctx context.Context) ([]FileRecord, error) {
@@ -783,54 +804,80 @@ func (s AGCGenomeSource) Records(ctx context.Context) ([]FileRecord, error) {
 }
 
 func (s AGCGenomeSource) Get(ctx context.Context, sample string) (FileRecord, error) {
-	cmd := exec.CommandContext(ctx, s.commandName(), s.getsetArgs(sample)...)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	out, err := cmd.Output()
+	var fasta []byte
+	err := s.withArchive(func(archive *agc.Archive) error {
+		reader, err := archive.OpenSample(sample)
+		if err != nil {
+			return err
+		}
+		fasta, err = agcSampleFASTA(ctx, reader)
+		return err
+	})
 	if err != nil {
-		return FileRecord{}, fmt.Errorf("agc getset %s: %w: %s", sample, err, strings.TrimSpace(stderr.String()))
+		return FileRecord{}, fmt.Errorf("AGC sample %s in %s: %w", sample, s.Path, err)
 	}
-	return FileRecord{SampleID: sample, Name: sample + ".fa", Bytes: out}, nil
+	return FileRecord{SampleID: sample, Name: sample + ".fa", Bytes: fasta}, nil
 }
 
 func (s AGCGenomeSource) Order(ctx context.Context) ([]string, error) {
-	cmd := exec.CommandContext(ctx, s.commandName(), s.listsetArgs()...)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("agc listset: %w: %s", err, strings.TrimSpace(stderr.String()))
-	}
 	var order []string
-	for _, line := range strings.Split(string(out), "\n") {
-		sample := strings.TrimSpace(line)
-		if sample != "" {
-			order = append(order, sample)
-		}
+	err := s.withArchive(func(archive *agc.Archive) error {
+		var err error
+		order, err = archive.Samples()
+		return err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("AGC samples in %s: %w", s.Path, err)
 	}
 	return order, nil
 }
 
-func (s AGCGenomeSource) commandName() string {
-	if s.Command == "" {
-		return "agc"
+// withArchive calls fn with the open archive, opening it if needed.
+func (s AGCGenomeSource) withArchive(fn func(*agc.Archive) error) error {
+	if s.archive == nil {
+		archive, err := agc.OpenPath(s.Path)
+		if err != nil {
+			return err
+		}
+		defer archive.Close()
+		return fn(archive)
 	}
-	return s.Command
-}
-
-func (s AGCGenomeSource) threadCount() int {
-	if s.Threads <= 0 {
-		return 1
+	s.archive.mu.Lock()
+	defer s.archive.mu.Unlock()
+	if s.archive.archive == nil && s.archive.err == nil {
+		s.archive.archive, s.archive.err = agc.OpenPath(s.archive.path)
 	}
-	return s.Threads
+	if s.archive.err != nil {
+		return s.archive.err
+	}
+	return fn(s.archive.archive)
 }
 
-func (s AGCGenomeSource) getsetArgs(sample string) []string {
-	return []string{"getset", "-t", strconv.Itoa(s.threadCount()), "--", s.Path, sample}
-}
-
-func (s AGCGenomeSource) listsetArgs() []string {
-	return []string{"listset", "--", s.Path}
+// agcSampleFASTA writes a sample's contigs as FASTA, one line per sequence,
+// as agc getset does.
+func agcSampleFASTA(ctx context.Context, reader *agc.Reader) ([]byte, error) {
+	var buf bytes.Buffer
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		record, err := reader.Read()
+		if err == io.EOF {
+			return buf.Bytes(), nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		buf.WriteByte('>')
+		buf.WriteString(record.Name)
+		if record.Description != "" {
+			buf.WriteByte(' ')
+			buf.WriteString(record.Description)
+		}
+		buf.WriteByte('\n')
+		buf.Write(record.Seq)
+		buf.WriteByte('\n')
+	}
 }
 
 // AnnotationJSONSuffixes lists the recognized Bakta annotation JSON filename

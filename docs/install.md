@@ -25,7 +25,7 @@ xz -9e -T1 -c
 
 Put `xz` on `PATH` before building archives.
 
-AGC genome input requires `agc` on `PATH`.
+AGC genome archives are read directly; the `agc` program is not needed.
 
 ## macOS
 

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	dsnetbzip2 "github.com/dsnet/compress/bzip2"
@@ -39,29 +40,94 @@ func TestListSourcePathOnlyLinesAllowSpacesInPaths(t *testing.T) {
 	}
 }
 
-func TestAGCGenomeSourceGetsetArgsUseOneThreadByDefault(t *testing.T) {
-	source := AGCGenomeSource{Path: "genomes.agc"}
-	if got, want := strings.Join(source.getsetArgs("sampleA"), " "), "getset -t 1 -- genomes.agc sampleA"; got != want {
-		t.Fatalf("default getset args = %q, want %q", got, want)
-	}
+// testdata/agc/genomes.agc was made with agc 3.2.2 from sampleA.fa and
+// sampleB.fa; SAMPLE.getset.fa is what agc getset writes for each sample.
 
-	source.Threads = 4
-	if got, want := strings.Join(source.getsetArgs("sampleA"), " "), "getset -t 4 -- genomes.agc sampleA"; got != want {
-		t.Fatalf("overridden getset args = %q, want %q", got, want)
+func TestAGCGenomeSourceMatchesAGCGetset(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join("testdata", "agc", "genomes.agc")
+	opened, err := OpenSource(path, "auto", "genome")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A source built directly opens the archive on each call instead of
+	// keeping it open; both must read the same.
+	for name, source := range map[string]FileSource{"OpenSource": opened, "direct": AGCGenomeSource{Path: path}} {
+		t.Run(name, func(t *testing.T) {
+			order, err := source.Order(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Join(order, ",") != "sampleA,sampleB" {
+				t.Fatalf("Order() = %v, want [sampleA sampleB]", order)
+			}
+			records, err := source.Records(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i, sample := range order {
+				want, err := os.ReadFile(filepath.Join("testdata", "agc", sample+".getset.fa"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				record := records[i]
+				if record.SampleID != sample || record.Name != sample+".fa" {
+					t.Fatalf("record %d = %s %s, want %s %s.fa", i, record.SampleID, record.Name, sample, sample)
+				}
+				if !bytes.Equal(record.Bytes, want) {
+					t.Fatalf("%s FASTA =\n%s\nwant agc getset output\n%s", sample, record.Bytes, want)
+				}
+			}
+		})
 	}
 }
 
-func TestAGCGenomeSourceGetsetArgsProtectSampleNamesStartingWithDash(t *testing.T) {
-	source := AGCGenomeSource{Path: "genomes.agc"}
-	if got, want := strings.Join(source.getsetArgs("-sampleA"), " "), "getset -t 1 -- genomes.agc -sampleA"; got != want {
-		t.Fatalf("getset args for dash-prefixed sample = %q, want %q", got, want)
+func TestAGCGenomeSourceErrors(t *testing.T) {
+	ctx := context.Background()
+	source, err := OpenSource(filepath.Join("testdata", "agc", "genomes.agc"), "agc", "genome")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := source.Get(ctx, "missing"); err == nil || !strings.Contains(err.Error(), "missing") {
+		t.Fatalf("Get(missing) error = %v, want an error naming the sample", err)
+	}
+	if _, err := (AGCGenomeSource{Path: filepath.Join(t.TempDir(), "absent.agc")}).Order(ctx); err == nil {
+		t.Fatal("Order() on a missing file = nil error, want error")
+	}
+	if _, err := OpenSource("genomes.agc", "agc", "annotation"); err == nil {
+		t.Fatal("OpenSource(agc, annotation) = nil error, want error")
 	}
 }
 
-func TestAGCGenomeSourceListsetArgsProtectPathStartingWithDash(t *testing.T) {
-	source := AGCGenomeSource{Path: "-genomes.agc"}
-	if got, want := strings.Join(source.listsetArgs(), " "), "listset -- -genomes.agc"; got != want {
-		t.Fatalf("listset args for dash-prefixed path = %q, want %q", got, want)
+func TestAGCGenomeSourceConcurrentGets(t *testing.T) {
+	ctx := context.Background()
+	source, err := OpenSource(filepath.Join("testdata", "agc", "genomes.agc"), "agc", "genome")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := source.Get(ctx, "sampleB")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	errs := make(chan error, 8)
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			got, err := source.Get(ctx, "sampleB")
+			if err == nil && !bytes.Equal(got.Bytes, want.Bytes) {
+				err = fmt.Errorf("concurrent Get returned different bytes")
+			}
+			errs <- err
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 

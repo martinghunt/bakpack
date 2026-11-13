@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Read AGC genome archives with faqt's pure Go AGC reader instead of running the `agc` program, which is no longer needed. Archives and extracted genomes are byte-identical to before. AGC format version 3 (made by `agc` 3.x) is supported. In the library, `AGCGenomeSource.Command` and `Threads` are deprecated and ignored; an `AGCGenomeSource` from `OpenSource` keeps its archive open for reuse.
+
 ## [0.5.0] - 2026-11-13
 
 ### Added

@@ -48,7 +48,7 @@ Archive creation uses the command line `xz` program:
 xz -9e -T1 -c
 ```
 
-Put `xz` in `PATH`. AGC genome input requires `agc` in `PATH`.
+Put `xz` in `PATH`. AGC genome archives are read directly; the `agc` program is not needed.
 
 ## Quick Start
 
