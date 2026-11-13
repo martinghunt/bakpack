@@ -55,6 +55,7 @@ func BaktaGFF3WithOptions(annotation []byte, genome Genome, opts BaktaGFF3Option
 	if err := validateBaktaFeatureTypes(data); err != nil {
 		return nil, err
 	}
+	genome = withBaktaContigAliases(data, genome)
 
 	sequences := gffSequences(data, genome)
 	featuresByContig, featureOrder := gffFeaturesByContig(data)

@@ -179,7 +179,21 @@ Bakta v1.10.0 renamed two fields: `sequences[]` nucleotide strings moved from
 bakpack accepts both layouts. Reduced JSON from the older layout has `_bakpack`
 `"version": 1`, and reduced JSON from the newer layout has `"version": 2`.
 Restore uses the version to decide which key the `sequences[]` nucleotides go
-back under. bakpack v0.4.0 and earlier accept only version 1, so they fail
+back under.
+
+Unless run with `--keep-contig-headers`, Bakta renames contigs (for example
+FASTA record `1` becomes `contig_1`) and keeps the FASTA name in
+`sequences[].orig_id`. When a sequence `id` is not a genome FASTA record name,
+bakpack matches it by `orig_id` instead. Sequences that match neither way are
+left unreduced, along with their features, and `reduce` and `build` print a
+warning.
+
+If the original `stats` object lacks some of the derivable stats keys, the
+`_bakpack` object lists them in `absent_stats` so restore does not add them.
+
+`reduce` and `build` restore each reduced JSON and check it against the
+original canonical checksum before writing it, so a reduction that cannot be
+restored exactly fails at reduce time rather than at extraction. bakpack v0.4.0 and earlier accept only version 1, so they fail
 with an unsupported version error on samples from the newer layout instead of
 restoring them incorrectly.
 

@@ -59,7 +59,7 @@ func TestOptimizedArchiveCodecMetadataErrorsOnUnsupportedFeatureType(t *testing.
 }
 
 func TestPackReducedSamplePopulatesReducedRoot(t *testing.T) {
-	packed, err := packReducedSample("sample1",
+	packed, err := packReducedSample(BuildOptions{}, "sample1",
 		FileRecord{SampleID: "sample1", Name: "sample1.bakta.json", Bytes: toyBaktaJSON("sample1", "gene one")},
 		FileRecord{SampleID: "sample1", Name: "sample1.fa", Bytes: toyFASTA("sample1")},
 	)
@@ -403,6 +403,88 @@ func TestBuildAndExtractArchiveWithMixedBaktaLayouts(t *testing.T) {
 		if gotCanonical != wantCanonical {
 			t.Fatalf("%s original canonical SHA = %s, want %s", sample, gotCanonical, wantCanonical)
 		}
+	}
+}
+
+func TestBuildAndExtractArchiveWithRenamedContigs(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	annotationsDir := filepath.Join(dir, "annotations")
+	genomesDir := filepath.Join(dir, "genomes")
+	archivePath := filepath.Join(dir, "renamed.bakpack")
+	outDir := filepath.Join(dir, "out")
+	for _, d := range []string{annotationsDir, genomesDir} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	original := renamedContigBaktaJSON()
+	writeFile(t, filepath.Join(annotationsDir, "sampleA.bakta.json"), original)
+	writeFile(t, filepath.Join(genomesDir, "sampleA.fa"), renamedContigFASTA())
+
+	var warnings bytes.Buffer
+	genomes := DirSource{Dir: genomesDir, Role: "genome"}
+	if err := BuildArchive(ctx, BuildOptions{
+		Annotations: DirSource{Dir: annotationsDir, Role: "annotation"},
+		Genomes:     genomes,
+		OutputPath:  archivePath,
+		Warnings:    &warnings,
+	}); err != nil {
+		t.Fatalf("BuildArchive() error = %v", err)
+	}
+	if warnings.Len() != 0 {
+		t.Fatalf("BuildArchive() warnings = %q, want none", warnings.String())
+	}
+	if err := ExtractArchive(ctx, ExtractOptions{
+		ArchivePath: archivePath,
+		Genomes:     genomes,
+		Samples:     []string{"sampleA"},
+		OutputDir:   outDir,
+		Original:    true,
+	}); err != nil {
+		t.Fatalf("ExtractArchive() error = %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(outDir, "sampleA.bakta.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotCanonical, err := JSONBytesCanonicalSHA256(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantCanonical, err := JSONBytesCanonicalSHA256(original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotCanonical != wantCanonical {
+		t.Fatalf("original canonical SHA = %s, want %s", gotCanonical, wantCanonical)
+	}
+}
+
+func TestBuildArchiveWarnsOnUnmatchedSequences(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	annotationsDir := filepath.Join(dir, "annotations")
+	genomesDir := filepath.Join(dir, "genomes")
+	for _, d := range []string{annotationsDir, genomesDir} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeFile(t, filepath.Join(annotationsDir, "sampleA.bakta.json"), renamedContigBaktaJSON())
+	writeFile(t, filepath.Join(genomesDir, "sampleA.fa"), []byte(">other\nTTGAAATAAATGAAATAA\n"))
+
+	var warnings bytes.Buffer
+	if err := BuildArchive(ctx, BuildOptions{
+		Annotations: DirSource{Dir: annotationsDir, Role: "annotation"},
+		Genomes:     DirSource{Dir: genomesDir, Role: "genome"},
+		OutputPath:  filepath.Join(dir, "unmatched.bakpack"),
+		Warnings:    &warnings,
+	}); err != nil {
+		t.Fatalf("BuildArchive() error = %v", err)
+	}
+	if !strings.Contains(warnings.String(), "warning: sampleA: 1 sequence(s) not found") {
+		t.Fatalf("BuildArchive() warnings = %q, want unmatched sequence warning", warnings.String())
 	}
 }
 

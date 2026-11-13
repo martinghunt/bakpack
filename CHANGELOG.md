@@ -7,9 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `reduce` and `build` warn when a sample's sequences cannot be matched to its genome FASTA, since those sequences and their features are left unreduced.
+- `reduce` and `build` verify that each reduced JSON restores to the original before writing it.
+
 ### Fixed
 
 - Support the Bakta `oriV` feature type (replication origins on plasmids), which previously failed with `unsupported Bakta feature type "oriV"`.
+- Reduce Bakta JSON whose contigs were renamed by Bakta (run without `--keep-contig-headers`) by matching sequences to the genome FASTA via `orig_id`. Previously nothing was reduced for these files.
+- Restore CDSs truncated at a contig edge whose first codon is translated literally rather than as `M`.
+- Do not add derivable `stats` keys on restore when the original JSON did not have them.
 - Support Bakta >= v1.10.0 JSON, which stores `sequences[]` nucleotides under `nt` and feature sequence IDs under `sequence` instead of `sequence` and `contig`. Output from older Bakta versions is still supported, and an archive chunk may mix both layouts. Reduced JSON and archives built from older-layout Bakta JSON are unchanged and remain readable by earlier bakpack releases. Samples in the newer layout are written with reduced JSON metadata version 2, which bakpack v0.4.0 and earlier reject with an unsupported version error.
 
 ## [0.4.0] - 2026-10-09
