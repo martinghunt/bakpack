@@ -53,6 +53,96 @@ func TestReduceAndRestoreBaktaJSONChecksCanonicalContent(t *testing.T) {
 	}
 }
 
+func TestReduceAndRestoreBaktaJSONv110Layout(t *testing.T) {
+	genome := mustGenome(t, "sample1", toyFASTA("sample1"))
+	original := toyBaktaJSONv110("sample1", "gene one")
+
+	reduced, err := ReduceBaktaJSON(original, genome)
+	if err != nil {
+		t.Fatalf("ReduceBaktaJSON() error = %v", err)
+	}
+	for _, key := range []string{`"nt": "ATGAAATAA"`, `"aa"`, `"aa_hexdigest"`, `"start_type"`, `"length"`} {
+		if bytes.Contains(reduced.ReducedJSON, []byte(key)) {
+			t.Fatalf("reduced JSON still contains %s: %s", key, reduced.ReducedJSON)
+		}
+	}
+	if !bytes.Contains(reduced.ReducedJSON, []byte(`"version": 2`)) {
+		t.Fatalf("reduced JSON from v1.10 layout is not metadata version 2: %s", reduced.ReducedJSON)
+	}
+
+	restored, err := RestoreBaktaJSON(reduced.ReducedJSON, genome)
+	if err != nil {
+		t.Fatalf("RestoreBaktaJSON() error = %v", err)
+	}
+	if restored.Original.CanonicalSHA256 != reduced.Original.CanonicalSHA256 {
+		t.Fatalf("restored canonical SHA = %s, want %s", restored.Original.CanonicalSHA256, reduced.Original.CanonicalSHA256)
+	}
+}
+
+func TestReduceBaktaJSONLegacyLayoutIsMetadataVersion1(t *testing.T) {
+	genome := mustGenome(t, "sample1", toyFASTA("sample1"))
+	reduced, err := ReduceBaktaJSON(toyBaktaJSON("sample1", "gene one"), genome)
+	if err != nil {
+		t.Fatalf("ReduceBaktaJSON() error = %v", err)
+	}
+	if !bytes.Contains(reduced.ReducedJSON, []byte(`"version": 1`)) {
+		t.Fatalf("reduced JSON from legacy layout is not metadata version 1: %s", reduced.ReducedJSON)
+	}
+}
+
+func TestReduceAndRestoreBaktaJSONWithRenamedContigs(t *testing.T) {
+	genome := mustGenome(t, "sample1", renamedContigFASTA())
+	original := renamedContigBaktaJSON()
+
+	reduced, err := ReduceBaktaJSON(original, genome)
+	if err != nil {
+		t.Fatalf("ReduceBaktaJSON() error = %v", err)
+	}
+	if len(reduced.UnmatchedSequences) != 0 {
+		t.Fatalf("UnmatchedSequences = %v, want none", reduced.UnmatchedSequences)
+	}
+	for _, key := range []string{`"nt"`, `"aa"`, `"size"`} {
+		if bytes.Contains(reduced.ReducedJSON, []byte(key)) {
+			t.Fatalf("reduced JSON still contains %s: %s", key, reduced.ReducedJSON)
+		}
+	}
+	// The edge CDS's literal translation does not match the forced-M
+	// translation, so its digest must be kept for restore to pick the right one.
+	if !bytes.Contains(reduced.ReducedJSON, []byte("2c16b194a0d9037002e9ef6580925697")) {
+		t.Fatalf("reduced JSON dropped edge CDS aa_hexdigest: %s", reduced.ReducedJSON)
+	}
+
+	restored, err := RestoreBaktaJSON(reduced.ReducedJSON, genome)
+	if err != nil {
+		t.Fatalf("RestoreBaktaJSON() error = %v", err)
+	}
+	if restored.Original.CanonicalSHA256 != reduced.Original.CanonicalSHA256 {
+		t.Fatalf("restored canonical SHA = %s, want %s", restored.Original.CanonicalSHA256, reduced.Original.CanonicalSHA256)
+	}
+	for _, absent := range []string{`"n50"`, `"n_ratio"`, `"no_sequences"`} {
+		if bytes.Contains(restored.OriginalJSON, []byte(absent)) {
+			t.Fatalf("restored JSON gained stats key %s absent from original: %s", absent, restored.OriginalJSON)
+		}
+	}
+}
+
+func TestReduceBaktaJSONReportsUnmatchedSequences(t *testing.T) {
+	genome := mustGenome(t, "sample1", []byte(">other\nTTGAAATAAATGAAATAA\n"))
+	reduced, err := ReduceBaktaJSON(renamedContigBaktaJSON(), genome)
+	if err != nil {
+		t.Fatalf("ReduceBaktaJSON() error = %v", err)
+	}
+	if len(reduced.UnmatchedSequences) != 1 || reduced.UnmatchedSequences[0] != "contig_1" {
+		t.Fatalf("UnmatchedSequences = %v, want [contig_1]", reduced.UnmatchedSequences)
+	}
+	if !bytes.Contains(reduced.ReducedJSON, []byte(`"nt": "TTGAAATAAATGAAATAA"`)) {
+		t.Fatalf("unmatched sequence nt was removed: %s", reduced.ReducedJSON)
+	}
+	if _, err := RestoreBaktaJSON(reduced.ReducedJSON, genome); err != nil {
+		t.Fatalf("RestoreBaktaJSON() error = %v", err)
+	}
+}
+
 func TestFeatureSpanRejectsOutOfRangeWraparoundStart(t *testing.T) {
 	genome := mustGenome(t, "sample1", toyFASTA("sample1")) // contig1 is 9bp
 	feature := map[string]any{"contig": "contig1", "start": 100, "stop": 2}

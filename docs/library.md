@@ -200,6 +200,12 @@ func main() {
 }
 ```
 
+Set `BuildOptions.Warnings` (for example to `os.Stderr`) to get a warning line
+for each sample whose sequences cannot be matched to its genome FASTA by `id`
+or `orig_id`. Those sequences and their features are stored unreduced. The
+same information is available per sample from `ReduceBaktaJSON` as
+`ReduceResult.UnmatchedSequences`.
+
 With a combined manifest:
 
 ```go

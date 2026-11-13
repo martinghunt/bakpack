@@ -186,7 +186,7 @@ func makeArchiveChunksFromPairedTarXZ(ctx context.Context, opts BuildOptions, an
 
 	count := 0
 	if err := streamPairedTarXZRecords(ctx, annotationsTar, genomesTar, func(annotation, genomeRecord FileRecord) error {
-		packed, err := packReducedSample(annotation.SampleID, annotation, genomeRecord)
+		packed, err := packReducedSample(opts, annotation.SampleID, annotation, genomeRecord)
 		if err != nil {
 			return err
 		}
@@ -310,7 +310,7 @@ func forEachSpooledAnnotationSample(ctx context.Context, opts BuildOptions, anno
 			if err != nil {
 				return err
 			}
-			packed, err := packReducedSample(genomeRecord.SampleID, annotation, genomeRecord)
+			packed, err := packReducedSample(opts, genomeRecord.SampleID, annotation, genomeRecord)
 			if err != nil {
 				return err
 			}
@@ -338,7 +338,7 @@ func forEachSpooledAnnotationSample(ctx context.Context, opts BuildOptions, anno
 		if err != nil {
 			return err
 		}
-		packed, err := packReducedSample(sample, annotationRecord, genomeRecord)
+		packed, err := packReducedSample(opts, sample, annotationRecord, genomeRecord)
 		if err != nil {
 			return err
 		}
@@ -448,7 +448,7 @@ func streamPairedTarXZRecords(ctx context.Context, annotationsTar, genomesTar Ta
 	}
 }
 
-func packReducedSample(sample string, annotation, genomeRecord FileRecord) (packedSampleForArchive, error) {
+func packReducedSample(opts BuildOptions, sample string, annotation, genomeRecord FileRecord) (packedSampleForArchive, error) {
 	genome, err := ReadGenome(sample, genomeRecord.Name, genomeRecord.Bytes)
 	if err != nil {
 		return packedSampleForArchive{}, fmt.Errorf("%s: %w", sample, err)
@@ -456,6 +456,9 @@ func packReducedSample(sample string, annotation, genomeRecord FileRecord) (pack
 	reduced, err := ReduceBaktaJSON(annotation.Bytes, genome)
 	if err != nil {
 		return packedSampleForArchive{}, fmt.Errorf("%s: reduce Bakta JSON: %w", sample, err)
+	}
+	if opts.Warnings != nil && len(reduced.UnmatchedSequences) != 0 {
+		fmt.Fprintln(opts.Warnings, UnmatchedSequencesWarning(sample, reduced.UnmatchedSequences))
 	}
 	return packedSampleForArchive{
 		index: SampleIndex{
@@ -676,5 +679,5 @@ func packSampleFromSources(ctx context.Context, opts BuildOptions, sample string
 	if err != nil {
 		return packedSampleForArchive{}, err
 	}
-	return packReducedSample(sample, annotation, genomeRecord)
+	return packReducedSample(opts, sample, annotation, genomeRecord)
 }

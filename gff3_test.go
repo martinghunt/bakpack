@@ -92,6 +92,47 @@ func TestBaktaGFF3AllowsWraparoundFeatureCoordinates(t *testing.T) {
 	}
 }
 
+func TestBaktaGFF3WritesOriVAsOriC(t *testing.T) {
+	// Bakta labels plasmid replication origins oriV in JSON but writes the
+	// oriC SO term in GFF3.
+	genome := mustGenome(t, "sample1", toyFASTA("sample1"))
+	original := []byte(`{
+  "genome": {"translation_table": 11},
+  "sequences": [
+    {"id": "contig1", "length": 9, "sequence": "ATGAAATAA"}
+  ],
+  "features": [
+    {"type": "oriV", "contig": "contig1", "start": 2, "stop": 7, "strand": "?", "id": "ori_1", "product": "origin of replication"}
+  ]
+}`)
+	gff, err := BaktaGFF3(original, genome)
+	if err != nil {
+		t.Fatalf("BaktaGFF3() error = %v", err)
+	}
+	want := "contig1\tBLAST+\toriC\t2\t7\t.\t?\t.\tID=ori_1;Name=origin of replication;product=origin of replication;inference=similar to DNA sequence\n"
+	if !strings.Contains(string(gff), want) {
+		t.Fatalf("BaktaGFF3() missing oriV line %q in:\n%s", want, gff)
+	}
+}
+
+func TestBaktaGFF3SameForLegacyAndV110Layouts(t *testing.T) {
+	genome := mustGenome(t, "sample1", toyFASTA("sample1"))
+	legacy, err := BaktaGFF3(toyBaktaJSON("sample1", "gene one"), genome)
+	if err != nil {
+		t.Fatalf("BaktaGFF3() legacy layout error = %v", err)
+	}
+	current, err := BaktaGFF3(toyBaktaJSONv110("sample1", "gene one"), genome)
+	if err != nil {
+		t.Fatalf("BaktaGFF3() v1.10 layout error = %v", err)
+	}
+	if !bytes.Equal(legacy, current) {
+		t.Fatalf("BaktaGFF3() differs between layouts:\nlegacy:\n%s\nv1.10:\n%s", legacy, current)
+	}
+	if !bytes.Contains(current, []byte("contig1\tPyrodigal\tCDS\t1\t9\t")) {
+		t.Fatalf("BaktaGFF3() missing CDS line:\n%s", current)
+	}
+}
+
 func TestGFFFeatureIDFallsBackToDistinctValuesWithoutLocusOrID(t *testing.T) {
 	featureA := map[string]any{"type": "gap", "contig": "contig1", "start": 1, "stop": 4}
 	featureB := map[string]any{"type": "gap", "contig": "contig1", "start": 5, "stop": 9}
@@ -271,7 +312,7 @@ func TestBaktaGFF3FeatureTypesCoverValidationIndexes(t *testing.T) {
 }
 
 func TestSupportedBaktaFeatureTypes(t *testing.T) {
-	want := []string{"cds", "crispr", "gap", "ncRNA", "ncRNA-region", "oriC", "oriT", "rRNA", "sorf", "tRNA", "tmRNA"}
+	want := []string{"cds", "crispr", "gap", "ncRNA", "ncRNA-region", "oriC", "oriT", "oriV", "rRNA", "sorf", "tRNA", "tmRNA"}
 	got := SupportedBaktaFeatureTypes()
 	if !slices.Equal(got, want) {
 		t.Fatalf("SupportedBaktaFeatureTypes() = %#v, want %#v", got, want)

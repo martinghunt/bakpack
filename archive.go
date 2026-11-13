@@ -1,6 +1,9 @@
 package bakpack
 
-import "net/http"
+import (
+	"io"
+	"net/http"
+)
 
 const (
 	ArchiveMagic   = "BAKPACK1"
@@ -49,6 +52,11 @@ type BuildOptions struct {
 	// from annotation tar.xz sources whose order differs from genome order.
 	// Supported values are "", "gzip", "none", and "raw"; "" defaults to gzip.
 	AnnotationSpoolCompression string
+
+	// Warnings, if set, receives one line per sample whose sequences could
+	// not be matched to its genome FASTA. Writes may come from several
+	// goroutines, so it must be safe for concurrent use (os.Stderr is).
+	Warnings io.Writer
 }
 
 // ExtractOptions configures one-shot extraction from an archive path or

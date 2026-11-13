@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"maps"
 	"strings"
 
 	"github.com/martinghunt/faqt/seq"
@@ -63,6 +64,50 @@ func (g *Genome) Contig(name string) ([]byte, bool) {
 	return seqBytes, ok
 }
 
+// withBaktaContigAliases returns genome with each Bakta sequences[] ID that
+// is not a FASTA record name mapped to the record named by its orig_id. Unless
+// run with --keep-contig-headers, Bakta renames contigs (e.g. "1" to
+// "contig_1") and keeps the FASTA name in orig_id.
+func withBaktaContigAliases(data map[string]any, genome Genome) Genome {
+	var byName map[string][]byte
+	for _, entry := range baktaSequences(data) {
+		id, _ := entry["id"].(string)
+		origID, _ := entry["orig_id"].(string)
+		if id == "" || origID == "" || id == origID {
+			continue
+		}
+		if _, ok := genome.Contig(id); ok {
+			continue
+		}
+		contig, ok := genome.Contig(origID)
+		if !ok {
+			continue
+		}
+		if byName == nil {
+			byName = maps.Clone(genome.byName)
+		}
+		byName[id] = contig
+	}
+	if byName != nil {
+		genome.byName = byName
+	}
+	return genome
+}
+
+// UnmatchedSequencesWarning formats a warning for ReduceResult.UnmatchedSequences.
+func UnmatchedSequencesWarning(sample string, unmatched []string) string {
+	shown := unmatched
+	if len(shown) > 3 {
+		shown = shown[:3]
+	}
+	more := ""
+	if len(unmatched) > len(shown) {
+		more = ", ..."
+	}
+	return fmt.Sprintf("warning: %s: %d sequence(s) not found in genome FASTA by id or orig_id, or sequence differs (%s%s); their sequences and features were not reduced",
+		sample, len(unmatched), strings.Join(shown, ", "), more)
+}
+
 func (g Genome) FASTABytes(wrap int) ([]byte, error) {
 	if wrap <= 0 {
 		wrap = 80
@@ -81,7 +126,7 @@ func (g Genome) FASTABytes(wrap int) ([]byte, error) {
 }
 
 func FeatureNT(feature map[string]any, genome Genome) (string, bool) {
-	contigName, ok := feature["contig"].(string)
+	contigName, ok := featureContig(feature)
 	if !ok {
 		return "", false
 	}

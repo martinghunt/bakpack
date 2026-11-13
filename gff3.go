@@ -55,6 +55,7 @@ func BaktaGFF3WithOptions(annotation []byte, genome Genome, opts BaktaGFF3Option
 	if err := validateBaktaFeatureTypes(data); err != nil {
 		return nil, err
 	}
+	genome = withBaktaContigAliases(data, genome)
 
 	sequences := gffSequences(data, genome)
 	featuresByContig, featureOrder := gffFeaturesByContig(data)
@@ -130,12 +131,13 @@ func writeGFF3Header(buf *bytes.Buffer, data map[string]any, bakpackVersion stri
 
 func gffSequences(data map[string]any, genome Genome) []gffSequence {
 	var sequences []gffSequence
+	ntKey := sequenceNTKey(usesCurrentBaktaLayout(data))
 	for _, entry := range mapSlice(data["sequences"]) {
 		id, _ := entry["id"].(string)
 		if id == "" {
 			continue
 		}
-		sequence, _ := entry["sequence"].(string)
+		sequence, _ := entry[ntKey].(string)
 		length, ok := jsonInt(entry["length"])
 		if !ok {
 			if sequence != "" {
@@ -173,7 +175,7 @@ func gffFeaturesByContig(data map[string]any) (map[string][]map[string]any, []st
 	seen := map[string]bool{}
 	var order []string
 	for _, feature := range mapSlice(data["features"]) {
-		contig, _ := feature["contig"].(string)
+		contig, _ := featureContig(feature)
 		if contig == "" {
 			contig = "."
 		}
@@ -210,7 +212,7 @@ func writeGFF3Feature(buf *bytes.Buffer, feature map[string]any) error {
 		return writeCRISPRFeature(buf, feature)
 	}
 
-	contig, _ := feature["contig"].(string)
+	contig, _ := featureContig(feature)
 	start, startOK := jsonInt(feature["start"])
 	stop, stopOK := jsonInt(feature["stop"])
 	if contig == "" || !startOK || !stopOK {
@@ -323,7 +325,7 @@ func gffTRNAAttributes(feature map[string]any) string {
 }
 
 func writeCRISPRFeature(buf *bytes.Buffer, feature map[string]any) error {
-	contig, _ := feature["contig"].(string)
+	contig, _ := featureContig(feature)
 	start, startOK := jsonInt(feature["start"])
 	stop, stopOK := jsonInt(feature["stop"])
 	if contig == "" || !startOK || !stopOK {
@@ -449,7 +451,7 @@ func gffFeatureID(feature map[string]any) string {
 	// own coordinates instead of a constant, so two such features don't end
 	// up sharing the same (invalid, ambiguous) GFF3 ID.
 	featureType, _ := feature["type"].(string)
-	contig, _ := feature["contig"].(string)
+	contig, _ := featureContig(feature)
 	start, _ := jsonInt(feature["start"])
 	stop, _ := jsonInt(feature["stop"])
 	return fmt.Sprintf("%s_%s_%d_%d", contig, featureType, start, stop)

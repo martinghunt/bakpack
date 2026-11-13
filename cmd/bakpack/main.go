@@ -61,6 +61,9 @@ func newReduceCommand() *cobra.Command {
 			if err := os.WriteFile(output, result.ReducedJSON, 0o644); err != nil {
 				return err
 			}
+			if len(result.UnmatchedSequences) != 0 {
+				fmt.Fprintln(cmd.ErrOrStderr(), bakpack.UnmatchedSequencesWarning(args[0], result.UnmatchedSequences))
+			}
 			fmt.Fprintf(cmd.ErrOrStderr(), "original_json_canonical_sha256\t%s\n", result.Original.CanonicalSHA256)
 			fmt.Fprintf(cmd.ErrOrStderr(), "reduced_json_canonical_sha256\t%s\n", result.Reduced.CanonicalSHA256)
 			return nil
@@ -184,6 +187,7 @@ func newBuildCommand() *cobra.Command {
 				OutputPath:                 output,
 				XZThreads:                  xzThreads,
 				AnnotationSpoolCompression: annotationSpoolCompression,
+				Warnings:                   cmd.ErrOrStderr(),
 			})
 		},
 	}

@@ -2,6 +2,7 @@ package bakpack
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -60,6 +61,38 @@ func toyBaktaJSON(sample, product string) []byte {
       "start_type": "ATG",
       "id": "toy_00001"
     }
+  ]
+}
+`)
+}
+
+// toyBaktaJSONv110 is toyBaktaJSON in the Bakta >= 1.10.0 layout, which keys
+// sequences[] nucleotides as "nt" and feature sequence IDs as "sequence".
+func toyBaktaJSONv110(sample, product string) []byte {
+	out := string(toyBaktaJSON(sample, product))
+	out = strings.Replace(out, `"sequence": "ATGAAATAA"`, `"nt": "ATGAAATAA"`, 1)
+	out = strings.Replace(out, `"contig": "contig1"`, `"sequence": "contig1"`, 1)
+	return []byte(out)
+}
+
+// renamedContigFASTA and renamedContigBaktaJSON mimic Bakta run without
+// --keep-contig-headers: FASTA record "1" is renamed "contig_1" and kept as
+// orig_id. The JSON also has a partial stats object and a CDS truncated at
+// the contig edge whose first codon (TTG) is translated literally as L.
+func renamedContigFASTA() []byte {
+	return []byte(">1 length=18\nTTGAAATAAATGAAATAA\n")
+}
+
+func renamedContigBaktaJSON() []byte {
+	return []byte(`{
+  "genome": {"translation_table": 11},
+  "stats": {"size": 18},
+  "sequences": [
+    {"id": "contig_1", "orig_id": "1", "nt": "TTGAAATAAATGAAATAA", "length": 18}
+  ],
+  "features": [
+    {"type": "cds", "sequence": "contig_1", "start": 1, "stop": 9, "strand": "+", "product": "edge protein", "truncated": "5-prime", "start_type": "Edge", "nt": "TTGAAATAA", "aa": "LK", "aa_hexdigest": "2c16b194a0d9037002e9ef6580925697", "locus": "x_1"},
+    {"type": "cds", "sequence": "contig_1", "start": 10, "stop": 18, "strand": "+", "product": "gene two", "nt": "ATGAAATAA", "aa": "MK", "aa_hexdigest": "fbd1e7ba9564863b88d5c43cb833afaf", "start_type": "ATG", "locus": "x_2"}
   ]
 }
 `)

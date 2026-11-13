@@ -20,6 +20,11 @@ type ReduceResult struct {
 	Original    JSONChecksums
 	Reduced     JSONChecksums
 
+	// UnmatchedSequences lists sequences[] IDs whose nucleotides were kept
+	// because no genome FASTA record matched them by id or orig_id with
+	// identical sequence. Features on these sequences are not reduced either.
+	UnmatchedSequences []string
+
 	// reducedRoot is the already-decoded root object backing ReducedJSON, so
 	// archive building can reuse it instead of decoding ReducedJSON again.
 	reducedRoot map[string]any
@@ -31,9 +36,23 @@ type RestoreResult struct {
 }
 
 const (
-	reducedMetadataKey     = "_bakpack"
-	reducedMetadataFormat  = "bakpack_reduced_bakta_json"
-	reducedMetadataVersion = 1
+	reducedMetadataKey    = "_bakpack"
+	reducedMetadataFormat = "bakpack_reduced_bakta_json"
+	// Bakta v1.10.0 renamed the nucleotide field of sequences[] entries from
+	// "sequence" to "nt", and the sequence ID field of features from "contig"
+	// to "sequence". Reduced JSON from the older layout is written as version
+	// 1, which older bakpack releases can read. Reduced JSON from the newer
+	// layout is written as version 2, so that older bakpack releases reject it
+	// with a clear version error instead of restoring it incorrectly.
+	reducedMetadataVersionLegacyLayout  = 1
+	reducedMetadataVersionCurrentLayout = 2
+
+	legacySequenceNTKey  = "sequence"
+	currentSequenceNTKey = "nt"
+
+	// absentStatsMetadata lists derivable stats keys missing from the original
+	// JSON, so restore does not add them.
+	absentStatsMetadata = "absent_stats"
 )
 
 func ReduceBaktaJSON(original []byte, genome Genome) (ReduceResult, error) {
@@ -47,8 +66,11 @@ func ReduceBaktaJSON(original []byte, genome Genome) (ReduceResult, error) {
 	if err := validateBaktaFeatureTypes(data); err != nil {
 		return ReduceResult{}, err
 	}
+	genome = withBaktaContigAliases(data, genome)
 
-	stripContigSequences(data, genome)
+	currentLayout := usesCurrentBaktaLayout(data)
+	absentStats := absentDerivedStats(data)
+	unmatched := stripContigSequences(data, genome, sequenceNTKey(currentLayout))
 	table := translationTable(data)
 	for _, feature := range baktaFeatures(data) {
 		nt, haveNT := FeatureNT(feature, genome)
@@ -67,15 +89,35 @@ func ReduceBaktaJSON(original []byte, genome Genome) (ReduceResult, error) {
 	if err != nil {
 		return ReduceResult{}, err
 	}
-	data[reducedMetadataKey] = map[string]any{
+	version := reducedMetadataVersionLegacyLayout
+	if currentLayout {
+		version = reducedMetadataVersionCurrentLayout
+	}
+	metadata := map[string]any{
 		"format":                         reducedMetadataFormat,
-		"version":                        reducedMetadataVersion,
+		"version":                        version,
 		"original_json_canonical_sha256": originalCanonical,
 	}
+	if len(absentStats) != 0 {
+		// reducedRoot feeds the archive encoder, which takes decoded JSON
+		// types, so store []any rather than []string.
+		keys := make([]any, len(absentStats))
+		for i, key := range absentStats {
+			keys[i] = key
+		}
+		metadata[absentStatsMetadata] = keys
+	}
+	data[reducedMetadataKey] = metadata
 
 	reduced, err := PrettyJSON(data)
 	if err != nil {
 		return ReduceResult{}, err
+	}
+	// Restore is the only way to check that everything removed can be
+	// re-derived, so catch an unrestorable reduction here rather than at
+	// extraction time.
+	if _, err := RestoreBaktaJSON(reduced, genome); err != nil {
+		return ReduceResult{}, fmt.Errorf("reduced JSON does not restore to the original: %w", err)
 	}
 	reducedCanonical, err := JSONBytesCanonicalSHA256(reduced)
 	if err != nil {
@@ -89,7 +131,8 @@ func ReduceBaktaJSON(original []byte, genome Genome) (ReduceResult, error) {
 		Reduced: JSONChecksums{
 			CanonicalSHA256: reducedCanonical,
 		},
-		reducedRoot: data,
+		UnmatchedSequences: unmatched,
+		reducedRoot:        data,
 	}, nil
 }
 
@@ -105,10 +148,11 @@ func RestoreBaktaJSON(reduced []byte, genome Genome) (RestoreResult, error) {
 	if err := validateBaktaFeatureTypes(data); err != nil {
 		return RestoreResult{}, err
 	}
+	genome = withBaktaContigAliases(data, genome)
 	delete(data, reducedMetadataKey)
 
-	restoreDerivableFields(data, genome)
-	restoreContigSequences(data, genome)
+	restoreDerivableFields(data, genome, metadata.AbsentStats)
+	restoreContigSequences(data, genome, sequenceNTKey(metadata.CurrentLayout))
 	table := translationTable(data)
 	for _, feature := range baktaFeatures(data) {
 		info, _ := baktaFeatureTypeString(feature)
@@ -125,7 +169,12 @@ func RestoreBaktaJSON(reduced []byte, genome Genome) (RestoreResult, error) {
 				aa := translateNT(nt, table, true)
 				if digest, ok := feature["aa_hexdigest"].(string); ok && digest != "" {
 					if md5Hex([]byte(aa)) != digest {
-						continue
+						// CDSs truncated at a contig edge keep their first
+						// codon's literal translation instead of M.
+						aa = translateNT(nt, table, false)
+						if md5Hex([]byte(aa)) != digest {
+							continue
+						}
 					}
 				}
 				feature["aa"] = aa
@@ -166,6 +215,8 @@ func decodeBaktaJSONObject(data []byte) (map[string]any, error) {
 
 type reducedJSONMetadata struct {
 	OriginalJSONCanonicalSHA256 string
+	CurrentLayout               bool
+	AbsentStats                 map[string]bool
 }
 
 func reducedMetadata(data map[string]any) (reducedJSONMetadata, error) {
@@ -186,41 +237,99 @@ func reducedMetadata(data map[string]any) (reducedJSONMetadata, error) {
 		return reducedJSONMetadata{}, fmt.Errorf("reduced JSON metadata version is missing or not a number")
 	}
 	version, err := versionNumber.Int64()
-	if err != nil || version != reducedMetadataVersion {
+	if err != nil || (version != reducedMetadataVersionLegacyLayout && version != reducedMetadataVersionCurrentLayout) {
 		return reducedJSONMetadata{}, fmt.Errorf("unsupported reduced JSON metadata version %s", versionNumber.String())
 	}
 	canonical, _ := metadata["original_json_canonical_sha256"].(string)
 	if canonical == "" {
 		return reducedJSONMetadata{}, fmt.Errorf("reduced JSON metadata is missing original_json_canonical_sha256")
 	}
-	return reducedJSONMetadata{OriginalJSONCanonicalSHA256: canonical}, nil
+	absentStats := map[string]bool{}
+	if raw, exists := metadata[absentStatsMetadata]; exists {
+		keys, ok := raw.([]any)
+		if !ok {
+			return reducedJSONMetadata{}, fmt.Errorf("reduced JSON metadata %s is not a list", absentStatsMetadata)
+		}
+		for _, key := range keys {
+			name, ok := key.(string)
+			if !ok {
+				return reducedJSONMetadata{}, fmt.Errorf("reduced JSON metadata %s contains a non-string value", absentStatsMetadata)
+			}
+			absentStats[name] = true
+		}
+	}
+	return reducedJSONMetadata{
+		OriginalJSONCanonicalSHA256: canonical,
+		CurrentLayout:               version == reducedMetadataVersionCurrentLayout,
+		AbsentStats:                 absentStats,
+	}, nil
 }
 
-func stripContigSequences(data map[string]any, genome Genome) {
+// stripContigSequences removes sequences[] nucleotides that match the genome
+// and returns the IDs of entries whose nucleotides did not match.
+func stripContigSequences(data map[string]any, genome Genome, ntKey string) []string {
+	var unmatched []string
 	for _, entry := range baktaSequences(data) {
 		id, _ := entry["id"].(string)
-		existing, ok := entry["sequence"].(string)
+		existing, ok := entry[ntKey].(string)
 		if id == "" || !ok {
 			continue
 		}
 		contig, ok := genome.Contig(id)
 		if ok && normalizeNT(existing) == string(contig) {
-			delete(entry, "sequence")
+			delete(entry, ntKey)
+		} else {
+			unmatched = append(unmatched, id)
 		}
 	}
+	return unmatched
 }
 
-func restoreContigSequences(data map[string]any, genome Genome) {
+func restoreContigSequences(data map[string]any, genome Genome, ntKey string) {
 	for _, entry := range baktaSequences(data) {
-		if _, exists := entry["sequence"]; exists {
+		if _, exists := entry[ntKey]; exists {
 			continue
 		}
 		id, _ := entry["id"].(string)
 		contig, ok := genome.Contig(id)
 		if id != "" && ok {
-			entry["sequence"] = string(contig)
+			entry[ntKey] = string(contig)
 		}
 	}
+}
+
+// usesCurrentBaktaLayout reports whether data uses the Bakta >= 1.10.0 field
+// names: sequences[].nt or a string feature "sequence" ID.
+func usesCurrentBaktaLayout(data map[string]any) bool {
+	for _, entry := range baktaSequences(data) {
+		if _, ok := entry[currentSequenceNTKey].(string); ok {
+			return true
+		}
+	}
+	for _, feature := range baktaFeatures(data) {
+		if _, ok := feature["sequence"].(string); ok {
+			return true
+		}
+	}
+	return false
+}
+
+// sequenceNTKey returns the key holding sequences[] nucleotide strings.
+func sequenceNTKey(currentLayout bool) string {
+	if currentLayout {
+		return currentSequenceNTKey
+	}
+	return legacySequenceNTKey
+}
+
+// featureContig returns the ID of the sequence a feature is on, from
+// "sequence" (Bakta >= 1.10.0) or "contig" (older Bakta).
+func featureContig(feature map[string]any) (string, bool) {
+	if id, ok := feature["sequence"].(string); ok {
+		return id, true
+	}
+	id, ok := feature["contig"].(string)
+	return id, ok
 }
 
 func stripDerivableFields(data map[string]any, genome Genome) {
@@ -229,8 +338,8 @@ func stripDerivableFields(data map[string]any, genome Genome) {
 	stripFeatureDerivableFields(data, genome)
 }
 
-func restoreDerivableFields(data map[string]any, genome Genome) {
-	restoreDerivedStats(data, genome)
+func restoreDerivableFields(data map[string]any, genome Genome, absentStats map[string]bool) {
+	restoreDerivedStats(data, genome, absentStats)
 	restoreSequenceLengths(data, genome)
 	restoreFeatureDerivableFields(data, genome)
 }
@@ -247,13 +356,30 @@ func stripDerivedStats(data map[string]any, genome Genome) {
 	}
 }
 
-func restoreDerivedStats(data map[string]any, genome Genome) {
+// absentDerivedStats returns the sorted derivable stats keys missing from a
+// stats object, which some Bakta reimplementations write only partially.
+func absentDerivedStats(data map[string]any) []string {
+	statsObj, _ := data["stats"].(map[string]any)
+	if statsObj == nil {
+		return nil
+	}
+	var absent []string
+	for key := range derivedStats(Genome{}) {
+		if _, ok := statsObj[key]; !ok {
+			absent = append(absent, key)
+		}
+	}
+	sort.Strings(absent)
+	return absent
+}
+
+func restoreDerivedStats(data map[string]any, genome Genome, absentStats map[string]bool) {
 	statsObj, _ := data["stats"].(map[string]any)
 	if statsObj == nil {
 		return
 	}
 	for key, value := range derivedStats(genome) {
-		if _, ok := statsObj[key]; !ok {
+		if _, ok := statsObj[key]; !ok && !absentStats[key] {
 			statsObj[key] = value
 		}
 	}
@@ -447,7 +573,7 @@ func featureSpan(feature map[string]any, genome Genome) (int, bool) {
 	if start <= stop {
 		return stop - start + 1, true
 	}
-	contigName, _ := feature["contig"].(string)
+	contigName, _ := featureContig(feature)
 	contig, ok := genome.Contig(contigName)
 	if !ok || start > len(contig) {
 		return 0, false
@@ -465,7 +591,7 @@ func translationTable(data map[string]any) int {
 }
 
 func hasFeatureCoords(feature map[string]any) bool {
-	if _, ok := feature["contig"].(string); !ok {
+	if _, ok := featureContig(feature); !ok {
 		return false
 	}
 	if _, ok := jsonInt(feature["start"]); !ok {

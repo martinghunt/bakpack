@@ -56,6 +56,14 @@ var baktaFeatureTypes = map[string]baktaFeatureTypeInfo{
 		GFF3Type:   "oriC",
 		GFF3Attr:   gffAttrKindOrigin,
 	},
+	// Bakta reports replication origins on plasmids as oriV but writes them
+	// with the oriC SO term in GFF3.
+	"oriV": {
+		Name:       "oriV",
+		GFF3Source: "BLAST+",
+		GFF3Type:   "oriC",
+		GFF3Attr:   gffAttrKindOrigin,
+	},
 	"oriT": {
 		Name:       "oriT",
 		GFF3Source: "BLAST+",
