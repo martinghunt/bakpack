@@ -89,14 +89,24 @@ type archiveExtractPlan struct {
 }
 
 func normalizeExtractRequest(ctx context.Context, req ExtractRequest) (context.Context, ExtractRequest, error) {
-	if req.GFF3AnnotationOnly || req.GFF3Compliant {
-		req.GFF3 = true
+	formats := make([]string, 0, len(req.Convert))
+	seen := map[string]bool{}
+	for _, format := range req.Convert {
+		format, err := normalizeFormat(format)
+		if err != nil {
+			return nil, ExtractRequest{}, err
+		}
+		if !seen[format] {
+			seen[format] = true
+			formats = append(formats, format)
+		}
 	}
-	if !req.Reduced && !req.Original && !req.Genome && !req.GFF3 {
+	req.Convert = formats
+	if !req.Reduced && !req.Original && !req.Genome && len(req.Convert) == 0 {
 		req.Reduced = true
 	}
 	if len(req.Samples) > 0 && extractRequiresGenome(req) && req.Genomes == nil {
-		return nil, ExtractRequest{}, fmt.Errorf("genome source is required for original JSON, FASTA, or GFF3 extraction")
+		return nil, ExtractRequest{}, fmt.Errorf("genome source is required for original JSON, FASTA, GFF3, GenBank or EMBL extraction")
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -105,7 +115,7 @@ func normalizeExtractRequest(ctx context.Context, req ExtractRequest) (context.C
 }
 
 func extractRequiresGenome(req ExtractRequest) bool {
-	return req.Original || req.Genome || req.GFF3
+	return req.Original || req.Genome || len(req.Convert) != 0
 }
 
 func (a *Archive) planExtractChunks(samples []string) (archiveExtractPlan, error) {
@@ -197,16 +207,18 @@ func buildExtractedSample(ctx context.Context, req ExtractRequest, genomes genom
 			result.GenomeFASTA = genomeFASTA
 		}
 	}
-	if req.GFF3 {
-		gff3, err := BaktaGFF3WithOptions(reducedJSON, genome, BaktaGFF3Options{
-			AnnotationOnly: req.GFF3AnnotationOnly,
-			Compliant:      req.GFF3Compliant,
-			Warn:           sampleWarner(req.Warnings, entry.SampleID),
-		})
+	for _, format := range req.Convert {
+		opts := req.ConvertOptions
+		opts.Format = format
+		opts.Warn = sampleWarner(req.Warnings, entry.SampleID)
+		converted, err := ConvertBaktaJSON(reducedJSON, genome, opts)
 		if err != nil {
-			return ExtractedSample{}, err
+			return ExtractedSample{}, fmt.Errorf("%s: %w", entry.SampleID, err)
 		}
-		result.GFF3 = gff3
+		if result.Converted == nil {
+			result.Converted = map[string][]byte{}
+		}
+		result.Converted[format] = converted
 	}
 	if req.Original {
 		restored, err := RestoreBaktaJSON(reducedJSON, genome)
@@ -231,15 +243,14 @@ func collectExtractedSamples(samples []string, resultsBySample map[string]Extrac
 
 func extractRequestFromOptions(opts ExtractOptions) ExtractRequest {
 	return ExtractRequest{
-		Genomes:            opts.Genomes,
-		Samples:            opts.Samples,
-		Reduced:            opts.Reduced,
-		Original:           opts.Original,
-		Genome:             opts.Genome,
-		GFF3:               opts.GFF3,
-		GFF3AnnotationOnly: opts.GFF3AnnotationOnly,
-		GFF3Compliant:      opts.GFF3Compliant,
-		Warnings:           opts.Warnings,
+		Genomes:        opts.Genomes,
+		Samples:        opts.Samples,
+		Reduced:        opts.Reduced,
+		Original:       opts.Original,
+		Genome:         opts.Genome,
+		Convert:        opts.Convert,
+		ConvertOptions: opts.ConvertOptions,
+		Warnings:       opts.Warnings,
 	}
 }
 
@@ -287,12 +298,12 @@ func writeExtractedSampleOutputs(outputDir string, req ExtractRequest, sample Ex
 			return err
 		}
 	}
-	if req.GFF3 {
-		path, err := safeExtractPath(outputDir, sample.SampleID+".gff3")
+	for _, format := range req.Convert {
+		path, err := safeExtractPath(outputDir, sample.SampleID+formatExtensions[format])
 		if err != nil {
 			return err
 		}
-		if err := os.WriteFile(path, sample.GFF3, 0o644); err != nil {
+		if err := os.WriteFile(path, sample.Converted[format], 0o644); err != nil {
 			return err
 		}
 	}

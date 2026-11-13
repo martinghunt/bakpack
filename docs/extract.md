@@ -15,16 +15,22 @@ support byte-range requests.
 --reduced    write SAMPLE.reduced.bakta.json
 --original   write SAMPLE.bakta.json
 --genome     write SAMPLE.fa
---gff3       write SAMPLE.gff3
---gff3-annotation-only
-             write SAMPLE.gff3 without the terminal ##FASTA section
---gff3-compliant
-             write SAMPLE.gff3 as Bakta --compliant mode does
+--convert FORMAT[,FORMAT]
+             write the annotation as gff3 (SAMPLE.gff3), genbank
+             (SAMPLE.gbff) and/or embl (SAMPLE.embl)
+```
+
+Options for `--convert`, as for `bakpack convert`:
+
+```text
+--compliant          write as Bakta --compliant (Genbank/ENA/DDBJ) mode does
+--annotation-only    omit the terminal ##FASTA section of GFF3
+--annotation-date    GenBank/EMBL date for JSON without Bakta's run section
 ```
 
 If no output mode is selected, `--reduced` is used.
 
-Original JSON, genome FASTA, and GFF3 extraction require a genome source:
+Original JSON, genome FASTA, and converted output require a genome source:
 
 ```text
 --genomes genomes.tar.xz
@@ -52,7 +58,7 @@ SAMPLE.fasta.zst
 ```
 
 The compressed input is decompressed automatically before the original JSON,
-FASTA, or GFF3 is reconstructed. Output FASTA files are always written as
+FASTA, or converted output is reconstructed. Output FASTA files are always written as
 uncompressed `SAMPLE.fa`.
 
 A single FASTA file supplies one requested sample. Its basename normally
@@ -110,7 +116,8 @@ Extract the reconstructed annotation and GFF3:
 bakpack extract annotations.bakpack SAMPLE \
   --genomes genomes.tar.xz \
   --original \
-  --gff3-annotation-only \
+  --convert gff3 \
+  --annotation-only \
   --output-dir out
 ```
 
@@ -129,7 +136,8 @@ bakpack extract annotations.bakpack \
   --samples-file samples.txt \
   --genomes genomes/ \
   --original \
-  --gff3-annotation-only \
+  --convert gff3 \
+  --annotation-only \
   --output-dir out
 ```
 

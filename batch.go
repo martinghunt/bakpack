@@ -16,7 +16,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-// BatchOptions configures ReduceBatch, RestoreBatch and GFF3Batch, which
+// BatchOptions configures ReduceBatch, RestoreBatch and ConvertBatch, which
 // process every sample in a pair of annotation and genome sources.
 type BatchOptions struct {
 	Annotations FileSource
@@ -34,13 +34,11 @@ type BatchOptions struct {
 	// they are paired, as BuildOptions.AnnotationSpoolCompression does.
 	SpoolCompression string
 	// Warnings, if set, receives ReduceBatch's unmatched sequence warnings and
-	// GFF3Batch's compliant mode warnings.
+	// ConvertBatch's compliant mode warnings.
 	Warnings io.Writer
-	// GFF3AnnotationOnly makes GFF3Batch omit the ##FASTA section.
-	GFF3AnnotationOnly bool
-	// GFF3Compliant makes GFF3Batch write GFF3 as Bakta's --compliant mode
-	// does.
-	GFF3Compliant bool
+	// Convert configures ConvertBatch. Its Warn is set per sample from
+	// Warnings.
+	Convert ConvertOptions
 }
 
 // ReduceBatch writes reduced JSON for each sample, named
@@ -70,19 +68,21 @@ func RestoreBatch(ctx context.Context, opts BatchOptions) error {
 	})
 }
 
-// GFF3Batch writes GFF3 for each original or reduced Bakta JSON sample,
-// named SAMPLE.gff3.
-func GFF3Batch(ctx context.Context, opts BatchOptions) error {
+// ConvertBatch converts each original or reduced Bakta JSON sample to the
+// format in opts.Convert, named SAMPLE.gff3, SAMPLE.gbff or SAMPLE.embl.
+func ConvertBatch(ctx context.Context, opts BatchOptions) error {
+	extension, err := FormatExtension(opts.Convert.Format)
+	if err != nil {
+		return err
+	}
 	return runBatch(ctx, opts, func(sample string, annotation []byte, genome Genome) (string, []byte, error) {
-		gff3, err := BaktaGFF3WithOptions(annotation, genome, BaktaGFF3Options{
-			AnnotationOnly: opts.GFF3AnnotationOnly,
-			Compliant:      opts.GFF3Compliant,
-			Warn:           sampleWarner(opts.Warnings, sample),
-		})
+		convert := opts.Convert
+		convert.Warn = sampleWarner(opts.Warnings, sample)
+		converted, err := ConvertBaktaJSON(annotation, genome, convert)
 		if err != nil {
 			return "", nil, err
 		}
-		return sample + ".gff3", gff3, nil
+		return sample + extension, converted, nil
 	})
 }
 

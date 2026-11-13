@@ -35,35 +35,13 @@ func BaktaGFF3(annotation []byte, genome Genome) ([]byte, error) {
 // BaktaGFF3WithOptions renders a Bakta JSON annotation as GFF3 with explicit
 // output options.
 func BaktaGFF3WithOptions(annotation []byte, genome Genome, opts BaktaGFF3Options) ([]byte, error) {
-	root, err := DecodeJSON(annotation)
-	if err != nil {
-		return nil, err
-	}
-	data, ok := root.(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("Bakta JSON root is not an object")
-	}
-	if _, ok := data[reducedMetadataKey]; ok {
-		restored, err := RestoreBaktaJSON(annotation, genome)
-		if err != nil {
-			return nil, err
-		}
-		root, err = DecodeJSON(restored.OriginalJSON)
-		if err != nil {
-			return nil, err
-		}
-		data, ok = root.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("Bakta JSON root is not an object")
-		}
-	}
-	if err := validateBaktaFeatureTypes(data); err != nil {
-		return nil, err
-	}
-	if err := checkGFF3Input(data); err != nil {
-		return nil, err
-	}
-	return writeBaktaGFF3(data, opts)
+	return ConvertBaktaJSON(annotation, genome, ConvertOptions{
+		Format:         FormatGFF3,
+		Compliant:      opts.Compliant,
+		AnnotationOnly: opts.AnnotationOnly,
+		BakpackVersion: opts.BakpackVersion,
+		Warn:           opts.Warn,
+	})
 }
 
 func (opts BaktaGFF3Options) bakpackVersion() string {
@@ -73,11 +51,11 @@ func (opts BaktaGFF3Options) bakpackVersion() string {
 	return buildinfo.Version
 }
 
-// checkGFF3Input rejects JSON that cannot be rendered as valid GFF3: sequences
+// checkConversionInput rejects JSON that cannot be converted: sequences
 // without a positive length, and features without a sequence ID or with
 // coordinates below 1. A start beyond the stop is allowed; it marks a feature
 // wrapping round the origin of a circular sequence.
-func checkGFF3Input(data map[string]any) error {
+func checkConversionInput(data map[string]any) error {
 	for _, seq := range mapSlice(data["sequences"]) {
 		if length, ok := jsonInt(seq["length"]); !ok || length < 1 {
 			return fmt.Errorf("sequence %q has invalid length %v", seq["id"], seq["length"])

@@ -14,37 +14,40 @@ the matching genome FASTA.
 bakpack restore REDUCED_JSON GENOME_FASTA -o BAKTA_JSON
 ```
 
-`bakpack gff3` renders a Bakta-style GFF3 file from original or reduced JSON
-and the matching genome FASTA.
+`bakpack convert` writes original or reduced JSON, with the matching genome
+FASTA, as GFF3, GenBank or EMBL:
 
 ```
-bakpack gff3 BAKTA_JSON GENOME_FASTA -o SAMPLE.gff3
+bakpack convert BAKTA_JSON GENOME_FASTA -o SAMPLE.gff3
+bakpack convert BAKTA_JSON GENOME_FASTA -o SAMPLE.gbff --format genbank
+bakpack convert BAKTA_JSON GENOME_FASTA -o SAMPLE.embl --format embl
 ```
 
-Use `--annotation-only` to omit the terminal `##FASTA` section:
-
-```
-bakpack gff3 BAKTA_JSON GENOME_FASTA -o SAMPLE.gff3 --annotation-only
-```
-
-The GFF3 is what current Bakta writes for the JSON (as its `bakta_io` does),
+The output is what current Bakta writes for the JSON (as its `bakta_io` does),
 for JSON from any Bakta version. For JSON from Bakta before 1.10 this can
-differ from the GFF3 the older Bakta wrote itself; see
-[the format description](bakta-gff3-format.md).
+differ from the files the older Bakta wrote itself; see the format
+descriptions for [GFF3](bakta-gff3-format.md).
 
-Use `--compliant` to write GFF3 as Bakta's `--compliant` (Genbank/ENA/DDBJ)
-mode does. Bakta's JSON does not record whether `--compliant` was used, and
+Use `--annotation-only` to omit the terminal `##FASTA` section of GFF3.
+
+GenBank and EMBL files are dated with the end of the Bakta run, which Bakta
+records in the JSON's `run` section. JSON without it cannot be converted to
+GenBank or EMBL unless `--annotation-date` gives a date: `YYYY-MM-DD`,
+`"YYYY-MM-DD HH:MM:SS"`, or `today`. It is only used when `run` is missing.
+
+Use `--compliant` to write as Bakta's `--compliant` (Genbank/ENA/DDBJ) mode
+does. Bakta's JSON does not record whether `--compliant` was used, and
 `bakta_io` cannot write compliant files from JSON, so this is the way to get
-compliant GFF3 from a bakpack archive or reduced JSON:
+compliant output from a bakpack archive or reduced JSON:
 
 ```
-bakpack gff3 BAKTA_JSON GENOME_FASTA -o SAMPLE.gff3 --compliant
+bakpack convert BAKTA_JSON GENOME_FASTA -o SAMPLE.gff3 --compliant
 ```
 
 Compliant GFF3 has no `##FASTA` section, as with Bakta.
 
 Bakta's `--compliant` mode also changes the annotation itself, before any file
-is written. bakpack applies those changes too, so the GFF3 is compliant even
+is written. bakpack applies those changes too, so the output is compliant even
 when Bakta was run without `--compliant`:
 
 - CDS and sORF product names are revised as Bakta does: "uncharacterized" and
@@ -62,7 +65,7 @@ reveals a gene symbol (e.g. `(abcD`), Bakta would also add it as a gene.
 
 ## Many samples at once
 
-Run `reduce`, `restore` or `gff3` without positional arguments to process every
+Run `reduce`, `restore` or `convert` without positional arguments to process every
 sample in an annotation source and a genome source. The sources are the same as
 for `bakpack build` (see [input sources](input-sources.md)): directories, file
 lists, a `--manifest`, or tar files in any supported compression.
@@ -70,7 +73,7 @@ lists, a `--manifest`, or tar files in any supported compression.
 ```
 bakpack reduce --annotations bakta_jsons.tar --genomes genomes.tar -o reduced.tar.xz
 bakpack restore --annotations reduced.tar.xz --genomes genomes.tar -o restored/
-bakpack gff3 --annotations reduced.tar.xz --genomes genomes.tar -o gff3.tar.gz
+bakpack convert --annotations reduced.tar.xz --genomes genomes.tar -o gff3.tar.gz
 ```
 
 `--output` is a tar file when it ends in `.tar`, `.tar.gz`, `.tgz`, `.tar.bz2`,
@@ -82,11 +85,11 @@ names them:
 |---|---|
 | `reduce` | `SAMPLE.reduced.bakta.json` |
 | `restore` | `SAMPLE.bakta.json` |
-| `gff3` | `SAMPLE.gff3` |
+| `convert` | `SAMPLE.gff3`, `SAMPLE.gbff` or `SAMPLE.embl` |
 
 Reduced JSON named `SAMPLE.reduced.bakta.json` (or `SAMPLE.reduced.json`)
 pairs with the genome `SAMPLE.fa`, so the output of `reduce` can be passed
-straight back to `restore` or `gff3`.
+straight back to `restore` or `convert`.
 
 Samples are written in genome source order, or in the order given by `--order`.
 Each tar source is read once. The run stops at the first sample that fails, and

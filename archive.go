@@ -80,14 +80,11 @@ type ExtractOptions struct {
 	Original bool
 	// Genome writes SAMPLE.fa.
 	Genome bool
-	// GFF3 writes SAMPLE.gff3.
-	GFF3 bool
-	// GFF3AnnotationOnly writes SAMPLE.gff3 without the terminal ##FASTA
-	// section. It implies GFF3.
-	GFF3AnnotationOnly bool
-	// GFF3Compliant writes SAMPLE.gff3 as Bakta's --compliant (INSDC) mode
-	// does. It implies GFF3.
-	GFF3Compliant bool
+	// Convert writes the annotation in each listed format (FormatGFF3,
+	// FormatGenBank, FormatEMBL) as SAMPLE.gff3, SAMPLE.gbff or SAMPLE.embl.
+	Convert []string
+	// ConvertOptions configures Convert. Its Format and Warn are ignored.
+	ConvertOptions ConvertOptions
 	// Warnings, if set, receives compliant GFF3 warnings, one line each.
 	Warnings io.Writer
 }
@@ -121,14 +118,12 @@ type ExtractRequest struct {
 	Original bool
 	// Genome returns matching genome FASTA.
 	Genome bool
-	// GFF3 renders a Bakta-style GFF3 annotation.
-	GFF3 bool
-	// GFF3AnnotationOnly returns GFF3 output without the terminal ##FASTA section.
-	// It implies GFF3.
-	GFF3AnnotationOnly bool
-	// GFF3Compliant returns GFF3 as Bakta's --compliant (INSDC) mode writes
-	// it. It implies GFF3.
-	GFF3Compliant bool
+	// Convert returns the annotation in each listed format (FormatGFF3,
+	// FormatGenBank, FormatEMBL), in ExtractedSample.Converted.
+	Convert []string
+	// ConvertOptions configures Convert. Its Format and Warn are ignored;
+	// warnings go to Warnings.
+	ConvertOptions ConvertOptions
 	// Warnings, if set, receives compliant GFF3 warnings, one line each.
 	// Samples may be extracted concurrently, so it must be safe for
 	// concurrent use (os.Stderr is).
@@ -140,13 +135,15 @@ type ExtractRequest struct {
 
 // ExtractedSample contains the bytes extracted or reconstructed for one sample.
 type ExtractedSample struct {
-	SampleID                    string
-	AnnotationName              string
-	GenomeName                  string
-	ReducedJSON                 []byte
-	OriginalJSON                []byte
-	GenomeFASTA                 []byte
-	GFF3                        []byte
+	SampleID       string
+	AnnotationName string
+	GenomeName     string
+	ReducedJSON    []byte
+	OriginalJSON   []byte
+	GenomeFASTA    []byte
+	// Converted holds the annotation in each format requested with
+	// ExtractRequest.Convert, keyed by format.
+	Converted                   map[string][]byte
 	OriginalJSONCanonicalSHA256 string
 	ReducedJSONCanonicalSHA256  string
 }

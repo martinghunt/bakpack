@@ -96,7 +96,7 @@ func readBatchOutput(t *testing.T, path string) ([]string, map[string][]byte) {
 	return names, files
 }
 
-func TestReduceRestoreAndGFF3Batch(t *testing.T) {
+func TestReduceRestoreAndConvertBatch(t *testing.T) {
 	originals, genomeFASTAs := batchTestSamples()
 	for _, output := range []string{"reduced", "reduced.tar", "reduced.tar.gz", "reduced.tar.bz2", "reduced.tar.xz", "reduced.tar.zst"} {
 		t.Run(output, func(t *testing.T) {
@@ -147,8 +147,8 @@ func TestReduceRestoreAndGFF3Batch(t *testing.T) {
 				t.Fatalf("RestoreBatch() error = %v", err)
 			}
 			gff3Path := filepath.Join(dir, "gff3.tar.gz")
-			if err := GFF3Batch(ctx, BatchOptions{Annotations: reducedSource, Genomes: genomes, OutputPath: gff3Path, GFF3AnnotationOnly: true}); err != nil {
-				t.Fatalf("GFF3Batch() error = %v", err)
+			if err := ConvertBatch(ctx, BatchOptions{Annotations: reducedSource, Genomes: genomes, OutputPath: gff3Path, Convert: ConvertOptions{AnnotationOnly: true}}); err != nil {
+				t.Fatalf("ConvertBatch() error = %v", err)
 			}
 			_, gff3Files := readBatchOutput(t, gff3Path)
 			for sample, original := range originals {

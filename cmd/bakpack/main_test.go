@@ -51,9 +51,9 @@ func TestCLIWorkflowWithDirectoryInputs(t *testing.T) {
 	assertCanonicalEqual(t, restoredPath, originalJSON)
 
 	gff3Path := filepath.Join(dir, "sample1.gff3")
-	_, stderr, err = executeCommand("gff3", filepath.Join(annotationsDir, "sample1.bakta.json"), filepath.Join(genomesDir, "sample1.fa"), "-o", gff3Path)
+	_, stderr, err = executeCommand("convert", filepath.Join(annotationsDir, "sample1.bakta.json"), filepath.Join(genomesDir, "sample1.fa"), "-o", gff3Path)
 	if err != nil {
-		t.Fatalf("gff3 command error = %v, stderr = %s", err, stderr)
+		t.Fatalf("convert command error = %v, stderr = %s", err, stderr)
 	}
 	gff3Out, err := os.ReadFile(gff3Path)
 	if err != nil {
@@ -64,9 +64,9 @@ func TestCLIWorkflowWithDirectoryInputs(t *testing.T) {
 	}
 
 	gff3AnnotationOnlyPath := filepath.Join(dir, "sample1.annotation-only.gff3")
-	_, stderr, err = executeCommand("gff3", filepath.Join(annotationsDir, "sample1.bakta.json"), filepath.Join(genomesDir, "sample1.fa"), "-o", gff3AnnotationOnlyPath, "--annotation-only")
+	_, stderr, err = executeCommand("convert", filepath.Join(annotationsDir, "sample1.bakta.json"), filepath.Join(genomesDir, "sample1.fa"), "-o", gff3AnnotationOnlyPath, "--annotation-only")
 	if err != nil {
-		t.Fatalf("gff3 --annotation-only command error = %v, stderr = %s", err, stderr)
+		t.Fatalf("convert --annotation-only command error = %v, stderr = %s", err, stderr)
 	}
 	gff3AnnotationOnlyOut, err := os.ReadFile(gff3AnnotationOnlyPath)
 	if err != nil {
@@ -96,7 +96,8 @@ func TestCLIWorkflowWithDirectoryInputs(t *testing.T) {
 		"--output-dir", outDir,
 		"--original",
 		"--genome",
-		"--gff3-annotation-only",
+		"--convert", "gff3",
+		"--annotation-only",
 	)
 	if err != nil {
 		t.Fatalf("extract command error = %v, stderr = %s", err, stderr)
@@ -216,7 +217,7 @@ func TestCLIBatchReduceRestoreAndGFF3(t *testing.T) {
 		assertCanonicalEqual(t, filepath.Join(restoredDir, sample+".bakta.json"), original)
 	}
 	gff3Dir := filepath.Join(dir, "gff3")
-	if _, stderr, err := executeCommand("gff3", "--annotations", reducedTar, "--genomes", genomesDir, "-o", gff3Dir, "--annotation-only"); err != nil {
+	if _, stderr, err := executeCommand("convert", "--annotations", reducedTar, "--genomes", genomesDir, "-o", gff3Dir, "--annotation-only"); err != nil {
 		t.Fatalf("batch gff3 error = %v, stderr = %s", err, stderr)
 	}
 	gff3, err := os.ReadFile(filepath.Join(gff3Dir, "sampleB.gff3"))
@@ -241,7 +242,7 @@ func TestCLISingleAndBatchArguments(t *testing.T) {
 	}{
 		{name: "one argument", args: []string{"reduce", jsonPath, "-o", filepath.Join(dir, "x")}, wantErr: "expected two arguments"},
 		{name: "positional with batch flag", args: []string{"restore", jsonPath, fastaPath, "--annotations", dir, "-o", filepath.Join(dir, "x")}, wantErr: "only used without positional arguments"},
-		{name: "batch without sources", args: []string{"gff3", "-o", filepath.Join(dir, "x")}, wantErr: "--annotations is required"},
+		{name: "batch without sources", args: []string{"convert", "-o", filepath.Join(dir, "x")}, wantErr: "--annotations is required"},
 		{name: "batch without output", args: []string{"reduce", "--annotations", dir, "--genomes", dir}, wantErr: "--output is required"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -278,7 +279,7 @@ func TestCLIGFF3Compliant(t *testing.T) {
 	}
 
 	gff3Path := filepath.Join(dir, "single.gff3")
-	if _, stderr, err := executeCommand("gff3", jsonPath, fastaPath, "-o", gff3Path, "--compliant"); err != nil {
+	if _, stderr, err := executeCommand("convert", jsonPath, fastaPath, "-o", gff3Path, "--compliant"); err != nil {
 		t.Fatalf("gff3 --compliant error = %v, stderr = %s", err, stderr)
 	}
 	got, err := os.ReadFile(gff3Path)
@@ -306,20 +307,20 @@ func TestCLIGFF3Compliant(t *testing.T) {
 		t.Fatalf("build error = %v, stderr = %s", err, stderr)
 	}
 	outDir := filepath.Join(dir, "extracted")
-	if _, stderr, err := executeCommand("extract", archivePath, "synthetic", "--genomes", genomesDir, "--gff3-compliant", "-o", outDir); err != nil {
-		t.Fatalf("extract --gff3-compliant error = %v, stderr = %s", err, stderr)
+	if _, stderr, err := executeCommand("extract", archivePath, "synthetic", "--genomes", genomesDir, "--convert", "gff3", "--compliant", "-o", outDir); err != nil {
+		t.Fatalf("extract --convert gff3 --compliant error = %v, stderr = %s", err, stderr)
 	}
 	got, err = os.ReadFile(filepath.Join(outDir, "synthetic.gff3"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(stripGenerated(got), want) {
-		t.Fatal("extract --gff3-compliant output differs from Bakta 1.12.2 compliant GFF3")
+		t.Fatal("extract --convert gff3 --compliant output differs from Bakta 1.12.2 compliant GFF3")
 	}
 
 	// JSON from a run without --compliant gets Bakta's annotation changes,
 	// and problems bakpack cannot fix are reported.
-	_, stderr, err := executeCommand("gff3", filepath.Join(testdata, "synthetic.noncompliant.bakta.json"), filepath.Join(testdata, "synthetic.noncompliant.fa"), "-o", filepath.Join(dir, "nc.gff3"), "--compliant")
+	_, stderr, err := executeCommand("convert", filepath.Join(testdata, "synthetic.noncompliant.bakta.json"), filepath.Join(testdata, "synthetic.noncompliant.fa"), "-o", filepath.Join(dir, "nc.gff3"), "--compliant")
 	if err != nil {
 		t.Fatalf("gff3 --compliant on non-compliant JSON error = %v", err)
 	}
