@@ -7,17 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-13
+
 ### Added
 
+- `convert --format genbank` and `--format embl` (and `extract --convert genbank,embl`) write GenBank and EMBL as current Bakta writes them for the JSON, checked byte for byte against Bakta 1.12.2's own writers, for JSON from any Bakta version, in default and `--compliant` mode. They are dated with the Bakta run's end, from the JSON's `run` section; JSON without it (which Bakta always writes) needs `--annotation-date`. The layout is written by faqt's `insdc` package.
+- `--compliant` for `convert` and `extract --convert` writes GFF3, GenBank and EMBL as Bakta's `--compliant` (Genbank/ENA/DDBJ) mode does, also in batch mode. Bakta's own `bakta_io` cannot write compliant files from JSON. Compliant output also applies the changes Bakta's `--compliant` mode makes while annotating (revised CDS/sORF product names, contigs under 200 bp left out, warnings for contig IDs and locus tags INSDC would reject), so it is compliant even when Bakta was run without `--compliant`. Library users can set `ConvertOptions.Compliant` and `Warn`.
 - Accept `.tar`, `.tar.gz`, `.tar.bz2` and `.tar.zst` archives as annotation and genome sources for `build` and `extract`, alongside `.tar.xz`. The compression is detected from the suffix (including `.tgz`, `.tbz2` and `.tzst`), or set with `--annotations-format` / `--genomes-format`, e.g. `tar.gz`. Library users can use the new `TarSource`, whose `Compression` field selects the format.
-- `reduce`, `restore` and `convert` have a batch mode: without positional arguments they process every sample in `--annotations` and `--genomes` (or `--manifest`), using the same sources as `build`, and write one file per sample to a directory or a `.tar`, `.tar.gz`, `.tar.bz2`, `.tar.xz` or `.tar.zst` file given by `--output`. Library users can call `ReduceBatch`, `RestoreBatch` and `GFF3Batch`.
+- `reduce`, `restore` and `convert` have a batch mode: without positional arguments they process every sample in `--annotations` and `--genomes` (or `--manifest`), using the same sources as `build`, and write one file per sample to a directory or a `.tar`, `.tar.gz`, `.tar.bz2`, `.tar.xz` or `.tar.zst` file given by `--output`. Library users can call `ReduceBatch`, `RestoreBatch` and `ConvertBatch`.
 - Reduced JSON named `SAMPLE.reduced.bakta.json` or `SAMPLE.reduced.json` is recognised as sample `SAMPLE`, so it pairs with that sample's genome.
 - `reduce` and `build` warn when a sample's sequences cannot be matched to its genome FASTA, since those sequences and their features are left unreduced.
 - `reduce` and `build` verify that each reduced JSON restores to the original before writing it.
-- `convert --format genbank` and `--format embl` (and `extract --convert genbank,embl`) write GenBank and EMBL as current Bakta writes them for the JSON, checked byte for byte against Bakta 1.12.2's own writers, for JSON from any Bakta version, in default and `--compliant` mode. They are dated with the Bakta run's end, from the JSON's `run` section; JSON without it (which Bakta always writes) needs `--annotation-date`. The layout is written by faqt's `insdc` package.
-- `--compliant` for `convert` and `extract --convert` writes GFF3 as Bakta's `--compliant` (Genbank/ENA/DDBJ) mode does, also in batch mode. Bakta's own `bakta_io` cannot write compliant files from JSON. Compliant output also applies the changes Bakta's `--compliant` mode makes while annotating (revised CDS/sORF product names, contigs under 200 bp left out, warnings for contig IDs and locus tags INSDC would reject), so it is compliant even when Bakta was run without `--compliant`. Library users can set `ConvertOptions.Compliant` and `Warn`.
 
 ### Changed
+
 - **Breaking:** the `gff3` command is replaced by `convert`, which writes GFF3 (the default), GenBank or EMBL with `--format`, and extract's `--gff3` and `--gff3-annotation-only` by `--convert gff3` with `--annotation-only`. `--convert` takes several formats, e.g. `--convert gff3,genbank`; `--compliant`, `--annotation-only` and `--annotation-date` apply to them. In the library, `ConvertBaktaJSON` and `ConvertOptions` are added, `ExtractRequest`/`ExtractOptions` `GFF3` and `GFF3AnnotationOnly` are replaced by `Convert` and `ConvertOptions`, and `ExtractedSample.GFF3` by `Converted`. `BaktaGFF3` and `BaktaGFF3WithOptions` remain.
 - Upgrade `github.com/martinghunt/faqt` to v0.13.0.
 - `build` now reads each tar source once. Matching annotation and genome tars are no longer read twice, and a genome tar used with a non-tar annotation source or with `--order` is no longer rescanned for every sample, which made those builds slow down quadratically with sample count. Archives are byte-identical to before.
@@ -104,7 +107,8 @@ Initial release of `bakpack`.
 - AGC genome extraction uses `agc getset -t 1` by default and fetches non-tar genome sources one sample at a time during extraction.
 - Archive format compatibility is not guaranteed before a future stable release.
 
-[Unreleased]: https://github.com/martinghunt/bakpack/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/martinghunt/bakpack/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/martinghunt/bakpack/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/martinghunt/bakpack/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/martinghunt/bakpack/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/martinghunt/bakpack/compare/v0.1.0...v0.2.0
