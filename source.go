@@ -837,8 +837,10 @@ func (s AGCGenomeSource) listsetArgs() []string {
 // suffixes, in the order checked. It's exported so cmd/bakpack's
 // sampleIDFromPath (used by reduce/restore/gff3, which take an explicit JSON
 // path rather than scanning a directory) can derive a sample ID from the
-// same suffix list instead of maintaining its own separate copy.
-var AnnotationJSONSuffixes = []string{".bakta.json", ".json"}
+// same suffix list instead of maintaining its own separate copy. Reduced JSON
+// names come first so that sampleA.reduced.bakta.json, as written by extract
+// and reduce, pairs with sampleA's genome.
+var AnnotationJSONSuffixes = []string{".reduced.bakta.json", ".reduced.json", ".bakta.json", ".json"}
 
 func sampleIDFromName(name, role string) string {
 	base := filepath.Base(name)

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,12 +43,29 @@ func displayVersion(raw string) string {
 
 func newReduceCommand() *cobra.Command {
 	var output string
+	var batch batchFlags
 	cmd := &cobra.Command{
-		Use:   "reduce BAKTA_JSON GENOME_FASTA",
+		Use:   "reduce [BAKTA_JSON GENOME_FASTA]",
 		Short: "Write reduced Bakta JSON by removing genome-derived fields",
-		Args:  cobra.ExactArgs(2),
+		Long: `Write reduced Bakta JSON by removing genome-derived fields.
+
+With BAKTA_JSON and GENOME_FASTA, reduce one sample to the --output file.
+Without them, reduce every sample in --annotations and --genomes (or
+--manifest), writing SAMPLE.reduced.bakta.json files to --output, which is a
+directory or a tar file (.tar, .tar.gz, .tar.bz2, .tar.xz, .tar.zst).`,
+		Args: singleOrBatchArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := requireOutput(output); err != nil {
+				return err
+			}
+			if len(args) == 0 {
+				opts, err := batch.options(output, cmd.ErrOrStderr())
+				if err != nil {
+					return err
+				}
+				return bakpack.ReduceBatch(cmd.Context(), opts)
+			}
+			if err := batch.requireUnset(); err != nil {
 				return err
 			}
 			annotation, genome, err := readJSONAndGenome(args[0], args[1])
@@ -69,18 +87,37 @@ func newReduceCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVarP(&output, "output", "o", "", "Output reduced JSON file")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Output reduced JSON file, or in batch mode a directory or tar file")
+	batch.add(cmd)
 	return cmd
 }
 
 func newRestoreCommand() *cobra.Command {
 	var output string
+	var batch batchFlags
 	cmd := &cobra.Command{
-		Use:   "restore REDUCED_JSON GENOME_FASTA",
+		Use:   "restore [REDUCED_JSON GENOME_FASTA]",
 		Short: "Recreate original Bakta JSON content from reduced JSON and genome FASTA",
-		Args:  cobra.ExactArgs(2),
+		Long: `Recreate original Bakta JSON content from reduced JSON and genome FASTA.
+
+With REDUCED_JSON and GENOME_FASTA, restore one sample to the --output file.
+Without them, restore every sample in --annotations and --genomes (or
+--manifest), writing SAMPLE.bakta.json files to --output, which is a directory
+or a tar file (.tar, .tar.gz, .tar.bz2, .tar.xz, .tar.zst). Reduced JSON
+named SAMPLE.reduced.bakta.json pairs with genome SAMPLE.fa.`,
+		Args: singleOrBatchArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := requireOutput(output); err != nil {
+				return err
+			}
+			if len(args) == 0 {
+				opts, err := batch.options(output, cmd.ErrOrStderr())
+				if err != nil {
+					return err
+				}
+				return bakpack.RestoreBatch(cmd.Context(), opts)
+			}
+			if err := batch.requireUnset(); err != nil {
 				return err
 			}
 			reduced, genome, err := readJSONAndGenome(args[0], args[1])
@@ -98,19 +135,38 @@ func newRestoreCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVarP(&output, "output", "o", "", "Output reconstructed JSON file")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Output reconstructed JSON file, or in batch mode a directory or tar file")
+	batch.add(cmd)
 	return cmd
 }
 
 func newGFF3Command() *cobra.Command {
 	var output string
 	var annotationOnly bool
+	var batch batchFlags
 	cmd := &cobra.Command{
-		Use:   "gff3 BAKTA_JSON GENOME_FASTA",
+		Use:   "gff3 [BAKTA_JSON GENOME_FASTA]",
 		Short: "Render a Bakta JSON annotation as GFF3",
-		Args:  cobra.ExactArgs(2),
+		Long: `Render a Bakta JSON annotation, original or reduced, as GFF3.
+
+With BAKTA_JSON and GENOME_FASTA, render one sample to the --output file.
+Without them, render every sample in --annotations and --genomes (or
+--manifest), writing SAMPLE.gff3 files to --output, which is a directory or a
+tar file (.tar, .tar.gz, .tar.bz2, .tar.xz, .tar.zst).`,
+		Args: singleOrBatchArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := requireOutput(output); err != nil {
+				return err
+			}
+			if len(args) == 0 {
+				opts, err := batch.options(output, cmd.ErrOrStderr())
+				if err != nil {
+					return err
+				}
+				opts.GFF3AnnotationOnly = annotationOnly
+				return bakpack.GFF3Batch(cmd.Context(), opts)
+			}
+			if err := batch.requireUnset(); err != nil {
 				return err
 			}
 			annotation, genome, err := readJSONAndGenome(args[0], args[1])
@@ -126,9 +182,67 @@ func newGFF3Command() *cobra.Command {
 			return os.WriteFile(output, gff3, 0o644)
 		},
 	}
-	cmd.Flags().StringVarP(&output, "output", "o", "", "Output GFF3 file")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Output GFF3 file, or in batch mode a directory or tar file")
 	cmd.Flags().BoolVar(&annotationOnly, "annotation-only", false, "Omit the terminal FASTA section")
+	batch.add(cmd)
 	return cmd
+}
+
+// batchFlags are the source flags shared by reduce, restore and gff3 batch
+// mode.
+type batchFlags struct {
+	annotationsPath, annotationsFormat string
+	genomesPath, genomesFormat         string
+	manifestPath                       string
+	orderPath                          string
+	spoolCompression                   string
+	xzThreads                          int
+}
+
+func (f *batchFlags) add(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&f.annotationsPath, "annotations", "", "Batch mode annotation source: directory, file list, or tar (.tar, .tar.gz, .tar.bz2, .tar.xz, .tar.zst)")
+	cmd.Flags().StringVar(&f.annotationsFormat, "annotations-format", "auto", "Annotation source format: auto, dir, list, manifest, tar, tar.gz, tar.bz2, tar.xz, tar.zst")
+	cmd.Flags().StringVar(&f.genomesPath, "genomes", "", "Batch mode genome source: directory, file list, tar (.tar, .tar.gz, .tar.bz2, .tar.xz, .tar.zst), or .agc")
+	cmd.Flags().StringVar(&f.genomesFormat, "genomes-format", "auto", "Genome source format: auto, dir, list, manifest, tar, tar.gz, tar.bz2, tar.xz, tar.zst, agc")
+	cmd.Flags().StringVar(&f.manifestPath, "manifest", "", "Batch mode tab-delimited manifest with columns: sample_id, annotation_json, genome_fasta")
+	cmd.Flags().StringVar(&f.orderPath, "order", "", "Batch mode file of sample IDs defining output order")
+	cmd.Flags().StringVar(&f.spoolCompression, "annotation-spool-compression", "gzip", "Compression of temporary files holding tar members until they are paired: gzip or none")
+	cmd.Flags().IntVar(&f.xzThreads, "xz-threads", 1, "Threads passed to xz as -T when writing a .tar.xz")
+}
+
+func (f *batchFlags) options(output string, warnings io.Writer) (bakpack.BatchOptions, error) {
+	annotations, genomes, err := openBuildSources(f.manifestPath, f.annotationsPath, f.annotationsFormat, f.genomesPath, f.genomesFormat)
+	if err != nil {
+		return bakpack.BatchOptions{}, err
+	}
+	order, err := readNameFile(f.orderPath)
+	if err != nil {
+		return bakpack.BatchOptions{}, err
+	}
+	return bakpack.BatchOptions{
+		Annotations:      annotations,
+		Genomes:          genomes,
+		Order:            order,
+		OutputPath:       output,
+		XZThreads:        f.xzThreads,
+		SpoolCompression: f.spoolCompression,
+		Warnings:         warnings,
+	}, nil
+}
+
+// requireUnset rejects batch source flags in single-sample mode.
+func (f *batchFlags) requireUnset() error {
+	if f.annotationsPath != "" || f.genomesPath != "" || f.manifestPath != "" || f.orderPath != "" {
+		return fmt.Errorf("--annotations, --genomes, --manifest and --order are only used without positional arguments")
+	}
+	return nil
+}
+
+func singleOrBatchArgs(cmd *cobra.Command, args []string) error {
+	if len(args) != 0 && len(args) != 2 {
+		return fmt.Errorf("expected two arguments for one sample, or none for batch mode, got %d", len(args))
+	}
+	return nil
 }
 
 func requireOutput(path string) error {
@@ -329,7 +443,9 @@ func readNameFile(path string) ([]string, error) {
 func sampleIDFromPath(path string) string {
 	base := filepath.Base(path)
 	for _, suffix := range bakpack.AnnotationJSONSuffixes {
-		base = strings.TrimSuffix(base, suffix)
+		if strings.HasSuffix(base, suffix) {
+			return strings.TrimSuffix(base, suffix)
+		}
 	}
 	return base
 }

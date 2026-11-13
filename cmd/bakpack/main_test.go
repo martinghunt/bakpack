@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/martinghunt/bakpack"
@@ -189,6 +190,72 @@ func TestCLIBuildWithCombinedManifest(t *testing.T) {
 		t.Fatalf("extract command error = %v, stderr = %s", err, stderr)
 	}
 	assertCanonicalEqual(t, filepath.Join(outDir, "sampleX.bakta.json"), originalJSON)
+}
+
+func TestCLIBatchReduceRestoreAndGFF3(t *testing.T) {
+	dir := t.TempDir()
+	annotationsDir := filepath.Join(dir, "annotations")
+	genomesDir := filepath.Join(dir, "genomes")
+	mustMkdir(t, annotationsDir)
+	mustMkdir(t, genomesDir)
+	originals := map[string][]byte{"sampleA": toyBaktaJSON("gene A"), "sampleB": toyBaktaJSON("gene B")}
+	for sample, original := range originals {
+		writeFile(t, filepath.Join(annotationsDir, sample+".bakta.json"), original)
+		writeFile(t, filepath.Join(genomesDir, sample+".fa"), toyFASTA())
+	}
+
+	reducedTar := filepath.Join(dir, "reduced.tar.gz")
+	if _, stderr, err := executeCommand("reduce", "--annotations", annotationsDir, "--genomes", genomesDir, "-o", reducedTar); err != nil {
+		t.Fatalf("batch reduce error = %v, stderr = %s", err, stderr)
+	}
+	restoredDir := filepath.Join(dir, "restored")
+	if _, stderr, err := executeCommand("restore", "--annotations", reducedTar, "--genomes", genomesDir, "-o", restoredDir); err != nil {
+		t.Fatalf("batch restore error = %v, stderr = %s", err, stderr)
+	}
+	for sample, original := range originals {
+		assertCanonicalEqual(t, filepath.Join(restoredDir, sample+".bakta.json"), original)
+	}
+	gff3Dir := filepath.Join(dir, "gff3")
+	if _, stderr, err := executeCommand("gff3", "--annotations", reducedTar, "--genomes", genomesDir, "-o", gff3Dir, "--annotation-only"); err != nil {
+		t.Fatalf("batch gff3 error = %v, stderr = %s", err, stderr)
+	}
+	gff3, err := os.ReadFile(filepath.Join(gff3Dir, "sampleB.gff3"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(gff3, []byte("product=gene B")) || bytes.Contains(gff3, []byte("##FASTA")) {
+		t.Fatalf("batch gff3 output unexpected:\n%s", gff3)
+	}
+}
+
+func TestCLISingleAndBatchArguments(t *testing.T) {
+	dir := t.TempDir()
+	jsonPath := filepath.Join(dir, "sampleA.bakta.json")
+	fastaPath := filepath.Join(dir, "sampleA.fa")
+	writeFile(t, jsonPath, toyBaktaJSON("gene A"))
+	writeFile(t, fastaPath, toyFASTA())
+	for _, tt := range []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{name: "one argument", args: []string{"reduce", jsonPath, "-o", filepath.Join(dir, "x")}, wantErr: "expected two arguments"},
+		{name: "positional with batch flag", args: []string{"restore", jsonPath, fastaPath, "--annotations", dir, "-o", filepath.Join(dir, "x")}, wantErr: "only used without positional arguments"},
+		{name: "batch without sources", args: []string{"gff3", "-o", filepath.Join(dir, "x")}, wantErr: "--annotations is required"},
+		{name: "batch without output", args: []string{"reduce", "--annotations", dir, "--genomes", dir}, wantErr: "--output is required"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, err := executeCommand(tt.args...)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("error = %v, want %q", err, tt.wantErr)
+			}
+		})
+	}
+	// The single-sample form still works.
+	outPath := filepath.Join(dir, "sampleA.reduced.bakta.json")
+	if _, stderr, err := executeCommand("reduce", jsonPath, fastaPath, "-o", outPath); err != nil {
+		t.Fatalf("single reduce error = %v, stderr = %s", err, stderr)
+	}
 }
 
 func executeCommand(args ...string) ([]byte, []byte, error) {

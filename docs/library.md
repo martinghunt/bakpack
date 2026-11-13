@@ -220,6 +220,20 @@ err = bakpack.BuildArchive(ctx, bakpack.BuildOptions{
 })
 ```
 
+Reduce, restore or render every sample in a pair of sources, writing to a
+directory or a tar file chosen by the output path:
+
+```go
+err = bakpack.ReduceBatch(ctx, bakpack.BatchOptions{
+	Annotations: annotations,
+	Genomes:     genomes,
+	OutputPath:  "reduced.tar.xz",
+	Warnings:    os.Stderr,
+})
+```
+
+`RestoreBatch` and `GFF3Batch` take the same options.
+
 Core entry points:
 
 ```go
@@ -229,6 +243,9 @@ err := archive.ExtractFiles(ctx, bakpack.ExtractRequest{...}, "out")
 index, err := bakpack.ReadArchiveIndexContext(ctx, archivePath)
 genome, err := bakpack.ReadGenome(sampleID, filename, fastaBytes)
 reduced, err := bakpack.ReduceBaktaJSON(originalJSON, genome)
+err := bakpack.ReduceBatch(ctx, bakpack.BatchOptions{...})
+err := bakpack.RestoreBatch(ctx, bakpack.BatchOptions{...})
+err := bakpack.GFF3Batch(ctx, bakpack.BatchOptions{...})
 restored, err := bakpack.RestoreBaktaJSON(reduced.ReducedJSON, genome)
 gff3, err := bakpack.BaktaGFF3(reduced.ReducedJSON, genome)
 gff3, err := bakpack.BaktaGFF3WithOptions(reduced.ReducedJSON, genome, bakpack.BaktaGFF3Options{AnnotationOnly: true})

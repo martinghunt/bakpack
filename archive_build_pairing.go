@@ -3,47 +3,62 @@ package bakpack
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"sort"
 )
 
-// Build routes pair each annotation with its genome and pass the packed
-// samples to the chunk batcher in archive order: the --order list if given,
-// otherwise genome source order. Tar sources can only be read front to back,
-// and finding one member means decompressing everything before it, so the
-// routes read each tar source once and never look up a tar member by name.
+// samplePairing pairs each annotation with its genome and passes the pairs
+// on in output order: Order if given, otherwise genome source order. Tar
+// sources can only be read front to back, and finding one member means
+// decompressing everything before it, so pairing reads each tar source once
+// and never looks up a tar member by name.
+type samplePairing struct {
+	annotations FileSource
+	genomes     FileSource
+	order       []string
+	// outputPath names the temporary spool directories, which are made
+	// beside it.
+	outputPath       string
+	spoolCompression string
+}
 
-// buildArchiveFromSamples writes an archive from the samples a route passes
-// to add.
-func buildArchiveFromSamples(ctx context.Context, opts BuildOptions, chunkSize int, pair func(add func(packedSampleForArchive) error) error) error {
-	return buildArchiveFromChunks(ctx, opts, chunkSize, func(chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
-		batcher := newArchiveChunkBatcher(ctx, opts, chunkSize, chunkWriter)
-		count := 0
-		err := pair(func(packed packedSampleForArchive) error {
-			count++
-			return batcher.add(packed)
-		})
-		if err != nil {
-			return nil, nil, err
-		}
-		if count == 0 {
-			return nil, nil, fmt.Errorf("no annotation JSON files found")
-		}
-		if err := batcher.flush(); err != nil {
-			return nil, nil, err
-		}
-		chunks, samples := batcher.indexes()
-		return chunks, samples, nil
-	})
+// pairFunc receives one paired sample.
+type pairFunc func(sample string, annotation, genome FileRecord) error
+
+// run pairs every annotation with its genome. It fails if no annotations
+// are found.
+func (p samplePairing) run(ctx context.Context, fn pairFunc) error {
+	count := 0
+	counted := func(sample string, annotation, genome FileRecord) error {
+		count++
+		return fn(sample, annotation, genome)
+	}
+	annotationsTar, annotationsIsTar := asTarSource(p.annotations)
+	genomesTar, genomesIsTar := asTarSource(p.genomes)
+	var err error
+	switch {
+	case annotationsIsTar && genomesIsTar && len(p.order) == 0:
+		err = p.pairTars(ctx, annotationsTar, genomesTar, counted)
+	case annotationsIsTar:
+		err = p.pairSpooledAnnotationTar(ctx, annotationsTar, counted)
+	default:
+		err = p.pairSourceAnnotations(ctx, counted)
+	}
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return fmt.Errorf("no annotation JSON files found")
+	}
+	return nil
 }
 
 // pairTarSamples walks an annotation tar and a genome tar together while
 // their sample IDs agree. At the first disagreement it spools the rest of
 // the annotation tar to disk and finishes by streaming the rest of the
 // genome tar, so each tar is read once whether or not their orders match.
-func pairTarSamples(ctx context.Context, opts BuildOptions, annotationsTar, genomesTar tarSource, add func(packedSampleForArchive) error) error {
+func (p samplePairing) pairTars(ctx context.Context, annotationsTar, genomesTar tarSource, fn pairFunc) error {
 	annotationStream, err := newTarRecordStream(annotationsTar)
 	if err != nil {
 		return err
@@ -69,24 +84,20 @@ func pairTarSamples(ctx context.Context, opts BuildOptions, annotationsTar, geno
 			return nil
 		}
 		if !annotationOK || !genomeOK || annotation.SampleID != genome.SampleID {
-			return pairTarSamplesAfterMismatch(ctx, opts, annotationStream, genomeStream, annotation, annotationOK, genome, genomeOK, genomesTar.Path, done, add)
+			return p.pairTarsAfterMismatch(ctx, annotationStream, genomeStream, annotation, annotationOK, genome, genomeOK, genomesTar.Path, done, fn)
 		}
 		if done[annotation.SampleID] {
 			return fmt.Errorf("duplicate annotation sample %q", annotation.SampleID)
 		}
 		done[annotation.SampleID] = true
-		packed, err := packReducedSample(opts, annotation.SampleID, annotation, genome)
-		if err != nil {
-			return err
-		}
-		if err := add(packed); err != nil {
+		if err := fn(annotation.SampleID, annotation, genome); err != nil {
 			return err
 		}
 	}
 }
 
-func pairTarSamplesAfterMismatch(ctx context.Context, opts BuildOptions, annotationStream, genomeStream *tarRecordStream, annotation FileRecord, annotationOK bool, genome FileRecord, genomeOK bool, genomesPath string, done map[string]bool, add func(packedSampleForArchive) error) error {
-	spool, err := newRecordSpool(opts, "annotation")
+func (p samplePairing) pairTarsAfterMismatch(ctx context.Context, annotationStream, genomeStream *tarRecordStream, annotation FileRecord, annotationOK bool, genome FileRecord, genomeOK bool, genomesPath string, done map[string]bool, fn pairFunc) error {
+	spool, err := p.newRecordSpool("annotation")
 	if err != nil {
 		return err
 	}
@@ -112,13 +123,13 @@ func pairTarSamplesAfterMismatch(ctx context.Context, opts BuildOptions, annotat
 		}
 		return genomeStream.Next(ctx)
 	}
-	return pairGenomeStream(opts, genomesPath, next, spool, done, add)
+	return pairGenomeStream(genomesPath, next, spool, done, fn)
 }
 
-// pairSpooledAnnotationTarSamples spools an annotation tar to disk so its
-// samples can be paired in genome or --order order.
-func pairSpooledAnnotationTarSamples(ctx context.Context, opts BuildOptions, annotationsTar tarSource, add func(packedSampleForArchive) error) error {
-	spool, err := newRecordSpool(opts, "annotation")
+// pairSpooledAnnotationTar spools an annotation tar to disk so its samples
+// can be paired in genome or Order order.
+func (p samplePairing) pairSpooledAnnotationTar(ctx context.Context, annotationsTar tarSource, fn pairFunc) error {
+	spool, err := p.newRecordSpool("annotation")
 	if err != nil {
 		return err
 	}
@@ -129,17 +140,17 @@ func pairSpooledAnnotationTarSamples(ctx context.Context, opts BuildOptions, ann
 	if spool.remaining() == 0 {
 		return fmt.Errorf("no annotation JSON files found in %s", annotationsTar.Path)
 	}
-	return pairAnnotations(ctx, opts, spool, add)
+	return p.pairAnnotations(ctx, spool, fn)
 }
 
-// pairSourceAnnotationSamples pairs annotations from a source that can fetch
+// pairSourceAnnotations pairs annotations from a source that can fetch
 // samples by name, such as a directory, file list or manifest.
-func pairSourceAnnotationSamples(ctx context.Context, opts BuildOptions, add func(packedSampleForArchive) error) error {
-	order, err := opts.Annotations.Order(ctx)
+func (p samplePairing) pairSourceAnnotations(ctx context.Context, fn pairFunc) error {
+	order, err := p.annotations.Order(ctx)
 	if err != nil {
 		return err
 	}
-	annotations := &sourceAnnotations{ctx: ctx, source: opts.Annotations, ids: map[string]bool{}}
+	annotations := &sourceAnnotations{ctx: ctx, source: p.annotations, ids: map[string]bool{}}
 	for _, sample := range order {
 		if sample == "" {
 			return fmt.Errorf("annotation source contains an empty sample ID")
@@ -152,31 +163,31 @@ func pairSourceAnnotationSamples(ctx context.Context, opts BuildOptions, add fun
 	if len(annotations.ids) == 0 {
 		return fmt.Errorf("no annotation JSON files found")
 	}
-	return pairAnnotations(ctx, opts, annotations, add)
+	return p.pairAnnotations(ctx, annotations, fn)
 }
 
 // pairAnnotations pairs every annotation with its genome in archive order.
-func pairAnnotations(ctx context.Context, opts BuildOptions, annotations annotationSet, add func(packedSampleForArchive) error) error {
-	genomesTar, genomesIsTar := asTarSource(opts.Genomes)
-	if genomesIsTar && len(opts.Order) == 0 {
+func (p samplePairing) pairAnnotations(ctx context.Context, annotations annotationSet, fn pairFunc) error {
+	genomesTar, genomesIsTar := asTarSource(p.genomes)
+	if genomesIsTar && len(p.order) == 0 {
 		stream, err := newTarRecordStream(genomesTar)
 		if err != nil {
 			return err
 		}
 		defer stream.Close()
 		next := func() (FileRecord, bool, error) { return stream.Next(ctx) }
-		return pairGenomeStream(opts, genomesTar.Path, next, annotations, map[string]bool{}, add)
+		return pairGenomeStream(genomesTar.Path, next, annotations, map[string]bool{}, fn)
 	}
 
-	order, err := buildOrder(ctx, opts, annotations.sampleIDs())
+	order, err := pairingOrder(ctx, p.order, p.genomes, annotations.sampleIDs())
 	if err != nil {
 		return err
 	}
-	getGenome := opts.Genomes.Get
+	getGenome := p.genomes.Get
 	if genomesIsTar {
-		// --order differs from tar order, so spool the wanted genomes in one
+		// Order differs from tar order, so spool the wanted genomes in one
 		// pass rather than rescanning the tar for each sample.
-		spool, err := newRecordSpool(opts, "genome")
+		spool, err := p.newRecordSpool("genome")
 		if err != nil {
 			return err
 		}
@@ -209,11 +220,7 @@ func pairAnnotations(ctx context.Context, opts BuildOptions, annotations annotat
 		if err != nil {
 			return err
 		}
-		packed, err := packReducedSample(opts, sample, annotation, genome)
-		if err != nil {
-			return err
-		}
-		if err := add(packed); err != nil {
+		if err := fn(sample, annotation, genome); err != nil {
 			return err
 		}
 	}
@@ -223,7 +230,7 @@ func pairAnnotations(ctx context.Context, opts BuildOptions, annotations annotat
 // pairGenomeStream reads genomes from next until it is exhausted, pairing
 // each with its annotation. Genomes without an annotation are skipped. done
 // holds samples already paired and gains each sample paired here.
-func pairGenomeStream(opts BuildOptions, genomesPath string, next func() (FileRecord, bool, error), annotations annotationSet, done map[string]bool, add func(packedSampleForArchive) error) error {
+func pairGenomeStream(genomesPath string, next func() (FileRecord, bool, error), annotations annotationSet, done map[string]bool, fn pairFunc) error {
 	for {
 		genome, ok, err := next()
 		if err != nil {
@@ -243,11 +250,7 @@ func pairGenomeStream(opts BuildOptions, genomesPath string, next func() (FileRe
 			return err
 		}
 		done[genome.SampleID] = true
-		packed, err := packReducedSample(opts, genome.SampleID, annotation, genome)
-		if err != nil {
-			return err
-		}
-		if err := add(packed); err != nil {
+		if err := fn(genome.SampleID, annotation, genome); err != nil {
 			return err
 		}
 	}
@@ -310,12 +313,12 @@ type spooledRecord struct {
 	path string
 }
 
-func newRecordSpool(opts BuildOptions, kind string) (*recordSpool, error) {
-	compression, err := normalizeSpoolCompression(opts.AnnotationSpoolCompression)
+func (p samplePairing) newRecordSpool(kind string) (*recordSpool, error) {
+	compression, err := normalizeSpoolCompression(p.spoolCompression)
 	if err != nil {
 		return nil, err
 	}
-	dir, err := os.MkdirTemp(filepath.Dir(opts.OutputPath), buildTempPattern(opts.OutputPath, kind+"s"))
+	dir, err := os.MkdirTemp(filepath.Dir(p.outputPath), buildTempPattern(p.outputPath, kind+"s"))
 	if err != nil {
 		return nil, err
 	}

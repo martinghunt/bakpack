@@ -27,17 +27,30 @@ func BuildArchive(ctx context.Context, opts BuildOptions) error {
 	if chunkSize <= 0 {
 		chunkSize = 25
 	}
-	return buildArchiveFromSamples(ctx, opts, chunkSize, func(add func(packedSampleForArchive) error) error {
-		annotationsTar, annotationsIsTar := asTarSource(opts.Annotations)
-		genomesTar, genomesIsTar := asTarSource(opts.Genomes)
-		switch {
-		case annotationsIsTar && genomesIsTar && len(opts.Order) == 0:
-			return pairTarSamples(ctx, opts, annotationsTar, genomesTar, add)
-		case annotationsIsTar:
-			return pairSpooledAnnotationTarSamples(ctx, opts, annotationsTar, add)
-		default:
-			return pairSourceAnnotationSamples(ctx, opts, add)
+	pairing := samplePairing{
+		annotations:      opts.Annotations,
+		genomes:          opts.Genomes,
+		order:            opts.Order,
+		outputPath:       opts.OutputPath,
+		spoolCompression: opts.AnnotationSpoolCompression,
+	}
+	return buildArchiveFromChunks(ctx, opts, chunkSize, func(chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
+		batcher := newArchiveChunkBatcher(ctx, opts, chunkSize, chunkWriter)
+		err := pairing.run(ctx, func(sample string, annotation, genome FileRecord) error {
+			packed, err := packReducedSample(opts, sample, annotation, genome)
+			if err != nil {
+				return err
+			}
+			return batcher.add(packed)
+		})
+		if err != nil {
+			return nil, nil, err
 		}
+		if err := batcher.flush(); err != nil {
+			return nil, nil, err
+		}
+		chunks, samples := batcher.indexes()
+		return chunks, samples, nil
 	})
 }
 
@@ -318,15 +331,17 @@ type packedSampleForArchive struct {
 	reducedRoot map[string]any
 }
 
-func buildOrder(ctx context.Context, opts BuildOptions, annotations map[string]bool) ([]string, error) {
-	if len(opts.Order) > 0 {
-		return validateOrder(opts.Order, annotations)
+// pairingOrder returns order checked against the annotation sample IDs, or
+// if order is empty, the genome source order of those samples.
+func pairingOrder(ctx context.Context, order []string, genomes FileSource, annotations map[string]bool) ([]string, error) {
+	if len(order) > 0 {
+		return validateOrder(order, annotations)
 	}
-	genomeOrder, err := opts.Genomes.Order(ctx)
+	genomeOrder, err := genomes.Order(ctx)
 	if err != nil {
 		return nil, err
 	}
-	order := make([]string, 0, len(annotations))
+	paired := make([]string, 0, len(annotations))
 	seen := map[string]bool{}
 	for _, sample := range genomeOrder {
 		if !annotations[sample] {
@@ -336,12 +351,12 @@ func buildOrder(ctx context.Context, opts BuildOptions, annotations map[string]b
 			return nil, fmt.Errorf("duplicate genome sample %q", sample)
 		}
 		seen[sample] = true
-		order = append(order, sample)
+		paired = append(paired, sample)
 	}
-	if len(order) != len(annotations) {
+	if len(paired) != len(annotations) {
 		return nil, fmt.Errorf("genome order did not include all annotation samples")
 	}
-	return order, nil
+	return paired, nil
 }
 
 func validateOrder(order []string, annotations map[string]bool) ([]string, error) {
