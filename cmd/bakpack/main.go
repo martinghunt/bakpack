@@ -189,7 +189,7 @@ tar file (.tar, .tar.gz, .tar.bz2, .tar.xz, .tar.zst).`,
 	}
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output GFF3 file, or in batch mode a directory or tar file")
 	cmd.Flags().BoolVar(&annotationOnly, "annotation-only", false, "Omit the terminal FASTA section")
-	cmd.Flags().BoolVar(&compliant, "compliant", false, "Write GFF3 as Bakta --compliant (Genbank/ENA/DDBJ) mode does; needs JSON from Bakta 1.10 or later")
+	cmd.Flags().BoolVar(&compliant, "compliant", false, "Write GFF3 as Bakta --compliant (Genbank/ENA/DDBJ) mode does")
 	batch.add(cmd)
 	return cmd
 }
@@ -398,7 +398,7 @@ func newExtractCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&genome, "genome", false, "Write matching genome FASTA")
 	cmd.Flags().BoolVar(&gff3, "gff3", false, "Write rendered GFF3 annotation")
 	cmd.Flags().BoolVar(&gff3AnnotationOnly, "gff3-annotation-only", false, "Write GFF3 without the terminal FASTA section")
-	cmd.Flags().BoolVar(&gff3Compliant, "gff3-compliant", false, "Write GFF3 as Bakta --compliant (Genbank/ENA/DDBJ) mode does; needs JSON from Bakta 1.10 or later")
+	cmd.Flags().BoolVar(&gff3Compliant, "gff3-compliant", false, "Write GFF3 as Bakta --compliant (Genbank/ENA/DDBJ) mode does")
 	return cmd
 }
 

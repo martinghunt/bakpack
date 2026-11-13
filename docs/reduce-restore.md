@@ -27,16 +27,15 @@ Use `--annotation-only` to omit the terminal `##FASTA` section:
 bakpack gff3 BAKTA_JSON GENOME_FASTA -o SAMPLE.gff3 --annotation-only
 ```
 
-The GFF3 matches what the Bakta version recorded in the JSON writes. Bakta
-changed its GFF3 output in v1.10.0, so JSON from Bakta 1.10 or later is written
-in the newer style and older JSON in the older one. If the JSON has no Bakta
-version, its layout decides (Bakta 1.10 changed the JSON layout too).
+The GFF3 is what current Bakta writes for the JSON (as its `bakta_io` does),
+for JSON from any Bakta version. For JSON from Bakta before 1.10 this can
+differ from the GFF3 the older Bakta wrote itself; see
+[the format description](bakta-gff3-format.md).
 
 Use `--compliant` to write GFF3 as Bakta's `--compliant` (Genbank/ENA/DDBJ)
 mode does. Bakta's JSON does not record whether `--compliant` was used, and
 `bakta_io` cannot write compliant files from JSON, so this is the way to get
-compliant GFF3 from a bakpack archive or reduced JSON. It is available for JSON
-from Bakta 1.10 or later:
+compliant GFF3 from a bakpack archive or reduced JSON:
 
 ```
 bakpack gff3 BAKTA_JSON GENOME_FASTA -o SAMPLE.gff3 --compliant

@@ -86,7 +86,7 @@ type ExtractOptions struct {
 	// section. It implies GFF3.
 	GFF3AnnotationOnly bool
 	// GFF3Compliant writes SAMPLE.gff3 as Bakta's --compliant (INSDC) mode
-	// does, for samples annotated with Bakta 1.10 or later. It implies GFF3.
+	// does. It implies GFF3.
 	GFF3Compliant bool
 	// Warnings, if set, receives compliant GFF3 warnings, one line each.
 	Warnings io.Writer
@@ -127,7 +127,7 @@ type ExtractRequest struct {
 	// It implies GFF3.
 	GFF3AnnotationOnly bool
 	// GFF3Compliant returns GFF3 as Bakta's --compliant (INSDC) mode writes
-	// it, for samples annotated with Bakta 1.10 or later. It implies GFF3.
+	// it. It implies GFF3.
 	GFF3Compliant bool
 	// Warnings, if set, receives compliant GFF3 warnings, one line each.
 	// Samples may be extracted concurrently, so it must be safe for

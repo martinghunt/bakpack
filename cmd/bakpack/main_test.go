@@ -328,15 +328,6 @@ func TestCLIGFF3Compliant(t *testing.T) {
 			t.Errorf("stderr missing %q:\n%s", want, stderr)
 		}
 	}
-
-	// JSON from Bakta before 1.10 cannot be written in compliant mode.
-	oldJSON := filepath.Join(dir, "old.bakta.json")
-	writeFile(t, oldJSON, toyBaktaJSON("gene A"))
-	writeFile(t, filepath.Join(dir, "old.fa"), toyFASTA())
-	_, _, err = executeCommand("gff3", oldJSON, filepath.Join(dir, "old.fa"), "-o", filepath.Join(dir, "old.gff3"), "--compliant")
-	if err == nil || !strings.Contains(err.Error(), "Bakta 1.10 or later") {
-		t.Fatalf("gff3 --compliant on pre-1.10 JSON error = %v, want Bakta 1.10 or later", err)
-	}
 }
 
 func executeCommand(args ...string) ([]byte, []byte, error) {

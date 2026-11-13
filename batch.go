@@ -39,7 +39,7 @@ type BatchOptions struct {
 	// GFF3AnnotationOnly makes GFF3Batch omit the ##FASTA section.
 	GFF3AnnotationOnly bool
 	// GFF3Compliant makes GFF3Batch write GFF3 as Bakta's --compliant mode
-	// does, for samples annotated with Bakta 1.10 or later.
+	// does.
 	GFF3Compliant bool
 }
 

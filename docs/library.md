@@ -149,9 +149,8 @@ if err != nil {
 _ = gff3
 ```
 
-Set `Compliant: true` to write GFF3 as Bakta's `--compliant` mode does, for
-JSON from Bakta 1.10 or later. The output style follows the Bakta version
-recorded in the JSON. The same option is `ExtractRequest.GFF3Compliant`,
+Set `Compliant: true` to write GFF3 as Bakta's `--compliant` mode does. The
+same option is `ExtractRequest.GFF3Compliant`,
 `ExtractOptions.GFF3Compliant` and `BatchOptions.GFF3Compliant`.
 
 `BaktaGFF3` uses default options and includes the terminal `##FASTA` section.
