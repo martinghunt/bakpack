@@ -2,7 +2,7 @@
 ##feature-ontology https://github.com/The-Sequence-Ontology/SO-Ontologies/blob/v3.1/so.obo
 # organism Testus syntheticus
 # Annotated with Bakta
-# Software: v1.9.4
+# Software: v1.12.2
 # Database: v6.0, full
 # DOI: 10.1099/mgen.0.000685
 # URL: github.com/oschwengers/bakta
@@ -13,14 +13,14 @@ contig_1	DeepSig	signal_peptide	1	60	0.88	+	.	ID=SYN_00001_sigpep;Name=signal pe
 contig_1	Pyrodigal	CDS	310	600	.	-	0	ID=SYN_00002;Name=hypothetical protein;locus_tag=SYN_00002;product=hypothetical protein;Dbxref=SO:0001217;pseudogene=unitary
 contig_1	Pyrodigal	CDS	610	900	.	+	0	ID=SYN_00003;Name=Paralog protein;locus_tag=SYN_00003;product=Paralog protein;pseudogene=unprocessed;gene=xyzA
 contig_1	?	CDS	910	1200	.	-	0	ID=SYN_00004;Name=Formate dehydrogenase;locus_tag=SYN_00004;product=Formate dehydrogenase;Dbxref=EC:1.17.1.9;pseudo=True;gene=fdhF;transl_except=(pos:complement(1000..1002)%2Caa:Sec);Note=codon on position 31 is a selenocysteine codon
-contig_1	Pyrodigal	CDS	1210	1500	.	+	0	ID=SYN_00005;Name=Peptide chain release factor 2;locus_tag=SYN_00005;product=Peptide chain release factor 2;Dbxref=UniRef:UniRef50_P;gene=prfB
+contig_1	Pyrodigal	CDS	1210	1500	.	+	0	ID=SYN_00005;Name=Peptide chain release factor 2;locus_tag=SYN_00005;product=Peptide chain release factor 2;Dbxref=UniRef:UniRef50_P;gene=prfB;ribosomal_slippage=True
 contig_1	Bakta	CDS	1510	1560	.	+	0	ID=SYN_00006;Name=Small protein;locus_tag=SYN_00006;product=Small protein;Dbxref=EC:3.1.1.1,UniRef:UniRef90_S;gene=smlA
 contig_1	DeepSig	signal_peptide	1510	1530	0.50	+	.	ID=SYN_00006_sigpep;Name=signal peptide;product=signal peptide;score=0.5;Parent=SYN_00006
 contig_1	Bakta	CDS	1570	1620	.	-	0	ID=SYN_00007;Name=hypothetical protein;locus_tag=SYN_00007;product=hypothetical protein
 contig_1	tRNAscan-SE	tRNA	1630	1702	.	+	.	ID=SYN_00008;Name=tRNA-Ala;locus_tag=SYN_00008;product=tRNA-Ala;Dbxref=SO:0000254;gene=trnA;anti_codon=tgc;amino_acid=Ala
-contig_1	tRNAscan-SE	tRNA	1710	1782	.	-	.	ID=SYN_00009;Name=tRNA-Arg;locus_tag=SYN_00009;product=tRNA-Arg;Dbxref=SO:0001036;gene=trnR;anti_codon=ccg;amino_acid=Arg
+contig_1	tRNAscan-SE	tRNA	1710	1782	.	-	.	ID=SYN_00009;Name=tRNA-Arg;locus_tag=SYN_00009;product=tRNA-Arg;Dbxref=SO:0001036;gene=trnR;pseudogene=unknown;anti_codon=ccg;amino_acid=Arg
 contig_1	tRNAscan-SE	tRNA	1790	1850	.	+	.	ID=SYN_00010;Name=tRNA-Xxx;locus_tag=SYN_00010;product=tRNA-Xxx;pseudo=True
-contig_1	Aragorn	tmRNA	1860	2200	.	+	.	ID=SYN_00011;Name=transfer-messenger RNA%2C SsrA;locus_tag=SYN_00011;gene=ssrA;product=transfer-messenger RNA%2C SsrA;Dbxref=SO:0000584
+contig_1	Aragorn	tmRNA	1860	2200	.	+	.	ID=SYN_00011;Name=transfer-messenger RNA%2C SsrA;locus_tag=SYN_00011;gene=ssrA;product=transfer-messenger RNA%2C SsrA;Dbxref=SO:0000584;tag_peptide=ANDENYALAA
 contig_1	Infernal	rRNA	2210	2330	1.2e-15	+	.	ID=SYN_00013;Name=5S ribosomal RNA;locus_tag=SYN_00013;gene=rrf;product=5S ribosomal RNA;Dbxref=RFAM:RF00001,SO:0000652,GO:0005840
 contig_1	Infernal	ncRNA	2340	2400	3.4e-20	+	.	ID=SYN_00015;Name=RNase P RNA;locus_tag=SYN_00015;gene=rnpB;product=RNase P RNA;Dbxref=RFAM:RF00010,SO:0000386
 contig_1	Infernal	ncRNA	2410	2460	2e-05	-	.	ID=SYN_00016;Name=antisense RNA;locus_tag=SYN_00016;gene=isrA;product=antisense RNA;Dbxref=RFAM:RF00100
@@ -36,7 +36,7 @@ contig_1	Bakta	gap	2770	2800	.	+	.	ID=SYN_GAP1;Name=gap (31 bp);product=gap (31 
 contig_1	BLAST+	oriC	2810	2850	.	?	.	ID=SYN_ORIC1;Name=origin of replication;product=origin of replication;inference=similar to DNA sequence
 ##sequence-region contig_2 1 1200
 contig_2	Bakta	region	1	1200	.	+	.	ID=contig_2;Name=contig_2;Is_circular=true
-contig_2	Aragorn	tmRNA	100	440	.	-	.	ID=SYN_00012;Name=transfer-messenger RNA%2C SsrA;locus_tag=SYN_00012;gene=ssrA;product=transfer-messenger RNA%2C SsrA;Dbxref=SO:0000584;pseudo=True
+contig_2	Aragorn	tmRNA	100	440	.	-	.	ID=SYN_00012;Name=transfer-messenger RNA%2C SsrA;locus_tag=SYN_00012;gene=ssrA;product=transfer-messenger RNA%2C SsrA;Dbxref=SO:0000584;tag_peptide=ANDENYALAA;pseudo=True
 contig_2	Infernal	rRNA	500	620	0.0	-	.	ID=SYN_00014;Name=5S ribosomal RNA;locus_tag=SYN_00014;gene=None;product=5S ribosomal RNA;Dbxref=RFAM:RF00001;pseudo=True
 contig_2	Infernal	regulatory_region	650	670	1e-10	+	.	ID=SYN_R0;Name=region attenuator;product=region attenuator;Dbxref=RFAM:RF00000,SO:0005836;pseudo=True
 contig_2	Infernal	regulatory_region	680	700	2e-10	+	.	ID=SYN_R1;Name=region riboswitch;product=region riboswitch;Dbxref=RFAM:RF00001,SO:0005836
@@ -49,6 +49,16 @@ contig_2	Infernal	regulatory_region	860	880	8e-10	+	.	ID=SYN_R7;Name=region none
 contig_2	BLAST+	oriT	900	950	.	?	.	ID=SYN_ORIT1;Name=origin of transfer;product=origin of transfer;inference=similar to DNA sequence
 contig_2	BLAST+	oriC	960	1000	.	?	.	ID=SYN_ORIV1;Name=origin of replication;product=origin of replication;inference=similar to DNA sequence
 contig_2	Pyrodigal	CDS	1150	1260	.	+	0	ID=SYN_00019;Name=Edge protein;locus_tag=SYN_00019;product=Edge protein;Dbxref=UniRef:UniRef90_E
+##sequence-region contig_5 1 900
+contig_5	Bakta	region	1	900	.	+	.	ID=contig_5;Name=contig_5;Is_circular=true
+contig_5	Pyrodigal	CDS	850	951	.	-	0	ID=SYN_00030;Name=Reverse edge protein;locus_tag=SYN_00030;product=Reverse edge protein;Dbxref=UniRef:UniRef90_R;gene=wrpA
+contig_5	BLAST+	oriC	880	920	.	?	.	ID=SYN_ORIC2;Name=origin of replication;product=origin of replication;inference=similar to DNA sequence
+contig_5	tRNAscan-SE	tRNA	100	172	.	-	.	ID=SYN_00031;Name=tRNA-Gly;locus_tag=SYN_00031;product=tRNA-Gly;Dbxref=SO:0000260;gene=trnG;anti_codon=gcc;amino_acid=Gly
+##sequence-region contig_6 1 400
+contig_6	Bakta	region	1	400	.	+	.	ID=contig_6;Name=contig_6
+contig_6	Pyrodigal	CDS	1	120	.	+	0	ID=SYN_00032;Name=Both ends truncated protein;locus_tag=SYN_00032;product=Both ends truncated protein;pseudo=True
+contig_6	Pyrodigal	CDS	130	249	.	+	0	ID=SYN_00033;Name=Three prime truncated protein;locus_tag=SYN_00033;product=Three prime truncated protein;Dbxref=UniRef:UniRef50_T;pseudo=True;gene=abc_1
+contig_6	Pyrodigal	CDS	260	379	.	-	0	ID=SYN_00034;Name=Reverse three prime truncated protein;locus_tag=SYN_00034;product=Reverse three prime truncated protein;pseudo=True
 ##FASTA
 >contig_1
 GCTAAAGACAATTACATAACATACACGTCAGCACGAAACTTGTTGGCCCAGTGTGAATCG
@@ -122,3 +132,27 @@ TCAAAACTACGTGCGGGAGTACTCTGGCATAGCGGACGACAAGTGGAATCCACTACCGAG
 TACTCGTCGGAACGCAATGAAAAAGACATGTCAGGTTCTATGGCATCACGGGACAACGGC
 ACTAATGACAAGAGCGGCCGGGGCACCGTACCCTGCTGAAATGCGATTTAATTATATTCC
 TTAACAGGTTCGAACTCTAATACCGCAATGTTCATGACGGAATTGCAATACTCGCTGAGC
+>contig_5
+CATATCAGTCCGGCATACAGTCATGTCCCTCGTGCGATCGTAGCCACGTTTCGCAGTCCC
+GACCTCATTGCCGTAATAAGAGCCTATGATCTGCTAGTCGCTGGAATCGATTGCTGCTAC
+TTCCGGTTGCCCGAACTTATTGGGTGCTACTGAGCCCGGGCATACATGAAACACACCCGC
+AAAAACCTGAGGGTTGGAAGCGAAAGCGGTCCACTTGACGATAACCTTCATTCACCATCG
+TGAACACGCTCCCGGCCACTGGTGGAGAGAGCCCCTACGAGTGAAATTTAGCTGTTGTGA
+ATAGCACATAGAGTACTAAAGCAAGCTCCCTTGGACTAAGTTCCGTTCCCTAGCAGTCGG
+CGCTAACGAGAAGCGGGGGGTTGACATCACCGGGTTGCCGAGCGCATGTTCGGCAAAGAA
+CGAATACTTGTTGTGGGGAATTTACCCGGAATTACTACGGACACGTCTATCGGGCTACTC
+CAAGAACACTCCCCTATCGGCTCTAAAGCCGCCCCCATCGTATATAATCGTCCGTCCCCT
+GTGGCCTACCGAGCTTTTTGTCTCCCAGTATAGTGGTCTAATGTTGCACGTGCGCTCGAC
+AGTTTGGAGGTAGGTGAGTAGAGGGTCTAACCACCGCCATGAACACTCATTTACCGAAAC
+AAAGCATCACCGCGATGTTGTCTACCCCGATATATTAGTCACTCTCAAGTCTTGTCGTCG
+CAGGGGCTGATACTATGTAACATGATTGATGAATGCAGGGCTGTGTTAACGACGTCGATT
+AAAACTTAGGCCACGGCCCTCGGACCGATTCATTGATCTTCGCAGTCCTTTGGATGCGAG
+TACTGGTCGAGCTAGTGGTCCGCCGGCATACACACAGACAGATAGGATGCACCCACAGGT
+>contig_6
+TAATAGCTGAAATTCGGCGGGCCCCCAACGATTTAACTCCACGCATTTGTACATCACCAG
+AGAGATGATCCCGTGATCATACAGAGAACTCCCTGTACTACTACTAGGGCGGCATTTACA
+AACGATTGCATTGATCCATTCACAAAGCACGGCGTGCTTCACATCCGAATACACAGAGGT
+CGCTGCGGCGCATTCAGGATGTCTGGTAGTGCTGGTGAGCCTGGAGAGGTATGCGGTACT
+AGCGTACGTTGTCGCCCGGACGACATTCCGAAGTTGATTCTAGAGGCACCACGACCCTGA
+AGATACCTGTGACAGTCTCGCTAGGTTTAATTCCTTCAGTAGTCAAAACGATTTGGGCAT
+AGGCCTGGGGAGAGGCGAGCTAGCTACCTGTGCCTCGAAT

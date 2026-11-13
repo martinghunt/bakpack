@@ -1,0 +1,630 @@
+ID   contig_1; ; linear; DNA; ; UNC; 3000 BP.
+XX
+AC   contig_1;
+XX
+DE   Testus syntheticus contig_1, whole genome shotgun sequence
+XX
+OS   Testus syntheticus
+OC   .
+XX
+CC   Annotated with Bakta
+CC   Software: v1.12.2
+CC   Database: v6.0, full
+CC   DOI: 10.1099/mgen.0.000685
+CC   URL: github.com/oschwengers/bakta
+CC   
+CC   ##Genome Annotation Summary:##
+CC   Annotation Date                :: 01/01/2026, 00:10:00
+CC   CDSs                           ::     7
+CC   tRNAs                          ::     3
+CC   tmRNAs                         ::     1
+CC   rRNAs                          ::     1
+CC   ncRNAs                         ::     4
+CC   regulatory ncRNAs              ::     0
+CC   CRISPR Arrays                  ::     1
+CC   oriCs/oriVs                    ::     1
+CC   oriTs                          ::     0
+CC   gaps                           ::     1
+CC   pseudogenes                    ::     2
+XX
+FH   Key             Location/Qualifiers
+FH
+FT   source          1..3000
+FT                   /mol_type="genomic DNA"
+FT                   /organism="Testus syntheticus"
+FT                   /strain="ST1"
+FT   gene            1..300
+FT                   /locus_tag="SYN_00001"
+FT                   /gene="abcD"
+FT   CDS             1..300
+FT                   /db_xref="EC:1.2.3.4"
+FT                   /db_xref="GO:0005840"
+FT                   /db_xref="UniRef:UniRef90_X"
+FT                   /db_xref="Pfam:PF00001"
+FT                   /db_xref="UniProtKB/TrEMBL:Q1"
+FT                   /db_xref="EC:2.7.7.7"
+FT                   /db_xref="SO:0001217"
+FT                   /product="Widget; protein=A, & B %"
+FT                   /locus_tag="SYN_00001"
+FT                   /protein_id="gnl|Bakta|SYN_00001"
+FT                   /translation="MKDNYITYTSARNLLAQCESLKG*VSVMHTPLLAVSTPSDWHFYY
+FT                   TQKQNSGNFDRSRRGAPS*SAWTLAMNL*FTHSAKLQRGQFHHPK*PNNAFALLT"
+FT                   /codon_start=1
+FT                   /transl_table=11
+FT                   /inference="ab initio prediction:Prodigal:2.6"
+FT                   /inference="similar to AA sequence:RefSeq:WP_000000001.1"
+FT                   /gene="abcD"
+FT   sig_peptide     1..60
+FT                   /locus_tag="SYN_00001"
+FT                   /inference="ab initio prediction:DeepSig:1.2"
+FT   gene            complement(310..600)
+FT                   /locus_tag="SYN_00002"
+FT                   /pseudogene="unitary"
+FT   CDS             complement(310..600)
+FT                   /note="Internal stop codon at 400. Insertion at 350"
+FT                   /db_xref="SO:0001217"
+FT                   /product="hypothetical protein"
+FT                   /locus_tag="SYN_00002"
+FT                   /pseudogene="unitary"
+FT                   /codon_start=1
+FT                   /transl_table=11
+FT                   /inference="ab initio prediction:Prodigal:2.6"
+FT   gene            610..900
+FT                   /locus_tag="SYN_00003"
+FT                   /gene="xyzA"
+FT                   /pseudogene="unprocessed"
+FT   CDS             610..900
+FT                   /note="Frameshift. Deletion at 700"
+FT                   /product="Paralog protein"
+FT                   /locus_tag="SYN_00003"
+FT                   /pseudogene="unprocessed"
+FT                   /codon_start=1
+FT                   /transl_table=11
+FT                   /inference="ab initio prediction:Prodigal:2.6"
+FT                   /gene="xyzA"
+FT   gene            complement(910..>1200)
+FT                   /locus_tag="SYN_00004"
+FT                   /gene="fdhF"
+FT                   /pseudo
+FT   CDS             complement(910..>1200)
+FT                   /note="codon on position 31 is a selenocysteine codon"
+FT                   /note="(5' truncated)"
+FT                   /db_xref="EC:1.17.1.9"
+FT                   /product="Formate dehydrogenase"
+FT                   /locus_tag="SYN_00004"
+FT                   /protein_id="gnl|Bakta|SYN_00004"
+FT                   /translation="PCWINISRGLGFWNFTLGGRQLLLSQRFPWIRTTTSTEVRDDRLA
+FT                   GLILLSR*EELNKHNLGSDGEVSCELAG*LDIR*S*PTTVI*CRTVVPASAG"
+FT                   /codon_start=1
+FT                   /transl_table=11
+FT                   /inference="EXISTENCE:non-experimental evidence, no
+FT                   additional details recorded"
+FT                   /inference="similar to AA sequence:UniRef:UniRef100_A1"
+FT                   /transl_except=(pos:complement(1000..1002),aa:Sec)
+FT                   /pseudo
+FT                   /gene="fdhF"
+FT   gene            1210..1500
+FT                   /locus_tag="SYN_00005"
+FT                   /gene="prfB"
+FT   CDS             1210..1500
+FT                   /db_xref="UniRef:UniRef50_P"
+FT                   /product="Peptide chain release factor 2"
+FT                   /locus_tag="SYN_00005"
+FT                   /protein_id="gnl|Bakta|SYN_00005"
+FT                   /translation="MRCFNRYQNANKSIPKSTRVREVI*YSYEVSGASIGL*RSLRLLA
+FT                   VRPGRDTPVQA*FVRTSHWISFID*ARSRFLEVKLDVFPLRCCVSRRFSVSE"
+FT                   /codon_start=1
+FT                   /transl_table=11
+FT                   /inference="ab initio prediction:Prodigal:2.6"
+FT                   /inference="similar to AA sequence:UniParc:UPI000001"
+FT                   /ribosomal_slippage
+FT                   /gene="prfB"
+FT   gene            1510..1560
+FT                   /locus_tag="SYN_00006"
+FT                   /gene="smlA"
+FT   CDS             1510..1560
+FT                   /db_xref="EC:3.1.1.1"
+FT                   /db_xref="UniRef:UniRef90_S"
+FT                   /product="Small protein"
+FT                   /locus_tag="SYN_00006"
+FT                   /protein_id="gnl|Bakta|SYN_00006"
+FT                   /translation="MSAHKSLFSHVVLRKIH"
+FT                   /codon_start=1
+FT                   /transl_table=11
+FT                   /inference="ab initio prediction:Bakta:1.12"
+FT                   /inference="similar to AA sequence:UniRef:UniRef50_S"
+FT                   /gene="smlA"
+FT   sig_peptide     1510..1530
+FT                   /locus_tag="SYN_00006"
+FT                   /inference="ab initio prediction:DeepSig:1.2"
+FT   gene            complement(1570..1620)
+FT                   /locus_tag="SYN_00007"
+FT   CDS             complement(1570..1620)
+FT                   /product="hypothetical protein"
+FT                   /locus_tag="SYN_00007"
+FT                   /protein_id="gnl|Bakta|SYN_00007"
+FT                   /translation="MLM*CDSFIIAASPTLT"
+FT                   /codon_start=1
+FT                   /transl_table=11
+FT                   /inference="ab initio prediction:Bakta:1.12"
+FT   gene            1630..1702
+FT                   /locus_tag="SYN_00008"
+FT                   /gene="trnA"
+FT   tRNA            1630..1702
+FT                   /db_xref="SO:0000254"
+FT                   /product="tRNA-Ala"
+FT                   /locus_tag="SYN_00008"
+FT                   /anticodon=(pos:1660..1662,aa:Ala,seq:tgc)
+FT                   /inference="profile:tRNAscan:2.0"
+FT                   /gene="trnA"
+FT   gene            complement(1710..1782)
+FT                   /locus_tag="SYN_00009"
+FT                   /gene="trnR"
+FT                   /pseudogene="unknown"
+FT   tRNA            complement(1710..1782)
+FT                   /note="tRNA-Arg (ccg)"
+FT                   /db_xref="SO:0001036"
+FT                   /product="tRNA-Arg"
+FT                   /locus_tag="SYN_00009"
+FT                   /inference="profile:tRNAscan:2.0"
+FT                   /pseudogene="unknown"
+FT                   /gene="trnR"
+FT   gene            1790..>1850
+FT                   /locus_tag="SYN_00010"
+FT                   /pseudo
+FT   tRNA            1790..>1850
+FT                   /note="tRNA-None (None)"
+FT                   /note="(3' truncated)"
+FT                   /product="tRNA-Xxx"
+FT                   /locus_tag="SYN_00010"
+FT                   /inference="profile:tRNAscan:2.0"
+FT                   /pseudo
+FT   gene            1860..2200
+FT                   /locus_tag="SYN_00011"
+FT                   /gene="ssrA"
+FT   tmRNA           1860..2200
+FT                   /db_xref="SO:0000584"
+FT                   /product="transfer-messenger RNA, SsrA"
+FT                   /locus_tag="SYN_00011"
+FT                   /inference="profile:aragorn:1.2"
+FT                   /tag_peptide=1950..1985
+FT                   /gene="ssrA"
+FT   gene            2210..2330
+FT                   /locus_tag="SYN_00013"
+FT                   /gene="rrf"
+FT   rRNA            2210..2330
+FT                   /db_xref="RFAM:RF00001"
+FT                   /db_xref="SO:0000652"
+FT                   /db_xref="GO:0005840"
+FT                   /product="5S ribosomal RNA"
+FT                   /locus_tag="SYN_00013"
+FT                   /inference="profile:Rfam:RF00001"
+FT                   /gene="rrf"
+FT   gene            2340..2400
+FT                   /locus_tag="SYN_00015"
+FT                   /gene="rnpB"
+FT   ncRNA           2340..2400
+FT                   /db_xref="RFAM:RF00010"
+FT                   /db_xref="SO:0000386"
+FT                   /product="RNase P RNA"
+FT                   /locus_tag="SYN_00015"
+FT                   /inference="profile:Rfam:RF00010"
+FT                   /ncRNA_class="RNase_P_RNA"
+FT                   /gene="rnpB"
+FT   gene            complement(2410..2460)
+FT                   /locus_tag="SYN_00016"
+FT                   /gene="isrA"
+FT   ncRNA           complement(2410..2460)
+FT                   /db_xref="RFAM:RF00100"
+FT                   /product="antisense RNA"
+FT                   /locus_tag="SYN_00016"
+FT                   /inference="profile:Rfam:RF00100"
+FT                   /ncRNA_class="antisense_RNA"
+FT                   /gene="isrA"
+FT   gene            2470..>2520
+FT                   /locus_tag="SYN_00017"
+FT                   /gene="glmS_ribozyme"
+FT                   /pseudo
+FT   ncRNA           2470..>2520
+FT                   /note="(3' truncated)"
+FT                   /db_xref="RFAM:RF00234"
+FT                   /product="glmS ribozyme"
+FT                   /locus_tag="SYN_00017"
+FT                   /inference="profile:Rfam:RF00234"
+FT                   /ncRNA_class="ribozyme"
+FT                   /pseudo
+FT                   /gene="glmS_ribozyme"
+FT   gene            2530..2580
+FT                   /locus_tag="SYN_00018"
+FT                   /gene="ffs"
+FT   ncRNA           2530..2580
+FT                   /db_xref="RFAM:RF00169"
+FT                   /product="4.5S RNA"
+FT                   /locus_tag="SYN_00018"
+FT                   /inference="profile:Rfam:RF00169"
+FT                   /ncRNA_class="other"
+FT                   /gene="ffs"
+FT   repeat_region   2600..2760
+FT                   /note="CRISPR array with 3 repeats of length 30, consensus
+FT                   sequence ACGT and spacer length 20"
+FT                   /rpt_family="CRISPR"
+FT                   /rpt_type=direct
+FT                   /rpt_unit_seq="ACGTACGTACGTACGTACGTACGTACGTAC"
+FT                   /inference="COORDINATES:alignment:pilercr:1.02"
+FT   gap             2770..2800
+FT                   /estimated_length=31
+FT   rep_origin      2810..2850
+FT                   /note="origin of replication"
+FT                   /inference="similar to DNA sequence"
+XX
+SQ   Sequence 3000 BP; 768 A; 766 C; 747 G; 719 T; 0 other;
+     gctaaagaca attacataac atacacgtca gcacgaaact tgttggccca gtgtgaatcg        60
+     cttaagggtt aagtaagtgt gatgcatacg cctttacttg ctgtgtccac cccatcggac       120
+     tggcattttt attacactca gaaacagaac tcgggtaatt ttgacaggtc acgcagaggc       180
+     gcgccctcct gaagtgcgtg gacactcgct atgaatctct gatttaccca ctctgccaaa       240
+     ctccagcgcg gtcagttcca tcaccctaag taaccgaata atgcgttcgc tctattgact       300
+     acgacgcgct cattcccttg tcggagagtt atggaacaag gacgctgtct gagactagaa       360
+     gacagatagt gcacacgacc ggcgtcggag aaactctatt tgccgcctga caagtcaatg       420
+     cgatccgtag gggcagcgca gtatgccaag actataggca ctgtcgcatc acaaacgatt       480
+     aactgataaa tgagcccttt atgacacggg catatgactg gtttacgata gtatgtccaa       540
+     cggcgagctt tacatttgct gtgagaggta cagggattag tgagaagccg tgcgtatcaa       600
+     ttcgtacctt gggggtcgtt accactctgt tcccacgagc ggcatttctg gatggccagc       660
+     ttttgacatt taatttcacc cataaaccag cgtaaagctg caagtggctc catgaactta       720
+     gctgctagtg tcagactcgc ctcggatcct tactacacta acttgaacgc ctagtggtca       780
+     aagagtactg gtaatcgtcg gtatctatat aagcagggga ggggaaacat ttgttctcag       840
+     ccggtgactc ctaatgctaa gacatttccc ttcagggggg gctcccccgc gatgccataa       900
+     atctgagcaa ccagctgaag caggcacgac agtgcgacat tatatcactg tggtaggtta       960
+     gcttcatcta atgtccaact agccggccaa ttcgcatgat acctctccat ctgacccaag      1020
+     attgtgcttg ttcaattctt cttaacgtga taacagaatc aaacctgcca ggcggtcgtc      1080
+     gcggacctcg gtcgaagtag tggtgcggat ccaggggaac cgttgactca aaaggagctg      1140
+     ccgtccacct aacgtgaagt tccaaaatcc caaacctctc gagatattta tccagcaagg      1200
+     agtggcaacg cccgctgctt taatcgctac caaaacgcaa acaaaagcat acccaaaagt      1260
+     acacgggtga gggaggtgat atagtacagc tacgaagtat ctggcgcctc aataggatta      1320
+     tagcggtctc tcaggctgct tgccgtccgg cccggccgcg acactccggt gcaagcttaa      1380
+     ttcgtacgta cttcccattg gatctcgttt atcgattaag cccgatctag gttcctagag      1440
+     gttaaattgg acgtcttccc actccgttgc tgcgtgtcta ggcggtttag cgtaagcgaa      1500
+     caggaccctg cctcagctca taagtcctta ttctctcacg ttgtgttacg aaagattcac      1560
+     tcgaggtcgt gtgagggttg ggctagcggc aattatgaaa ctatcacatc acataagcgg      1620
+     gctagatata atttaatctt aatccataaa acactagctc agcagttgaa aaaatggcta      1680
+     ggttccagct tttggggaga cgtctttctg agggtcagcc gtgattccga ttcgattaga      1740
+     ctggtcccca cgggtccatg agtacgagga aactcggtat cgagcctaaa agttataagg      1800
+     catctcgccc aggaaagtaa cgacgtatgg gtagttctcc atcaccagct ataatggcta      1860
+     gcgcactctc gttccagggc gtagttacac tgagcgtgcc atgtcagcat gctagcgtat      1920
+     cgccccccaa tgccccgcaa tagggtaatt cgccgacgag taagcgtaga ttacacaccc      1980
+     aggaaacgat ctagacagat tgaaatcccc ttcattatag gtcgtgtagc gctagacagt      2040
+     cacctttaaa ggaagaatca gaggcaagat ctacgtggca gtctcgtgtt gacgccttag      2100
+     ccggtggcga acagtattga cctggccgat gctaatattc tgatttgggg ttgatttgcg      2160
+     cttcaggcgc taaagtggtt ttgagtaaca tgtccttttg acgggagcag gtcgcctcaa      2220
+     gataagagta aacctgccta ccaaaacttt aagccggcag aagcttaact atacccaccg      2280
+     atgtgtactc tgttacaccg tcagtgagtg taatgctctg gctagagccc acgcttccgg      2340
+     cttcgtcctc gtgctccaag tacgataccg caaggcagac gctggttcgc aggtatctga      2400
+     cgagcatact cgctagcctg tgaagaacaa gcgattcgag ttgtactctc agcccgcacg      2460
+     gtacgccttc catcggcccg atccttcaga gtcaaggcag tacgttggca aattaggatt      2520
+     tcgagaggca caatcggcca ggtcggcgcg gcaaatactt tcgacccctt aattccgaat      2580
+     cgaatgatac ctgatgctag ttctaaggtg tcggacctac gtgcttgacc cacgacgtct      2640
+     caatatcaat tcctacgatc agaactgact acagcggaga cggtagagga acggctataa      2700
+     taagccgtcg gtaagcttaa acttcttcag gcgcaccgtg ttggagtgca ctaccgtgag      2760
+     gcaactaggc cagggcgtga ggtgccgccc attttgcacg gggacacggt gtatgcggac      2820
+     gcacattcga ccacaaagca cgagacggat tgcataagtt gtaaggatgc aacccaggtg      2880
+     cgcgtagtgg gcgatagcct aacaaccggc ccagcttcgt tcgaaaatga ctttcagagt      2940
+     ccgcgtggtc ctgcggagat ccgtcacgat ctcgaacacg cgacttatgt gaccaaccta      3000
+//
+ID   contig_2; ; circular; DNA; ; PRO; 1200 BP.
+XX
+AC   contig_2;
+XX
+DE   Testus syntheticus plasmid pSYN1, complete sequence
+XX
+OS   Testus syntheticus
+OC   .
+XX
+CC   Annotated with Bakta
+CC   Software: v1.12.2
+CC   Database: v6.0, full
+CC   DOI: 10.1099/mgen.0.000685
+CC   URL: github.com/oschwengers/bakta
+CC   
+CC   ##Genome Annotation Summary:##
+CC   Annotation Date                :: 01/01/2026, 00:10:00
+CC   CDSs                           ::     1
+CC   tRNAs                          ::     0
+CC   tmRNAs                         ::     1
+CC   rRNAs                          ::     1
+CC   ncRNAs                         ::     0
+CC   regulatory ncRNAs              ::     8
+CC   CRISPR Arrays                  ::     0
+CC   oriCs/oriVs                    ::     1
+CC   oriTs                          ::     1
+CC   gaps                           ::     0
+CC   pseudogenes                    ::     0
+XX
+FH   Key             Location/Qualifiers
+FH
+FT   source          1..1200
+FT                   /mol_type="genomic DNA"
+FT                   /organism="Testus syntheticus"
+FT                   /strain="ST1"
+FT                   /plasmid="pSYN1"
+FT   gene            complement(100..>440)
+FT                   /locus_tag="SYN_00012"
+FT                   /gene="ssrA"
+FT                   /pseudo
+FT   tmRNA           complement(100..>440)
+FT                   /note="(5' truncated)"
+FT                   /db_xref="SO:0000584"
+FT                   /product="transfer-messenger RNA, SsrA"
+FT                   /locus_tag="SYN_00012"
+FT                   /inference="profile:aragorn:1.2"
+FT                   /tag_peptide=200..235
+FT                   /pseudo
+FT                   /gene="ssrA"
+FT   gene            complement(500..>620)
+FT                   /locus_tag="SYN_00014"
+FT                   /pseudo
+FT   rRNA            complement(500..>620)
+FT                   /note="(5' truncated)"
+FT                   /db_xref="RFAM:RF00001"
+FT                   /product="5S ribosomal RNA"
+FT                   /locus_tag="SYN_00014"
+FT                   /inference="profile:Rfam:RF00001"
+FT                   /pseudo
+FT   regulatory      <650..670
+FT                   /note="region attenuator"
+FT                   /note="(5' truncated)"
+FT                   /db_xref="RFAM:RF00000"
+FT                   /db_xref="SO:0005836"
+FT                   /inference="profile:Rfam:RF00000"
+FT                   /regulatory_class="attenuator"
+FT                   /pseudo
+FT   regulatory      680..700
+FT                   /note="region riboswitch"
+FT                   /db_xref="RFAM:RF00001"
+FT                   /db_xref="SO:0005836"
+FT                   /inference="profile:Rfam:RF00001"
+FT                   /regulatory_class="riboswitch"
+FT   regulatory      710..730
+FT                   /note="region RNA_thermometer"
+FT                   /db_xref="RFAM:RF00002"
+FT                   /db_xref="SO:0005836"
+FT                   /inference="profile:Rfam:RF00002"
+FT                   /regulatory_class="response_element"
+FT   regulatory      740..760
+FT                   /note="region recoding_stimulatory_region"
+FT                   /db_xref="RFAM:RF00003"
+FT                   /db_xref="SO:0005836"
+FT                   /inference="profile:Rfam:RF00003"
+FT                   /regulatory_class="recoding_stimulatory_region"
+FT   regulatory      770..790
+FT                   /note="region cis_regulatory_frameshift_element"
+FT                   /db_xref="RFAM:RF00004"
+FT                   /db_xref="SO:0005836"
+FT                   /inference="profile:Rfam:RF00004"
+FT                   /regulatory_class="recoding_stimulatory_region"
+FT   regulatory      800..820
+FT                   /note="region ribosome_entry_site"
+FT                   /db_xref="RFAM:RF00005"
+FT                   /db_xref="SO:0005836"
+FT                   /inference="profile:Rfam:RF00005"
+FT                   /regulatory_class="ribosome_binding_site"
+FT   regulatory      830..850
+FT                   /note="region response_element"
+FT                   /db_xref="RFAM:RF00006"
+FT                   /db_xref="SO:0005836"
+FT                   /inference="profile:Rfam:RF00006"
+FT                   /regulatory_class="other"
+FT   regulatory      860..880
+FT                   /note="region none"
+FT                   /db_xref="RFAM:RF00007"
+FT                   /db_xref="SO:0005836"
+FT                   /inference="profile:Rfam:RF00007"
+FT                   /regulatory_class="other"
+FT   oriT            900..950
+FT                   /note="origin of transfer"
+FT                   /inference="similar to DNA sequence"
+FT   rep_origin      960..1000
+FT                   /note="origin of replication"
+FT                   /inference="similar to DNA sequence"
+FT   gene            join(1150..1200,1..60)
+FT                   /locus_tag="SYN_00019"
+FT   CDS             join(1150..1200,1..60)
+FT                   /db_xref="UniRef:UniRef90_E"
+FT                   /product="Edge protein"
+FT                   /locus_tag="SYN_00019"
+FT                   /protein_id="gnl|Bakta|SYN_00019"
+FT                   /translation="MNSNTAMFMTELQYSLSKKSTQ*PAGTWRWCCSFTSK"
+FT                   /codon_start=1
+FT                   /transl_table=11
+FT                   /inference="ab initio prediction:Prodigal:2.6"
+FT                   /inference="similar to AA sequence:UniRef:UniRef90_E"
+XX
+SQ   Sequence 1200 BP; 323 A; 295 C; 294 G; 288 T; 0 other;
+     aagaaatcta cccagtagcc agcaggaaca tggagatggt gttgttcttt cacgtccaaa        60
+     atgtgtattg tctgatggac ggtgtccagc cgccctcagt gtatcgtagg gtagtgtatt       120
+     ccacgtcggt gacagacggg gcgtatacct ggattgagtt ggctccgacg aatttttaat       180
+     ttttcatttc acctaggtta acaaatacta cgtatctacg gcacggagtg gttaggcttg       240
+     gccacgttcg gctagaatga gctgcctttc cactaacatc actcgcccca tacaatcgtt       300
+     cacactgcgc gggccctagt cgcactcctg taagacagtg atactggacc tgcgaaagcc       360
+     gacggttcgg cagataactt aaaatctgag cgcagatgcg aacactgagt ccaggcgtcc       420
+     ccaaaatcca ccgattagaa cccacagaac cggatcagtt aaccccgccc cgaatatgaa       480
+     cagtagcttc ggatcttgaa gccctctatt gttacgtgag taatttgtcg cagttaggag       540
+     cttcacatct ggcgccgtgt gcctaacact ggatcgtagt ggggtattga aattgctagt       600
+     cagccatcgc gattattggg ctagccacgc gagtgcggtc gttaggtgtt gacttcgacg       660
+     ttagtgtgag taaggggcaa tagccattgt ttggcctgcc gataacttcg ccccagatgc       720
+     tgagccgaga gaaagcatct gataatatcg ggcccgacca gtgagaattt cagggatctt       780
+     tcgcatcgca atccgcgaaa gctaggcggg aacgtataga cgttaggtca gtcggacgtt       840
+     ctccaactaa atacaggttc accgtaacct ttaatctctt cattaccatc acacaatatc       900
+     catgactata acccgataaa aaagttacac tcactaagaa caagggggct gcaaaaactt       960
+     tcaaaactac gtgcgggagt actctggcat agcggacgac aagtggaatc cactaccgag      1020
+     tactcgtcgg aacgcaatga aaaagacatg tcaggttcta tggcatcacg ggacaacggc      1080
+     actaatgaca agagcggccg gggcaccgta ccctgctgaa atgcgattta attatattcc      1140
+     ttaacaggtt cgaactctaa taccgcaatg ttcatgacgg aattgcaata ctcgctgagc      1200
+//
+ID   contig_5; ; circular; DNA; ; PRO; 900 BP.
+XX
+AC   contig_5;
+XX
+DE   Testus syntheticus chromosome, complete genome
+XX
+OS   Testus syntheticus
+OC   .
+XX
+CC   Annotated with Bakta
+CC   Software: v1.12.2
+CC   Database: v6.0, full
+CC   DOI: 10.1099/mgen.0.000685
+CC   URL: github.com/oschwengers/bakta
+CC   
+CC   ##Genome Annotation Summary:##
+CC   Annotation Date                :: 01/01/2026, 00:10:00
+CC   CDSs                           ::     1
+CC   tRNAs                          ::     1
+CC   tmRNAs                         ::     0
+CC   rRNAs                          ::     0
+CC   ncRNAs                         ::     0
+CC   regulatory ncRNAs              ::     0
+CC   CRISPR Arrays                  ::     0
+CC   oriCs/oriVs                    ::     1
+CC   oriTs                          ::     0
+CC   gaps                           ::     0
+CC   pseudogenes                    ::     0
+XX
+FH   Key             Location/Qualifiers
+FH
+FT   source          1..900
+FT                   /mol_type="genomic DNA"
+FT                   /organism="Testus syntheticus"
+FT                   /strain="ST1"
+FT                   /chromosome="chrI"
+FT   gene            complement(join(850..900,1..51))
+FT                   /locus_tag="SYN_00030"
+FT                   /gene="wrpA"
+FT   CDS             complement(join(850..900,1..51))
+FT                   /db_xref="UniRef:UniRef90_R"
+FT                   /product="Reverse edge protein"
+FT                   /locus_tag="SYN_00030"
+FT                   /protein_id="gnl|Bakta|SYN_00030"
+FT                   /translation="MRGYDRTRDMTVCRTDMTCGCILSVCVYAGGPLA"
+FT                   /codon_start=1
+FT                   /transl_table=11
+FT                   /inference="ab initio prediction:Prodigal:2.6"
+FT                   /gene="wrpA"
+FT   rep_origin      join(880..900,1..20)
+FT                   /note="origin of replication"
+FT                   /inference="similar to DNA sequence"
+FT   gene            complement(100..172)
+FT                   /locus_tag="SYN_00031"
+FT                   /gene="trnG"
+FT   tRNA            complement(100..172)
+FT                   /db_xref="SO:0000260"
+FT                   /product="tRNA-Gly"
+FT                   /locus_tag="SYN_00031"
+FT                   /anticodon=(pos:130..132,aa:Gly,seq:gcc)
+FT                   /inference="profile:tRNAscan:2.0"
+FT                   /gene="trnG"
+XX
+SQ   Sequence 900 BP; 217 A; 243 C; 225 G; 215 T; 0 other;
+     catatcagtc cggcatacag tcatgtccct cgtgcgatcg tagccacgtt tcgcagtccc        60
+     gacctcattg ccgtaataag agcctatgat ctgctagtcg ctggaatcga ttgctgctac       120
+     ttccggttgc ccgaacttat tgggtgctac tgagcccggg catacatgaa acacacccgc       180
+     aaaaacctga gggttggaag cgaaagcggt ccacttgacg ataaccttca ttcaccatcg       240
+     tgaacacgct cccggccact ggtggagaga gcccctacga gtgaaattta gctgttgtga       300
+     atagcacata gagtactaaa gcaagctccc ttggactaag ttccgttccc tagcagtcgg       360
+     cgctaacgag aagcgggggg ttgacatcac cgggttgccg agcgcatgtt cggcaaagaa       420
+     cgaatacttg ttgtggggaa tttacccgga attactacgg acacgtctat cgggctactc       480
+     caagaacact cccctatcgg ctctaaagcc gcccccatcg tatataatcg tccgtcccct       540
+     gtggcctacc gagctttttg tctcccagta tagtggtcta atgttgcacg tgcgctcgac       600
+     agtttggagg taggtgagta gagggtctaa ccaccgccat gaacactcat ttaccgaaac       660
+     aaagcatcac cgcgatgttg tctaccccga tatattagtc actctcaagt cttgtcgtcg       720
+     caggggctga tactatgtaa catgattgat gaatgcaggg ctgtgttaac gacgtcgatt       780
+     aaaacttagg ccacggccct cggaccgatt cattgatctt cgcagtcctt tggatgcgag       840
+     tactggtcga gctagtggtc cgccggcata cacacagaca gataggatgc acccacaggt       900
+//
+ID   contig_6; ; linear; DNA; ; PRO; 400 BP.
+XX
+AC   contig_6;
+XX
+DE   Testus syntheticus plasmid unnamed, whole genome shotgun sequence
+XX
+OS   Testus syntheticus
+OC   .
+XX
+CC   Annotated with Bakta
+CC   Software: v1.12.2
+CC   Database: v6.0, full
+CC   DOI: 10.1099/mgen.0.000685
+CC   URL: github.com/oschwengers/bakta
+CC   
+CC   ##Genome Annotation Summary:##
+CC   Annotation Date                :: 01/01/2026, 00:10:00
+CC   CDSs                           ::     3
+CC   tRNAs                          ::     0
+CC   tmRNAs                         ::     0
+CC   rRNAs                          ::     0
+CC   ncRNAs                         ::     0
+CC   regulatory ncRNAs              ::     0
+CC   CRISPR Arrays                  ::     0
+CC   oriCs/oriVs                    ::     0
+CC   oriTs                          ::     0
+CC   gaps                           ::     0
+CC   pseudogenes                    ::     0
+XX
+FH   Key             Location/Qualifiers
+FH
+FT   source          1..400
+FT                   /mol_type="genomic DNA"
+FT                   /organism="Testus syntheticus"
+FT                   /strain="ST1"
+FT                   /plasmid="unnamed"
+FT   gene            <1..>120
+FT                   /locus_tag="SYN_00032"
+FT                   /pseudo
+FT   CDS             <1..>120
+FT                   /note="(partial)"
+FT                   /product="Both ends truncated protein"
+FT                   /locus_tag="SYN_00032"
+FT                   /protein_id="gnl|Bakta|SYN_00032"
+FT                   /translation="M*LKFGGPPTI*LHAFVHHQRDDPVIIQRTPCTTTRAAFT"
+FT                   /codon_start=1
+FT                   /transl_table=11
+FT                   /inference="ab initio prediction:Prodigal:2.6"
+FT                   /pseudo
+FT   gene            130..>249
+FT                   /locus_tag="SYN_00033"
+FT                   /gene="abc_1"
+FT                   /pseudo
+FT   CDS             130..>249
+FT                   /note="(3' truncated)"
+FT                   /db_xref="UniRef:UniRef50_T"
+FT                   /product="Three prime truncated protein"
+FT                   /locus_tag="SYN_00033"
+FT                   /protein_id="gnl|Bakta|SYN_00033"
+FT                   /translation="MDPFTKHGVLHIRIHRGRCGAFRMSGSAGEPGEVCGTSVR"
+FT                   /codon_start=1
+FT                   /transl_table=11
+FT                   /inference="ab initio prediction:Prodigal:2.6"
+FT                   /inference="similar to AA sequence:UniRef:UniRef50_T"
+FT                   /pseudo
+FT                   /gene="abc_1"
+FT   gene            complement(<260..379)
+FT                   /locus_tag="SYN_00034"
+FT                   /pseudo
+FT   CDS             complement(<260..379)
+FT                   /note="(3' truncated)"
+FT                   /product="Reverse three prime truncated protein"
+FT                   /locus_tag="SYN_00034"
+FT                   /protein_id="gnl|Bakta|SYN_00034"
+FT                   /translation="MASPQAYAQIVLTTEGIKPSETVTGIFRVVVPLESTSECR"
+FT                   /codon_start=1
+FT                   /transl_table=11
+FT                   /inference="ab initio prediction:Prodigal:2.6"
+FT                   /pseudo
+XX
+SQ   Sequence 400 BP; 101 A; 101 C; 104 G; 94 T; 0 other;
+     taatagctga aattcggcgg gcccccaacg atttaactcc acgcatttgt acatcaccag        60
+     agagatgatc ccgtgatcat acagagaact ccctgtacta ctactagggc ggcatttaca       120
+     aacgattgca ttgatccatt cacaaagcac ggcgtgcttc acatccgaat acacagaggt       180
+     cgctgcggcg cattcaggat gtctggtagt gctggtgagc ctggagaggt atgcggtact       240
+     agcgtacgtt gtcgcccgga cgacattccg aagttgattc tagaggcacc acgaccctga       300
+     agatacctgt gacagtctcg ctaggtttaa ttccttcagt agtcaaaacg atttgggcat       360
+     aggcctgggg agaggcgagc tagctacctg tgcctcgaat                             400
+//

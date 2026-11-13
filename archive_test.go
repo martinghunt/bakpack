@@ -551,7 +551,7 @@ func TestBuildAndExtractArchiveFromCompressedTars(t *testing.T) {
 				Samples:     []string{"sampleA", "sampleB"},
 				OutputDir:   outDir,
 				Original:    true,
-				GFF3:        true,
+				Convert:     []string{FormatGFF3},
 			}); err != nil {
 				t.Fatalf("ExtractArchive() error = %v", err)
 			}
@@ -934,14 +934,15 @@ func TestArchiveExtractReturnsBytesInRequestedOrder(t *testing.T) {
 	filesDir := filepath.Join(dir, "extract-files")
 	var writtenSamples []string
 	if err := archive.ExtractFiles(ctx, ExtractRequest{
-		Genomes:            genomes,
-		Samples:            []string{"sampleA"},
-		Original:           true,
-		Genome:             true,
-		GFF3AnnotationOnly: true,
+		Genomes:        genomes,
+		Samples:        []string{"sampleA"},
+		Original:       true,
+		Genome:         true,
+		Convert:        []string{FormatGFF3},
+		ConvertOptions: ConvertOptions{AnnotationOnly: true},
 		OnSample: func(sample ExtractedSample) error {
 			writtenSamples = append(writtenSamples, sample.SampleID)
-			if len(sample.OriginalJSON) == 0 || len(sample.GenomeFASTA) == 0 || len(sample.GFF3) == 0 {
+			if len(sample.OriginalJSON) == 0 || len(sample.GenomeFASTA) == 0 || len(sample.Converted[FormatGFF3]) == 0 {
 				return fmt.Errorf("missing extracted bytes for %s", sample.SampleID)
 			}
 			return nil

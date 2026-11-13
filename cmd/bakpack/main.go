@@ -27,7 +27,7 @@ func newRootCommand() *cobra.Command {
 	cmd.SetVersionTemplate("{{.Name}} {{.Version}}\n")
 	cmd.AddCommand(newReduceCommand())
 	cmd.AddCommand(newRestoreCommand())
-	cmd.AddCommand(newGFF3Command())
+	cmd.AddCommand(newConvertCommand())
 	cmd.AddCommand(newBuildCommand())
 	cmd.AddCommand(newExtractCommand())
 	cmd.AddCommand(newIndexCommand())
@@ -140,19 +140,21 @@ named SAMPLE.reduced.bakta.json pairs with genome SAMPLE.fa.`,
 	return cmd
 }
 
-func newGFF3Command() *cobra.Command {
+func newConvertCommand() *cobra.Command {
 	var output string
-	var annotationOnly, compliant bool
+	var convert convertFlags
 	var batch batchFlags
 	cmd := &cobra.Command{
-		Use:   "gff3 [BAKTA_JSON GENOME_FASTA]",
-		Short: "Render a Bakta JSON annotation as GFF3",
-		Long: `Render a Bakta JSON annotation, original or reduced, as GFF3.
+		Use:   "convert [BAKTA_JSON GENOME_FASTA]",
+		Short: "Convert a Bakta JSON annotation to GFF3, GenBank or EMBL",
+		Long: `Convert a Bakta JSON annotation, original or reduced, to GFF3, GenBank or EMBL,
+as current Bakta writes it for that JSON.
 
-With BAKTA_JSON and GENOME_FASTA, render one sample to the --output file.
-Without them, render every sample in --annotations and --genomes (or
---manifest), writing SAMPLE.gff3 files to --output, which is a directory or a
-tar file (.tar, .tar.gz, .tar.bz2, .tar.xz, .tar.zst).`,
+With BAKTA_JSON and GENOME_FASTA, convert one sample to the --output file.
+Without them, convert every sample in --annotations and --genomes (or
+--manifest), writing SAMPLE.gff3, SAMPLE.gbff or SAMPLE.embl files to
+--output, which is a directory or a tar file (.tar, .tar.gz, .tar.bz2,
+.tar.xz, .tar.zst).`,
 		Args: singleOrBatchArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := requireOutput(output); err != nil {
@@ -163,9 +165,8 @@ tar file (.tar, .tar.gz, .tar.bz2, .tar.xz, .tar.zst).`,
 				if err != nil {
 					return err
 				}
-				opts.GFF3AnnotationOnly = annotationOnly
-				opts.GFF3Compliant = compliant
-				return bakpack.GFF3Batch(cmd.Context(), opts)
+				opts.Convert = convert.options()
+				return bakpack.ConvertBatch(cmd.Context(), opts)
 			}
 			if err := batch.requireUnset(); err != nil {
 				return err
@@ -174,27 +175,48 @@ tar file (.tar, .tar.gz, .tar.bz2, .tar.xz, .tar.zst).`,
 			if err != nil {
 				return err
 			}
-			gff3, err := bakpack.BaktaGFF3WithOptions(annotation, genome, bakpack.BaktaGFF3Options{
-				AnnotationOnly: annotationOnly,
-				Compliant:      compliant,
-				Warn: func(message string) {
-					fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s: %s\n", args[0], message)
-				},
-			})
+			opts := convert.options()
+			opts.Warn = func(message string) {
+				fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s: %s\n", args[0], message)
+			}
+			converted, err := bakpack.ConvertBaktaJSON(annotation, genome, opts)
 			if err != nil {
 				return err
 			}
-			return os.WriteFile(output, gff3, 0o644)
+			return os.WriteFile(output, converted, 0o644)
 		},
 	}
-	cmd.Flags().StringVarP(&output, "output", "o", "", "Output GFF3 file, or in batch mode a directory or tar file")
-	cmd.Flags().BoolVar(&annotationOnly, "annotation-only", false, "Omit the terminal FASTA section")
-	cmd.Flags().BoolVar(&compliant, "compliant", false, "Write GFF3 as Bakta --compliant (Genbank/ENA/DDBJ) mode does")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Output file, or in batch mode a directory or tar file")
+	cmd.Flags().StringVar(&convert.format, "format", "gff3", "Output format: gff3, genbank or embl")
+	convert.add(cmd)
 	batch.add(cmd)
 	return cmd
 }
 
-// batchFlags are the source flags shared by reduce, restore and gff3 batch
+// convertFlags are the conversion flags shared by convert and extract.
+type convertFlags struct {
+	format         string
+	compliant      bool
+	annotationOnly bool
+	annotationDate string
+}
+
+func (f *convertFlags) add(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&f.compliant, "compliant", false, "Write as Bakta --compliant (Genbank/ENA/DDBJ) mode does")
+	cmd.Flags().BoolVar(&f.annotationOnly, "annotation-only", false, "Omit the terminal FASTA section of GFF3")
+	cmd.Flags().StringVar(&f.annotationDate, "annotation-date", "", "GenBank/EMBL date for JSON without Bakta's run section: YYYY-MM-DD, \"YYYY-MM-DD HH:MM:SS\" or today")
+}
+
+func (f *convertFlags) options() bakpack.ConvertOptions {
+	return bakpack.ConvertOptions{
+		Format:         f.format,
+		Compliant:      f.compliant,
+		AnnotationOnly: f.annotationOnly,
+		AnnotationDate: f.annotationDate,
+	}
+}
+
+// batchFlags are the source flags shared by reduce, restore and convert batch
 // mode.
 type batchFlags struct {
 	annotationsPath, annotationsFormat string
@@ -352,7 +374,9 @@ func newExtractCommand() *cobra.Command {
 	var genomesPath, genomesFormat string
 	var outputDir string
 	var samplesFile string
-	var reduced, original, genome, gff3, gff3AnnotationOnly, gff3Compliant bool
+	var reduced, original, genome bool
+	var formats []string
+	var convert convertFlags
 	cmd := &cobra.Command{
 		Use:   "extract ARCHIVE SAMPLE...",
 		Short: "Extract one or more annotations from a .bakpack archive",
@@ -375,30 +399,28 @@ func newExtractCommand() *cobra.Command {
 				}
 			}
 			return bakpack.ExtractArchive(cmd.Context(), bakpack.ExtractOptions{
-				ArchivePath:        archive,
-				Genomes:            genomes,
-				Samples:            samples,
-				OutputDir:          outputDir,
-				Reduced:            reduced,
-				Original:           original,
-				Genome:             genome,
-				GFF3:               gff3,
-				GFF3AnnotationOnly: gff3AnnotationOnly,
-				GFF3Compliant:      gff3Compliant,
-				Warnings:           cmd.ErrOrStderr(),
+				ArchivePath:    archive,
+				Genomes:        genomes,
+				Samples:        samples,
+				OutputDir:      outputDir,
+				Reduced:        reduced,
+				Original:       original,
+				Genome:         genome,
+				Convert:        formats,
+				ConvertOptions: convert.options(),
+				Warnings:       cmd.ErrOrStderr(),
 			})
 		},
 	}
-	cmd.Flags().StringVar(&genomesPath, "genomes", "", "Genome source for original JSON/FASTA/GFF3 extraction")
+	cmd.Flags().StringVar(&genomesPath, "genomes", "", "Genome source for original JSON, FASTA or converted output")
 	cmd.Flags().StringVar(&genomesFormat, "genomes-format", "auto", "Genome source format: auto, dir, list, manifest, tar, tar.gz, tar.bz2, tar.xz, tar.zst, agc")
 	cmd.Flags().StringVarP(&outputDir, "output-dir", "o", ".", "Output directory")
 	cmd.Flags().StringVar(&samplesFile, "samples-file", "", "File of sample IDs to extract")
 	cmd.Flags().BoolVar(&reduced, "reduced", false, "Write reduced JSON")
 	cmd.Flags().BoolVar(&original, "original", false, "Write reconstructed original JSON")
 	cmd.Flags().BoolVar(&genome, "genome", false, "Write matching genome FASTA")
-	cmd.Flags().BoolVar(&gff3, "gff3", false, "Write rendered GFF3 annotation")
-	cmd.Flags().BoolVar(&gff3AnnotationOnly, "gff3-annotation-only", false, "Write GFF3 without the terminal FASTA section")
-	cmd.Flags().BoolVar(&gff3Compliant, "gff3-compliant", false, "Write GFF3 as Bakta --compliant (Genbank/ENA/DDBJ) mode does")
+	cmd.Flags().StringSliceVar(&formats, "convert", nil, "Also write the annotation as gff3, genbank and/or embl (comma-separated or repeated)")
+	convert.add(cmd)
 	return cmd
 }
 

@@ -2,15 +2,15 @@
     "genome": {
         "genus": "Testus",
         "species": "syntheticus",
-        "strain": null,
+        "strain": "ST1",
         "taxon": "Testus syntheticus",
         "complete": false,
         "gram": "?",
         "translation_table": 11
     },
     "stats": {
-        "no_sequences": 2,
-        "size": 4200
+        "no_sequences": 4,
+        "size": 5500
     },
     "features": [
         {
@@ -39,6 +39,9 @@
                 "score": 0.875,
                 "aa": "MAAA"
             },
+            "ups": {
+                "ncbi_nrp_id": "WP_000000001.1"
+            },
             "nt": "GCTAAAGACAATTACATAACATACACGTCAGCACGAAACTTGTTGGCCCAGTGTGAATCGCTTAAGGGTTAAGTAAGTGTGATGCATACGCCTTTACTTGCTGTGTCCACCCCATCGGACTGGCATTTTTATTACACTCAGAAACAGAACTCGGGTAATTTTGACAGGTCACGCAGAGGCGCGCCCTCCTGAAGTGCGTGGACACTCGCTATGAATCTCTGATTTACCCACTCTGCCAAACTCCAGCGCGGTCAGTTCCATCACCCTAAGTAACCGAATAATGCGTTCGCTCTATTGACT",
             "aa": "MKDNYITYTSARNLLAQCESLKG*VSVMHTPLLAVSTPSDWHFYYTQKQNSGNFDRSRRGAPS*SAWTLAMNL*FTHSAKLQRGQFHHPK*PNNAFALLT",
             "aa_hexdigest": "849ea3ad152669466de5c3f996ce12aa",
@@ -62,7 +65,8 @@
                 "paralog": false,
                 "causes": [
                     "insertion"
-                ]
+                ],
+                "description": "Internal stop codon at 400. Insertion at 350"
             },
             "nt": "TTGATACGCACGGCTTCTCACTAATCCCTGTACCTCTCACAGCAAATGTAAAGCTCGCCGTTGGACATACTATCGTAAACCAGTCATATGCCCGTGTCATAAAGGGCTCATTTATCAGTTAATCGTTTGTGATGCGACAGTGCCTATAGTCTTGGCATACTGCGCTGCCCCTACGGATCGCATTGACTTGTCAGGCGGCAAATAGAGTTTCTCCGACGCCGGTCGTGTGCACTATCTGTCTTCTAGTCTCAGACAGCGTCCTTGTTCCATAACTCTCCGACAAGGGAATGA",
             "aa": "MIRTASH*SLYLSQQM*SSPLDILS*TSHMPVS*RAHLSVNRL*CDSAYSLGILRCPYGSH*LVRRQIEFLRRRSCALSVF*SQTASLFHNSPTRE",
@@ -83,7 +87,8 @@
             "locus": "SYN_00003",
             "id": "SYN3",
             "pseudogene": {
-                "paralog": true
+                "paralog": true,
+                "description": "Frameshift. Deletion at 700"
             },
             "nt": "TGGGGGTCGTTACCACTCTGTTCCCACGAGCGGCATTTCTGGATGGCCAGCTTTTGACATTTAATTTCACCCATAAACCAGCGTAAAGCTGCAAGTGGCTCCATGAACTTAGCTGCTAGTGTCAGACTCGCCTCGGATCCTTACTACACTAACTTGAACGCCTAGTGGTCAAAGAGTACTGGTAATCGTCGGTATCTATATAAGCAGGGGAGGGGAAACATTTGTTCTCAGCCGGTGACTCCTAATGCTAAGACATTTCCCTTCAGGGGGGGCTCCCCCGCGATGCCATAA",
             "aa": "MGSLPLCSHERHFWMASF*HLISPINQRKAASGSMNLAASVRLASDPYYTNLNA*WSKSTGNRRYLYKQGRGNICSQPVTPNAKTFPFRGGSPAMP",
@@ -113,6 +118,9 @@
                 "aa": "Sec",
                 "codon_position": 31
             },
+            "ips": {
+                "uniref100_id": "UniRef100_A1"
+            },
             "nt": "CCTTGCTGGATAAATATCTCGAGAGGTTTGGGATTTTGGAACTTCACGTTAGGTGGACGGCAGCTCCTTTTGAGTCAACGGTTCCCCTGGATCCGCACCACTACTTCGACCGAGGTCCGCGACGACCGCCTGGCAGGTTTGATTCTGTTATCACGTTAAGAAGAATTGAACAAGCACAATCTTGGGTCAGATGGAGAGGTATCATGCGAATTGGCCGGCTAGTTGGACATTAGATGAAGCTAACCTACCACAGTGATATAATGTCGCACTGTCGTGCCTGCTTCAGCTGGT",
             "aa": "PCWINISRGLGFWNFTLGGRQLLLSQRFPWIRTTTSTEVRDDRLAGLILLSR*EELNKHNLGSDGEVSCELAG*LDIR*S*PTTVI*CRTVVPASAG",
             "aa_hexdigest": "3097f9b87dceaf3ded46b74815aa4fd8",
@@ -136,6 +144,9 @@
                 "type": "ribosomal_slippage",
                 "start": 1270,
                 "stop": 1272
+            },
+            "ups": {
+                "uniparc_id": "UPI000001"
             },
             "nt": "GCCCGCTGCTTTAATCGCTACCAAAACGCAAACAAAAGCATACCCAAAAGTACACGGGTGAGGGAGGTGATATAGTACAGCTACGAAGTATCTGGCGCCTCAATAGGATTATAGCGGTCTCTCAGGCTGCTTGCCGTCCGGCCCGGCCGCGACACTCCGGTGCAAGCTTAATTCGTACGTACTTCCCATTGGATCTCGTTTATCGATTAAGCCCGATCTAGGTTCCTAGAGGTTAAATTGGACGTCTTCCCACTCCGTTGCTGCGTGTCTAGGCGGTTTAGCGTAAGCGAA",
             "aa": "MRCFNRYQNANKSIPKSTRVREVI*YSYEVSGASIGL*RSLRLLAVRPGRDTPVQA*FVRTSHWISFID*ARSRFLEVKLDVFPLRCCVSRRFSVSE",
@@ -162,6 +173,9 @@
                 "stop": 1530,
                 "score": 0.5,
                 "aa": "MK"
+            },
+            "pscc": {
+                "uniref50_id": "UniRef50_S"
             },
             "nt": "GCCTCAGCTCATAAGTCCTTATTCTCTCACGTTGTGTTACGAAAGATTCAC",
             "aa": "MSAHKSLFSHVVLRKIH",
@@ -200,6 +214,10 @@
             ],
             "locus": "SYN_00008",
             "id": "SYN8",
+            "anti_codon_pos": [
+                1660,
+                1662
+            ],
             "nt": "AATTTAATCTTAATCCATAAAACACTAGCTCAGCAGTTGAAAAAATGGCTAGGTTCCAGCTTTTGGGGAGACG"
         },
         {
@@ -656,6 +674,10 @@
             "locus": "SYN_00019",
             "id": "SYN19",
             "edge": true,
+            "psc": {
+                "uniref90_id": "UniRef90_E",
+                "valid": true
+            },
             "nt": "TCGAACTCTAATACCGCAATGTTCATGACGGAATTGCAATACTCGCTGAGCAAGAAATCTACCCAGTAGCCAGCAGGAACATGGAGATGGTGTTGTTCTTTCACGTCCAAA",
             "aa": "MNSNTAMFMTELQYSLSKKSTQ*PAGTWRWCCSFTSK",
             "aa_hexdigest": "acd9fa872f76806428659a6589f006c4",
@@ -663,55 +685,119 @@
         },
         {
             "type": "cds",
-            "sequence": "contig_3",
-            "start": 1,
-            "stop": 90,
-            "strand": "+",
+            "sequence": "contig_5",
+            "start": 850,
+            "stop": 51,
+            "strand": "-",
             "frame": 1,
-            "gene": null,
-            "product": "Uncharacterized protein",
-            "db_xrefs": [],
-            "locus": "SYN_00020",
-            "id": "SYN20",
-            "nt": "CATATCAGTCCGGCATACAGTCATGTCCCTCGTGCGATCGTAGCCACGTTTCGCAGTCCCGACCTCATTGCCGTAATAAGAGCCTATGAT",
-            "aa": "MISPAYSHVPRAIVATFRSPDLIAVIRAYD",
-            "aa_hexdigest": "edbe7f6e688ffc2ad4198092ac9c7455",
-            "start_type": "CAT"
+            "gene": "wrpA",
+            "product": "Reverse edge protein",
+            "db_xrefs": [
+                "UniRef:UniRef90_R"
+            ],
+            "locus": "SYN_00030",
+            "id": "SYN30",
+            "edge": true,
+            "nt": "AAACGTGGCTACGATCGCACGAGGGACATGACTGTATGCCGGACTGATATGACCTGTGGGTGCATCCTATCTGTCTGTGTGTATGCCGGCGGACCACTAGCT",
+            "aa": "MRGYDRTRDMTVCRTDMTCGCILSVCVYAGGPLA",
+            "aa_hexdigest": "e217ea8742ea5b01d68c1221ae1fde99",
+            "start_type": "AAA"
+        },
+        {
+            "type": "oriC",
+            "sequence": "contig_5",
+            "start": 880,
+            "stop": 20,
+            "strand": "?",
+            "product": "origin of replication",
+            "id": "SYN_ORIC2",
+            "edge": true,
+            "nt": "AGATAGGATGCACCCACAGGTCATATCAGTCCGGCATACAG"
+        },
+        {
+            "type": "tRNA",
+            "sequence": "contig_5",
+            "start": 100,
+            "stop": 172,
+            "strand": "-",
+            "gene": "trnG",
+            "product": "tRNA-Gly",
+            "amino_acid": "Gly",
+            "anti_codon": "gcc",
+            "anti_codon_pos": [
+                130,
+                132
+            ],
+            "score": 55.0,
+            "db_xrefs": [
+                "SO:0000260"
+            ],
+            "locus": "SYN_00031",
+            "id": "SYN31",
+            "nt": "GTTTCATGTATGCCCGGGCTCAGTAGCACCCAATAAGTTCGGGCAACCGGAAGTAGCAGCAATCGATTCCAGC"
         },
         {
             "type": "cds",
-            "sequence": "contig_4_with_a_longer_name",
+            "sequence": "contig_6",
             "start": 1,
-            "stop": 300,
+            "stop": 120,
             "strand": "+",
             "frame": 1,
             "gene": null,
-            "product": "Uncharacterized protein (fragment",
-            "db_xrefs": [
-                "UniRef:UniRef90_U"
-            ],
-            "locus": "syn_00021",
-            "id": "SYN21",
-            "nt": "TGAGCCCGGGCATACATGAAACACACCCGCAAAAACCTGAGGGTTGGAAGCGAAAGCGGTCCACTTGACGATAACCTTCATTCACCATCGTGAACACGCTCCCGGCCACTGGTGGAGAGAGCCCCTACGAGTGAAATTTAGCTGTTGTGAATAGCACATAGAGTACTAAAGCAAGCTCCCTTGGACTAAGTTCCGTTCCCTAGCAGTCGGCGCTAACGAGAAGCGGGGGGTTGACATCACCGGGTTGCCGAGCGCATGTTCGGCAAAGAACGAATACTTGTTGTGGGGAATTTACCCGGA",
-            "aa": "MARAYMKHTRKNLRVGSESGPLDDNLHSPS*TRSRPLVERAPTSEI*LL*IAHRVLKQAPLD*VPFPSSRR*REAGG*HHRVAERMFGKERILVVGNLPG",
-            "aa_hexdigest": "05191f2c35efaea88cd5fe465ada0d0c",
-            "start_type": "TGA"
+            "product": "Both ends truncated protein",
+            "db_xrefs": [],
+            "locus": "SYN_00032",
+            "id": "SYN32",
+            "truncated": "both",
+            "nt": "TAATAGCTGAAATTCGGCGGGCCCCCAACGATTTAACTCCACGCATTTGTACATCACCAGAGAGATGATCCCGTGATCATACAGAGAACTCCCTGTACTACTACTAGGGCGGCATTTACA",
+            "aa": "M*LKFGGPPTI*LHAFVHHQRDDPVIIQRTPCTTTRAAFT",
+            "aa_hexdigest": "ea8a61e9100d9c6f185ddd77c46f161a",
+            "start_type": "TAA"
         },
         {
-            "type": "sorf",
-            "sequence": "contig_4_with_a_longer_name",
-            "start": 310,
-            "stop": 360,
+            "type": "cds",
+            "sequence": "contig_6",
+            "start": 130,
+            "stop": 249,
+            "strand": "+",
+            "frame": 1,
+            "gene": "abc_1",
+            "product": "Three prime truncated protein",
+            "db_xrefs": [
+                "UniRef:UniRef50_T"
+            ],
+            "locus": "SYN_00033",
+            "id": "SYN33",
+            "truncated": "3-prime",
+            "psc": {
+                "uniref90_id": "UniRef90_T",
+                "valid": false
+            },
+            "pscc": {
+                "uniref50_id": "UniRef50_T"
+            },
+            "nt": "ATTGATCCATTCACAAAGCACGGCGTGCTTCACATCCGAATACACAGAGGTCGCTGCGGCGCATTCAGGATGTCTGGTAGTGCTGGTGAGCCTGGAGAGGTATGCGGTACTAGCGTACGT",
+            "aa": "MDPFTKHGVLHIRIHRGRCGAFRMSGSAGEPGEVCGTSVR",
+            "aa_hexdigest": "f2c26fdea64cf10e4b05901f5b70a34c",
+            "start_type": "ATT"
+        },
+        {
+            "type": "cds",
+            "sequence": "contig_6",
+            "start": 260,
+            "stop": 379,
             "strand": "-",
             "frame": 1,
             "gene": null,
-            "product": "uncharacterised [peptide",
+            "product": "Reverse three prime truncated protein",
             "db_xrefs": [],
-            "locus": "syn_00022",
-            "id": "SYN22",
-            "nt": "GGCTTTAGAGCCGATAGGGGAGTGTTCTTGGAGTAGCCCGATAGACGTGTC",
-            "aa": "MFRADRGVFLE*PDRRV",
-            "aa_hexdigest": "5802820fb1bc80ec044c453c85bf17ee"
+            "locus": "SYN_00034",
+            "id": "SYN34",
+            "truncated": "3-prime",
+            "nt": "CTCGCCTCTCCCCAGGCCTATGCCCAAATCGTTTTGACTACTGAAGGAATTAAACCTAGCGAGACTGTCACAGGTATCTTCAGGGTCGTGGTGCCTCTAGAATCAACTTCGGAATGTCGT",
+            "aa": "MASPQAYAQIVLTTEGIKPSETVTGIFRVVVPLESTSECR",
+            "aa_hexdigest": "6546afa7e64407957c03c64cdfb99787",
+            "start_type": "CTC"
         }
     ],
     "sequences": [
@@ -734,29 +820,31 @@
             "complete": true,
             "type": "plasmid",
             "topology": "circular",
+            "name": "pSYN1",
             "orig_id": "2",
             "orig_description": ""
         },
         {
-            "id": "contig_3",
-            "description": "",
-            "nt": "CATATCAGTCCGGCATACAGTCATGTCCCTCGTGCGATCGTAGCCACGTTTCGCAGTCCCGACCTCATTGCCGTAATAAGAGCCTATGATCTGCTAGTCGCTGGAATCGATTGCTGCTACTTCCGGTTGCCCGAACTTATTGGGTGCTAC",
-            "length": 150,
-            "complete": false,
-            "type": "contig",
-            "topology": "linear",
-            "orig_id": "3",
+            "id": "contig_5",
+            "description": "[gcode=11] [topology=circular]",
+            "nt": "CATATCAGTCCGGCATACAGTCATGTCCCTCGTGCGATCGTAGCCACGTTTCGCAGTCCCGACCTCATTGCCGTAATAAGAGCCTATGATCTGCTAGTCGCTGGAATCGATTGCTGCTACTTCCGGTTGCCCGAACTTATTGGGTGCTACTGAGCCCGGGCATACATGAAACACACCCGCAAAAACCTGAGGGTTGGAAGCGAAAGCGGTCCACTTGACGATAACCTTCATTCACCATCGTGAACACGCTCCCGGCCACTGGTGGAGAGAGCCCCTACGAGTGAAATTTAGCTGTTGTGAATAGCACATAGAGTACTAAAGCAAGCTCCCTTGGACTAAGTTCCGTTCCCTAGCAGTCGGCGCTAACGAGAAGCGGGGGGTTGACATCACCGGGTTGCCGAGCGCATGTTCGGCAAAGAACGAATACTTGTTGTGGGGAATTTACCCGGAATTACTACGGACACGTCTATCGGGCTACTCCAAGAACACTCCCCTATCGGCTCTAAAGCCGCCCCCATCGTATATAATCGTCCGTCCCCTGTGGCCTACCGAGCTTTTTGTCTCCCAGTATAGTGGTCTAATGTTGCACGTGCGCTCGACAGTTTGGAGGTAGGTGAGTAGAGGGTCTAACCACCGCCATGAACACTCATTTACCGAAACAAAGCATCACCGCGATGTTGTCTACCCCGATATATTAGTCACTCTCAAGTCTTGTCGTCGCAGGGGCTGATACTATGTAACATGATTGATGAATGCAGGGCTGTGTTAACGACGTCGATTAAAACTTAGGCCACGGCCCTCGGACCGATTCATTGATCTTCGCAGTCCTTTGGATGCGAGTACTGGTCGAGCTAGTGGTCCGCCGGCATACACACAGACAGATAGGATGCACCCACAGGT",
+            "length": 900,
+            "complete": true,
+            "type": "chromosome",
+            "topology": "circular",
+            "name": "chrI",
+            "orig_id": "5",
             "orig_description": ""
         },
         {
-            "id": "contig_4_with_a_longer_name",
-            "description": "",
-            "nt": "TGAGCCCGGGCATACATGAAACACACCCGCAAAAACCTGAGGGTTGGAAGCGAAAGCGGTCCACTTGACGATAACCTTCATTCACCATCGTGAACACGCTCCCGGCCACTGGTGGAGAGAGCCCCTACGAGTGAAATTTAGCTGTTGTGAATAGCACATAGAGTACTAAAGCAAGCTCCCTTGGACTAAGTTCCGTTCCCTAGCAGTCGGCGCTAACGAGAAGCGGGGGGTTGACATCACCGGGTTGCCGAGCGCATGTTCGGCAAAGAACGAATACTTGTTGTGGGGAATTTACCCGGAATTACTACGGACACGTCTATCGGGCTACTCCAAGAACACTCCCCTATCGGCTCTAAAGCCGCCCCCATCGTATATAATCGTCCGTCCCCTGTGGCCTACCGAGCTTTTTGTCTCCCAGTATAGTGGTCTAATGTTGCACGTGCGCTCGACAGTTTGGAGGTAGGTGAGTAGAGGGTCTAACCACCGCCATGAACACTCATTTACCGAAACAAAGCATCACCGCGATGTTGTCTACCCCGATATATTAGTCACTCTCAAGTCTTGTCGTCGCAGGGGCTGATACTATGTAACATGATTGAT",
-            "length": 600,
+            "id": "contig_6",
+            "description": "[gcode=11] [topology=linear]",
+            "nt": "TAATAGCTGAAATTCGGCGGGCCCCCAACGATTTAACTCCACGCATTTGTACATCACCAGAGAGATGATCCCGTGATCATACAGAGAACTCCCTGTACTACTACTAGGGCGGCATTTACAAACGATTGCATTGATCCATTCACAAAGCACGGCGTGCTTCACATCCGAATACACAGAGGTCGCTGCGGCGCATTCAGGATGTCTGGTAGTGCTGGTGAGCCTGGAGAGGTATGCGGTACTAGCGTACGTTGTCGCCCGGACGACATTCCGAAGTTGATTCTAGAGGCACCACGACCCTGAAGATACCTGTGACAGTCTCGCTAGGTTTAATTCCTTCAGTAGTCAAAACGATTTGGGCATAGGCCTGGGGAGAGGCGAGCTAGCTACCTGTGCCTCGAAT",
+            "length": 400,
             "complete": false,
-            "type": "contig",
+            "type": "plasmid",
             "topology": "linear",
-            "orig_id": "4",
+            "orig_id": "6",
             "orig_description": ""
         }
     ],

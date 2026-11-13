@@ -63,6 +63,21 @@ contig_2	BLAST+	oriT	900	950	.	?	.	ID=SYN_ORIT1;Name=origin of transfer;Note=ori
 contig_2	BLAST+	rep_origin	960	1000	.	?	.	ID=SYN_ORIV1;Name=origin of replication;Note=origin of replication
 contig_2	Pyrodigal	gene	1150	1260	.	+	.	ID=SYN_00019_gene;locus_tag=SYN_00019
 contig_2	Pyrodigal	CDS	1150	1260	.	+	0	ID=SYN_00019;Name=Edge protein;locus_tag=SYN_00019;product=Edge protein;Parent=SYN_00019_gene;inference=ab initio prediction:Pyrodigal:3.5;Note=UniRef:UniRef90_E
+##sequence-region contig_5 1 900
+contig_5	Bakta	region	1	900	.	+	.	ID=contig_5;Name=contig_5;Is_circular=true
+contig_5	Pyrodigal	gene	850	951	.	-	.	ID=SYN_00030_gene;locus_tag=SYN_00030;gene=wrpA
+contig_5	Pyrodigal	CDS	850	951	.	-	0	ID=SYN_00030;Name=Reverse edge protein;locus_tag=SYN_00030;product=Reverse edge protein;gene=wrpA;Parent=SYN_00030_gene;inference=ab initio prediction:Pyrodigal:3.5;Note=UniRef:UniRef90_R
+contig_5	BLAST+	rep_origin	880	920	.	?	.	ID=SYN_ORIC2;Name=origin of replication;Note=origin of replication
+contig_5	tRNAscan-SE	gene	100	172	.	-	.	ID=SYN_00031_gene;locus_tag=SYN_00031;gene=trnG
+contig_5	tRNAscan-SE	tRNA	100	172	.	-	.	ID=SYN_00031;Name=tRNA-Gly;locus_tag=SYN_00031;product=tRNA-Gly;gene=trnG;anti_codon=gcc;amino_acid=Gly;Parent=SYN_00031_gene;inference=profile:tRNAscan:2.0;Note=SO:0000260
+##sequence-region contig_6 1 400
+contig_6	Bakta	region	1	400	.	+	.	ID=contig_6;Name=contig_6
+contig_6	Pyrodigal	gene	1	120	.	+	.	ID=SYN_00032_gene;locus_tag=SYN_00032
+contig_6	Pyrodigal	CDS	1	120	.	+	0	ID=SYN_00032;Name=Both ends truncated protein;locus_tag=SYN_00032;product=Both ends truncated protein;pseudo=True;Parent=SYN_00032_gene;inference=ab initio prediction:Pyrodigal:3.5
+contig_6	Pyrodigal	gene	130	249	.	+	.	ID=SYN_00033_gene;locus_tag=SYN_00033;gene=abc_1
+contig_6	Pyrodigal	CDS	130	249	.	+	0	ID=SYN_00033;Name=Three prime truncated protein;locus_tag=SYN_00033;product=Three prime truncated protein;pseudo=True;gene=abc_1;Parent=SYN_00033_gene;inference=ab initio prediction:Pyrodigal:3.5;Note=UniRef:UniRef50_T
+contig_6	Pyrodigal	gene	260	379	.	-	.	ID=SYN_00034_gene;locus_tag=SYN_00034
+contig_6	Pyrodigal	CDS	260	379	.	-	0	ID=SYN_00034;Name=Reverse three prime truncated protein;locus_tag=SYN_00034;product=Reverse three prime truncated protein;pseudo=True;Parent=SYN_00034_gene;inference=ab initio prediction:Pyrodigal:3.5
 ##sequence-region contig_4_with_a_longer_name 1 600
 contig_4_with_a_longer_name	Bakta	region	1	600	.	+	.	ID=contig_4_with_a_longer_name;Name=contig_4_with_a_longer_name
 contig_4_with_a_longer_name	Pyrodigal	gene	1	300	.	+	.	ID=syn_00021_gene;locus_tag=syn_00021

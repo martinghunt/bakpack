@@ -1,4 +1,5 @@
-"""Write a small Bakta >= 1.10 JSON and FASTA covering every GFF3 code path.
+"""Write a small Bakta >= 1.10 JSON and FASTA covering every code path of
+Bakta's GFF3, GenBank and EMBL output.
 
 Usage: python3 make_synthetic.py OUT_DIR
 """
@@ -12,6 +13,8 @@ out = Path(sys.argv[1])
 random.seed(7)
 contig1 = ''.join(random.choice('ACGT') for _ in range(3000))
 contig2 = ''.join(random.choice('ACGT') for _ in range(1200))
+contig5 = ''.join(random.choice('ACGT') for _ in range(900))
+contig6 = ''.join(random.choice('ACGT') for _ in range(400))
 
 
 def feat(**kw):
@@ -123,15 +126,45 @@ def add_sequences(features, contigs):
                 f['hypothetical'] = True
 
 
-add_sequences(features, {'contig_1': contig1, 'contig_2': contig2})
+# Fields that only GenBank/EMBL output reads: database hits behind CDS
+# /inference, pseudogene descriptions, tRNA anticodon positions.
+by_locus = {f['locus']: f for f in features if 'locus' in f}
+by_locus['SYN_00001']['ups'] = {'ncbi_nrp_id': 'WP_000000001.1'}
+by_locus['SYN_00002']['pseudogene']['description'] = 'Internal stop codon at 400. Insertion at 350'
+by_locus['SYN_00003']['pseudogene']['description'] = 'Frameshift. Deletion at 700'
+by_locus['SYN_00004']['ips'] = {'uniref100_id': 'UniRef100_A1'}
+by_locus['SYN_00005']['ups'] = {'uniparc_id': 'UPI000001'}
+by_locus['SYN_00006']['pscc'] = {'uniref50_id': 'UniRef50_S'}
+by_locus['SYN_00008']['anti_codon_pos'] = [1660, 1662]
+by_locus['SYN_00019']['psc'] = {'uniref90_id': 'UniRef90_E', 'valid': True}
+# A complete chromosome with features wrapping round its origin, and an
+# incomplete, unnamed plasmid with truncated CDSs.
+features += [
+    feat(type='cds', sequence='contig_5', start=850, stop=51, strand='-', frame=1, gene='wrpA', product='Reverse edge protein',
+         db_xrefs=['UniRef:UniRef90_R'], locus='SYN_00030', id='SYN30', edge=True),
+    feat(type='oriC', sequence='contig_5', start=880, stop=20, strand='?', product='origin of replication', id='SYN_ORIC2', edge=True),
+    feat(type='tRNA', sequence='contig_5', start=100, stop=172, strand='-', gene='trnG', product='tRNA-Gly', amino_acid='Gly',
+         anti_codon='gcc', anti_codon_pos=[130, 132], score=55.0, db_xrefs=['SO:0000260'], locus='SYN_00031', id='SYN31'),
+    feat(type='cds', sequence='contig_6', start=1, stop=120, strand='+', frame=1, gene=None, product='Both ends truncated protein',
+         db_xrefs=[], locus='SYN_00032', id='SYN32', truncated='both'),
+    feat(type='cds', sequence='contig_6', start=130, stop=249, strand='+', frame=1, gene='abc_1', product='Three prime truncated protein',
+         db_xrefs=['UniRef:UniRef50_T'], locus='SYN_00033', id='SYN33', truncated='3-prime',
+         psc={'uniref90_id': 'UniRef90_T', 'valid': False}, pscc={'uniref50_id': 'UniRef50_T'}),
+    feat(type='cds', sequence='contig_6', start=260, stop=379, strand='-', frame=1, gene=None, product='Reverse three prime truncated protein',
+         db_xrefs=[], locus='SYN_00034', id='SYN34', truncated='3-prime'),
+]
+
+add_sequences(features, {'contig_1': contig1, 'contig_2': contig2, 'contig_5': contig5, 'contig_6': contig6})
 
 data = {
-    'genome': {'genus': 'Testus', 'species': 'syntheticus', 'strain': None, 'taxon': 'Testus syntheticus', 'complete': False, 'gram': '?', 'translation_table': 11},
-    'stats': {'no_sequences': 2, 'size': len(contig1) + len(contig2)},
+    'genome': {'genus': 'Testus', 'species': 'syntheticus', 'strain': 'ST1', 'taxon': 'Testus syntheticus', 'complete': False, 'gram': '?', 'translation_table': 11},
+    'stats': {'no_sequences': 4, 'size': len(contig1) + len(contig2) + len(contig5) + len(contig6)},
     'features': features,
     'sequences': [
         {'id': 'contig_1', 'description': '[gcode=11] [topology=linear]', 'nt': contig1, 'length': len(contig1), 'complete': False, 'type': 'contig', 'topology': 'linear', 'orig_id': '1', 'orig_description': ''},
-        {'id': 'contig_2', 'description': '[gcode=11] [topology=circular]', 'nt': contig2, 'length': len(contig2), 'complete': True, 'type': 'plasmid', 'topology': 'circular', 'orig_id': '2', 'orig_description': ''},
+        {'id': 'contig_2', 'description': '[gcode=11] [topology=circular]', 'nt': contig2, 'length': len(contig2), 'complete': True, 'type': 'plasmid', 'topology': 'circular', 'name': 'pSYN1', 'orig_id': '2', 'orig_description': ''},
+        {'id': 'contig_5', 'description': '[gcode=11] [topology=circular]', 'nt': contig5, 'length': len(contig5), 'complete': True, 'type': 'chromosome', 'topology': 'circular', 'name': 'chrI', 'orig_id': '5', 'orig_description': ''},
+        {'id': 'contig_6', 'description': '[gcode=11] [topology=linear]', 'nt': contig6, 'length': len(contig6), 'complete': False, 'type': 'plasmid', 'topology': 'linear', 'orig_id': '6', 'orig_description': ''},
     ],
     'run': {'start': '2026-01-01 00:00:00', 'end': '2026-01-01 00:10:00', 'duration': '10.00 min'},
     'version': {'bakta': '1.12.2', 'db': {'version': '6.0', 'type': 'full'}},
@@ -160,7 +193,7 @@ noncompliant['features'] += extra
 
 out.mkdir(parents=True, exist_ok=True)
 (out / 'synthetic.bakta.json').write_text(json.dumps(data, indent=4))
-(out / 'synthetic.fa').write_text(f'>1\n{contig1}\n>2\n{contig2}\n')
+(out / 'synthetic.fa').write_text(f'>1\n{contig1}\n>2\n{contig2}\n>5\n{contig5}\n>6\n{contig6}\n')
 (out / 'synthetic.noncompliant.bakta.json').write_text(json.dumps(noncompliant, indent=4))
 
 # The annotation in the Bakta < 1.10 layout and fields: features name their
@@ -182,4 +215,4 @@ for f in old['features']:
     if f.get('exception', {}).get('type') == 'ribosomal_slippage':
         del f['exception']
 (out / 'synthetic.v1.9.bakta.json').write_text(json.dumps(old, indent=4))
-(out / 'synthetic.noncompliant.fa').write_text(f'>1\n{contig1}\n>2\n{contig2}\n>3\n{contig3}\n>4\n{contig4}\n')
+(out / 'synthetic.noncompliant.fa').write_text(f'>1\n{contig1}\n>2\n{contig2}\n>5\n{contig5}\n>6\n{contig6}\n>3\n{contig3}\n>4\n{contig4}\n')

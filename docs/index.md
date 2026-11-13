@@ -35,16 +35,17 @@ Restore the original JSON content:
 bakpack restore sample.reduced.bakta.json sample.fa -o sample.bakta.json
 ```
 
-Render GFF3 from original or reduced JSON:
+Convert original or reduced JSON to GFF3, GenBank or EMBL:
 
 ```text
-bakpack gff3 sample.bakta.json sample.fa -o sample.gff3
+bakpack convert sample.bakta.json sample.fa -o sample.gff3
+bakpack convert sample.bakta.json sample.fa -o sample.gbff --format genbank
 ```
 
-Omit the terminal FASTA section when only annotation rows are needed:
+Omit the terminal FASTA section of GFF3 when only annotation rows are needed:
 
 ```text
-bakpack gff3 sample.bakta.json sample.fa -o sample.gff3 --annotation-only
+bakpack convert sample.bakta.json sample.fa -o sample.gff3 --annotation-only
 ```
 
 Build an archive from matching Bakta JSON and genome FASTA sources:
@@ -62,7 +63,8 @@ Extract an annotation:
 bakpack extract annotations.bakpack SAMPLE \
   --genomes genomes.tar.xz \
   --original \
-  --gff3-annotation-only \
+  --convert gff3 \
+  --annotation-only \
   --output-dir out
 ```
 
