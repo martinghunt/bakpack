@@ -5,110 +5,55 @@ import (
 	"sort"
 )
 
-const (
-	gffAttrKindProtein          = "protein"
-	gffAttrKindGap              = "gap"
-	gffAttrKindOrigin           = "origin"
-	gffAttrKindRNA              = "rna"
-	gffAttrKindRegulatoryRegion = "regulatory_region"
-	gffAttrKindTRNA             = "trna"
-	gffAttrKindCRISPR           = "crispr"
-)
-
 type baktaFeatureTypeInfo struct {
 	Name       string
-	GFF3Source string
-	GFF3Type   string
-	GFF3Attr   string
 	Protein    bool
 	Gap        bool
-	Infernal   bool
 	StartCodon bool
-	CRISPR     bool
 }
 
 var baktaFeatureTypes = map[string]baktaFeatureTypeInfo{
 	"cds": {
 		Name:       "cds",
-		GFF3Source: "Pyrodigal",
-		GFF3Type:   "CDS",
-		GFF3Attr:   gffAttrKindProtein,
 		Protein:    true,
 		StartCodon: true,
 	},
 	"sorf": {
-		Name:       "sorf",
-		GFF3Source: "Bakta",
-		GFF3Type:   "CDS",
-		GFF3Attr:   gffAttrKindProtein,
-		Protein:    true,
+		Name:    "sorf",
+		Protein: true,
 	},
 	"gap": {
-		Name:       "gap",
-		GFF3Source: "Bakta",
-		GFF3Type:   "gap",
-		GFF3Attr:   gffAttrKindGap,
-		Gap:        true,
+		Name: "gap",
+		Gap:  true,
 	},
 	"oriC": {
-		Name:       "oriC",
-		GFF3Source: "BLAST+",
-		GFF3Type:   "oriC",
-		GFF3Attr:   gffAttrKindOrigin,
+		Name: "oriC",
 	},
 	// Bakta reports replication origins on plasmids as oriV but writes them
 	// with the oriC SO term in GFF3.
 	"oriV": {
-		Name:       "oriV",
-		GFF3Source: "BLAST+",
-		GFF3Type:   "oriC",
-		GFF3Attr:   gffAttrKindOrigin,
+		Name: "oriV",
 	},
 	"oriT": {
-		Name:       "oriT",
-		GFF3Source: "BLAST+",
-		GFF3Type:   "oriT",
-		GFF3Attr:   gffAttrKindOrigin,
+		Name: "oriT",
 	},
 	"ncRNA": {
-		Name:       "ncRNA",
-		GFF3Source: "Infernal",
-		GFF3Type:   "ncRNA",
-		GFF3Attr:   gffAttrKindRNA,
-		Infernal:   true,
+		Name: "ncRNA",
 	},
 	"ncRNA-region": {
-		Name:       "ncRNA-region",
-		GFF3Source: "Infernal",
-		GFF3Type:   "regulatory_region",
-		GFF3Attr:   gffAttrKindRegulatoryRegion,
-		Infernal:   true,
+		Name: "ncRNA-region",
 	},
 	"rRNA": {
-		Name:       "rRNA",
-		GFF3Source: "Infernal",
-		GFF3Type:   "rRNA",
-		GFF3Attr:   gffAttrKindRNA,
-		Infernal:   true,
+		Name: "rRNA",
 	},
 	"tRNA": {
-		Name:       "tRNA",
-		GFF3Source: "tRNAscan-SE",
-		GFF3Type:   "tRNA",
-		GFF3Attr:   gffAttrKindTRNA,
+		Name: "tRNA",
 	},
 	"tmRNA": {
-		Name:       "tmRNA",
-		GFF3Source: "Aragorn",
-		GFF3Type:   "tmRNA",
-		GFF3Attr:   gffAttrKindRNA,
+		Name: "tmRNA",
 	},
 	"crispr": {
-		Name:       "crispr",
-		GFF3Source: "PILER-CR",
-		GFF3Type:   "CRISPR",
-		GFF3Attr:   gffAttrKindCRISPR,
-		CRISPR:     true,
+		Name: "crispr",
 	},
 }
 

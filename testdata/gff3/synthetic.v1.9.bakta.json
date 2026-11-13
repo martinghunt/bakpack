@@ -1,0 +1,686 @@
+{
+    "genome": {
+        "genus": "Testus",
+        "species": "syntheticus",
+        "strain": null,
+        "taxon": "Testus syntheticus",
+        "complete": false,
+        "gram": "?",
+        "translation_table": 11
+    },
+    "stats": {
+        "no_sequences": 2,
+        "size": 4200
+    },
+    "features": [
+        {
+            "type": "cds",
+            "start": 1,
+            "stop": 300,
+            "strand": "+",
+            "frame": 1,
+            "gene": "abcD",
+            "product": "Widget; protein=A, & B %",
+            "db_xrefs": [
+                "EC:1.2.3.4",
+                "GO:0005840",
+                "UniRef:UniRef90_X",
+                "Pfam:PF00001",
+                "UniProtKB/TrEMBL:Q1",
+                "EC:2.7.7.7",
+                "SO:0001217"
+            ],
+            "locus": "SYN_00001",
+            "id": "SYN1",
+            "signal-peptide": {
+                "start": 1,
+                "stop": 60,
+                "score": 0.875,
+                "aa": "MAAA"
+            },
+            "nt": "GCTAAAGACAATTACATAACATACACGTCAGCACGAAACTTGTTGGCCCAGTGTGAATCGCTTAAGGGTTAAGTAAGTGTGATGCATACGCCTTTACTTGCTGTGTCCACCCCATCGGACTGGCATTTTTATTACACTCAGAAACAGAACTCGGGTAATTTTGACAGGTCACGCAGAGGCGCGCCCTCCTGAAGTGCGTGGACACTCGCTATGAATCTCTGATTTACCCACTCTGCCAAACTCCAGCGCGGTCAGTTCCATCACCCTAAGTAACCGAATAATGCGTTCGCTCTATTGACT",
+            "aa": "MKDNYITYTSARNLLAQCESLKG*VSVMHTPLLAVSTPSDWHFYYTQKQNSGNFDRSRRGAPS*SAWTLAMNL*FTHSAKLQRGQFHHPK*PNNAFALLT",
+            "aa_hexdigest": "849ea3ad152669466de5c3f996ce12aa",
+            "start_type": "GCT",
+            "contig": "contig_1"
+        },
+        {
+            "type": "cds",
+            "start": 310,
+            "stop": 600,
+            "strand": "-",
+            "frame": 2,
+            "gene": null,
+            "product": "hypothetical protein",
+            "db_xrefs": [
+                "SO:0001217"
+            ],
+            "locus": "SYN_00002",
+            "id": "SYN2",
+            "pseudogene": {
+                "paralog": false,
+                "causes": [
+                    "insertion"
+                ]
+            },
+            "nt": "TTGATACGCACGGCTTCTCACTAATCCCTGTACCTCTCACAGCAAATGTAAAGCTCGCCGTTGGACATACTATCGTAAACCAGTCATATGCCCGTGTCATAAAGGGCTCATTTATCAGTTAATCGTTTGTGATGCGACAGTGCCTATAGTCTTGGCATACTGCGCTGCCCCTACGGATCGCATTGACTTGTCAGGCGGCAAATAGAGTTTCTCCGACGCCGGTCGTGTGCACTATCTGTCTTCTAGTCTCAGACAGCGTCCTTGTTCCATAACTCTCCGACAAGGGAATGA",
+            "aa": "MIRTASH*SLYLSQQM*SSPLDILS*TSHMPVS*RAHLSVNRL*CDSAYSLGILRCPYGSH*LVRRQIEFLRRRSCALSVF*SQTASLFHNSPTRE",
+            "aa_hexdigest": "ba0fe187d4c0637d2421d8a01c63554d",
+            "start_type": "TTG",
+            "hypothetical": true,
+            "contig": "contig_1",
+            "pseudo": true
+        },
+        {
+            "type": "cds",
+            "start": 610,
+            "stop": 900,
+            "strand": "+",
+            "frame": 1,
+            "gene": "xyzA",
+            "product": "Paralog protein",
+            "db_xrefs": [],
+            "locus": "SYN_00003",
+            "id": "SYN3",
+            "pseudogene": {
+                "paralog": true
+            },
+            "nt": "TGGGGGTCGTTACCACTCTGTTCCCACGAGCGGCATTTCTGGATGGCCAGCTTTTGACATTTAATTTCACCCATAAACCAGCGTAAAGCTGCAAGTGGCTCCATGAACTTAGCTGCTAGTGTCAGACTCGCCTCGGATCCTTACTACACTAACTTGAACGCCTAGTGGTCAAAGAGTACTGGTAATCGTCGGTATCTATATAAGCAGGGGAGGGGAAACATTTGTTCTCAGCCGGTGACTCCTAATGCTAAGACATTTCCCTTCAGGGGGGGCTCCCCCGCGATGCCATAA",
+            "aa": "MGSLPLCSHERHFWMASF*HLISPINQRKAASGSMNLAASVRLASDPYYTNLNA*WSKSTGNRRYLYKQGRGNICSQPVTPNAKTFPFRGGSPAMP",
+            "aa_hexdigest": "91f9c3e08c801a963d0e40812e4e6be3",
+            "start_type": "TGG",
+            "contig": "contig_1",
+            "pseudo": true
+        },
+        {
+            "type": "cds",
+            "start": 910,
+            "stop": 1200,
+            "strand": "-",
+            "frame": 3,
+            "gene": "fdhF",
+            "product": "Formate dehydrogenase",
+            "db_xrefs": [
+                "EC:1.17.1.9"
+            ],
+            "locus": "SYN_00004",
+            "id": "SYN4",
+            "truncated": "5-prime",
+            "source": "user-provided",
+            "exception": {
+                "type": "selenocysteine",
+                "start": 1000,
+                "stop": 1002,
+                "aa": "Sec",
+                "codon_position": 31
+            },
+            "nt": "CCTTGCTGGATAAATATCTCGAGAGGTTTGGGATTTTGGAACTTCACGTTAGGTGGACGGCAGCTCCTTTTGAGTCAACGGTTCCCCTGGATCCGCACCACTACTTCGACCGAGGTCCGCGACGACCGCCTGGCAGGTTTGATTCTGTTATCACGTTAAGAAGAATTGAACAAGCACAATCTTGGGTCAGATGGAGAGGTATCATGCGAATTGGCCGGCTAGTTGGACATTAGATGAAGCTAACCTACCACAGTGATATAATGTCGCACTGTCGTGCCTGCTTCAGCTGGT",
+            "aa": "PCWINISRGLGFWNFTLGGRQLLLSQRFPWIRTTTSTEVRDDRLAGLILLSR*EELNKHNLGSDGEVSCELAG*LDIR*S*PTTVI*CRTVVPASAG",
+            "aa_hexdigest": "3097f9b87dceaf3ded46b74815aa4fd8",
+            "start_type": "CCT",
+            "contig": "contig_1"
+        },
+        {
+            "type": "cds",
+            "start": 1210,
+            "stop": 1500,
+            "strand": "+",
+            "frame": 1,
+            "gene": "prfB",
+            "product": "Peptide chain release factor 2",
+            "db_xrefs": [
+                "UniRef:UniRef50_P"
+            ],
+            "locus": "SYN_00005",
+            "id": "SYN5",
+            "nt": "GCCCGCTGCTTTAATCGCTACCAAAACGCAAACAAAAGCATACCCAAAAGTACACGGGTGAGGGAGGTGATATAGTACAGCTACGAAGTATCTGGCGCCTCAATAGGATTATAGCGGTCTCTCAGGCTGCTTGCCGTCCGGCCCGGCCGCGACACTCCGGTGCAAGCTTAATTCGTACGTACTTCCCATTGGATCTCGTTTATCGATTAAGCCCGATCTAGGTTCCTAGAGGTTAAATTGGACGTCTTCCCACTCCGTTGCTGCGTGTCTAGGCGGTTTAGCGTAAGCGAA",
+            "aa": "MRCFNRYQNANKSIPKSTRVREVI*YSYEVSGASIGL*RSLRLLAVRPGRDTPVQA*FVRTSHWISFID*ARSRFLEVKLDVFPLRCCVSRRFSVSE",
+            "aa_hexdigest": "a1a584fd259222fc4c8abb879811af8e",
+            "start_type": "GCC",
+            "contig": "contig_1"
+        },
+        {
+            "type": "sorf",
+            "start": 1510,
+            "stop": 1560,
+            "strand": "+",
+            "frame": 1,
+            "gene": "smlA",
+            "product": "Small protein",
+            "db_xrefs": [
+                "EC:3.1.1.1",
+                "UniRef:UniRef90_S"
+            ],
+            "locus": "SYN_00006",
+            "id": "SYN6",
+            "signal-peptide": {
+                "start": 1510,
+                "stop": 1530,
+                "score": 0.5,
+                "aa": "MK"
+            },
+            "nt": "GCCTCAGCTCATAAGTCCTTATTCTCTCACGTTGTGTTACGAAAGATTCAC",
+            "aa": "MSAHKSLFSHVVLRKIH",
+            "aa_hexdigest": "1074da5b9d34aa5d9c64741af87aa5ee",
+            "contig": "contig_1"
+        },
+        {
+            "type": "sorf",
+            "start": 1570,
+            "stop": 1620,
+            "strand": "-",
+            "frame": 2,
+            "gene": null,
+            "product": "hypothetical protein",
+            "db_xrefs": [],
+            "locus": "SYN_00007",
+            "id": "SYN7",
+            "nt": "CCGCTTATGTGATGTGATAGTTTCATAATTGCCGCTAGCCCAACCCTCACA",
+            "aa": "MLM*CDSFIIAASPTLT",
+            "aa_hexdigest": "fee04a87fcae5057d86a02559053def6",
+            "hypothetical": true,
+            "contig": "contig_1"
+        },
+        {
+            "type": "tRNA",
+            "start": 1630,
+            "stop": 1702,
+            "strand": "+",
+            "gene": "trnA",
+            "product": "tRNA-Ala",
+            "amino_acid": "Ala",
+            "anti_codon": "tgc",
+            "score": 60.5,
+            "db_xrefs": [
+                "SO:0000254"
+            ],
+            "locus": "SYN_00008",
+            "id": "SYN8",
+            "nt": "AATTTAATCTTAATCCATAAAACACTAGCTCAGCAGTTGAAAAAATGGCTAGGTTCCAGCTTTTGGGGAGACG",
+            "contig": "contig_1"
+        },
+        {
+            "type": "tRNA",
+            "start": 1710,
+            "stop": 1782,
+            "strand": "-",
+            "gene": "trnR",
+            "product": "tRNA-Arg",
+            "amino_acid": "Arg",
+            "anti_codon": "ccg",
+            "score": 30.1,
+            "db_xrefs": [
+                "SO:0001036"
+            ],
+            "locus": "SYN_00009",
+            "id": "SYN9",
+            "nt": "CGATACCGAGTTTCCTCGTACTCATGGACCCGTGGGGACCAGTCTAATCGAATCGGAATCACGGCTGACCCTC",
+            "contig": "contig_1",
+            "pseudo": true
+        },
+        {
+            "type": "tRNA",
+            "start": 1790,
+            "stop": 1850,
+            "strand": "+",
+            "gene": null,
+            "product": "tRNA-Xxx",
+            "amino_acid": null,
+            "anti_codon": null,
+            "score": 20.0,
+            "db_xrefs": [],
+            "locus": "SYN_00010",
+            "id": "SYN10",
+            "truncated": "3-prime",
+            "nt": "AAGTTATAAGGCATCTCGCCCAGGAAAGTAACGACGTATGGGTAGTTCTCCATCACCAGCT",
+            "contig": "contig_1"
+        },
+        {
+            "type": "tmRNA",
+            "start": 1860,
+            "stop": 2200,
+            "strand": "+",
+            "gene": "ssrA",
+            "product": "transfer-messenger RNA, SsrA",
+            "db_xrefs": [
+                "SO:0000584"
+            ],
+            "locus": "SYN_00011",
+            "id": "SYN11",
+            "nt": "AGCGCACTCTCGTTCCAGGGCGTAGTTACACTGAGCGTGCCATGTCAGCATGCTAGCGTATCGCCCCCCAATGCCCCGCAATAGGGTAATTCGCCGACGAGTAAGCGTAGATTACACACCCAGGAAACGATCTAGACAGATTGAAATCCCCTTCATTATAGGTCGTGTAGCGCTAGACAGTCACCTTTAAAGGAAGAATCAGAGGCAAGATCTACGTGGCAGTCTCGTGTTGACGCCTTAGCCGGTGGCGAACAGTATTGACCTGGCCGATGCTAATATTCTGATTTGGGGTTGATTTGCGCTTCAGGCGCTAAAGTGGTTTTGAGTAACATGTCCTTTTG",
+            "contig": "contig_1"
+        },
+        {
+            "type": "tmRNA",
+            "start": 100,
+            "stop": 440,
+            "strand": "-",
+            "gene": "ssrA",
+            "product": "transfer-messenger RNA, SsrA",
+            "db_xrefs": [
+                "SO:0000584"
+            ],
+            "locus": "SYN_00012",
+            "id": "SYN12",
+            "truncated": "5-prime",
+            "nt": "TTCTAATCGGTGGATTTTGGGGACGCCTGGACTCAGTGTTCGCATCTGCGCTCAGATTTTAAGTTATCTGCCGAACCGTCGGCTTTCGCAGGTCCAGTATCACTGTCTTACAGGAGTGCGACTAGGGCCCGCGCAGTGTGAACGATTGTATGGGGCGAGTGATGTTAGTGGAAAGGCAGCTCATTCTAGCCGAACGTGGCCAAGCCTAACCACTCCGTGCCGTAGATACGTAGTATTTGTTAACCTAGGTGAAATGAAAAATTAAAAATTCGTCGGAGCCAACTCAATCCAGGTATACGCCCCGTCTGTCACCGACGTGGAATACACTACCCTACGATACA",
+            "contig": "contig_2"
+        },
+        {
+            "type": "rRNA",
+            "start": 2210,
+            "stop": 2330,
+            "strand": "+",
+            "gene": "rrf",
+            "product": "5S ribosomal RNA",
+            "db_xrefs": [
+                "RFAM:RF00001",
+                "SO:0000652",
+                "GO:0005840"
+            ],
+            "locus": "SYN_00013",
+            "id": "SYN13",
+            "evalue": 1.2e-15,
+            "score": 80.1,
+            "nt": "GGTCGCCTCAAGATAAGAGTAAACCTGCCTACCAAAACTTTAAGCCGGCAGAAGCTTAACTATACCCACCGATGTGTACTCTGTTACACCGTCAGTGAGTGTAATGCTCTGGCTAGAGCCC",
+            "contig": "contig_1"
+        },
+        {
+            "type": "rRNA",
+            "start": 500,
+            "stop": 620,
+            "strand": "-",
+            "gene": null,
+            "product": "5S ribosomal RNA",
+            "db_xrefs": [
+                "RFAM:RF00001"
+            ],
+            "locus": "SYN_00014",
+            "id": "SYN14",
+            "evalue": 0.0,
+            "score": 10.0,
+            "truncated": "5-prime",
+            "nt": "CCCAATAATCGCGATGGCTGACTAGCAATTTCAATACCCCACTACGATCCAGTGTTAGGCACACGGCGCCAGATGTGAAGCTCCTAACTGCGACAAATTACTCACGTAACAATAGAGGGCT",
+            "contig": "contig_2"
+        },
+        {
+            "type": "ncRNA",
+            "start": 2340,
+            "stop": 2400,
+            "strand": "+",
+            "gene": "rnpB",
+            "product": "RNase P RNA",
+            "db_xrefs": [
+                "RFAM:RF00010",
+                "SO:0000386"
+            ],
+            "locus": "SYN_00015",
+            "id": "SYN15",
+            "evalue": 3.4e-20,
+            "score": 99.0,
+            "class": [
+                "RNase_P_RNA",
+                "SO:0000386"
+            ],
+            "nt": "GCTTCGTCCTCGTGCTCCAAGTACGATACCGCAAGGCAGACGCTGGTTCGCAGGTATCTGA",
+            "contig": "contig_1"
+        },
+        {
+            "type": "ncRNA",
+            "start": 2410,
+            "stop": 2460,
+            "strand": "-",
+            "gene": "isrA",
+            "product": "antisense RNA",
+            "db_xrefs": [
+                "RFAM:RF00100"
+            ],
+            "locus": "SYN_00016",
+            "id": "SYN16",
+            "evalue": 2e-05,
+            "score": 40.0,
+            "class": [
+                "antisense_RNA",
+                "SO:0000644"
+            ],
+            "nt": "CGTGCGGGCTGAGAGTACAACTCGAATCGCTTGTTCTTCACAGGCTAGCGA",
+            "contig": "contig_1"
+        },
+        {
+            "type": "ncRNA",
+            "start": 2470,
+            "stop": 2520,
+            "strand": "+",
+            "gene": "glmS_ribozyme",
+            "product": "glmS ribozyme",
+            "db_xrefs": [
+                "RFAM:RF00234"
+            ],
+            "locus": "SYN_00017",
+            "id": "SYN17",
+            "evalue": 1.2345678901234568e+17,
+            "score": 40.0,
+            "truncated": "3-prime",
+            "class": [
+                "ribozyme",
+                "SO:0000374"
+            ],
+            "nt": "CCATCGGCCCGATCCTTCAGAGTCAAGGCAGTACGTTGGCAAATTAGGATT",
+            "contig": "contig_1"
+        },
+        {
+            "type": "ncRNA",
+            "start": 2530,
+            "stop": 2580,
+            "strand": "+",
+            "gene": "ffs",
+            "product": "4.5S RNA",
+            "db_xrefs": [
+                "RFAM:RF00169"
+            ],
+            "locus": "SYN_00018",
+            "id": "SYN18",
+            "evalue": 0.0001,
+            "score": 40.0,
+            "class": null,
+            "nt": "ACAATCGGCCAGGTCGGCGCGGCAAATACTTTCGACCCCTTAATTCCGAAT",
+            "contig": "contig_1"
+        },
+        {
+            "type": "ncRNA-region",
+            "start": 650,
+            "stop": 670,
+            "strand": "+",
+            "product": "region attenuator",
+            "db_xrefs": [
+                "RFAM:RF00000",
+                "SO:0005836"
+            ],
+            "id": "SYN_R0",
+            "evalue": 1e-10,
+            "score": 20.0,
+            "class": [
+                "attenuator",
+                "SO:0000140"
+            ],
+            "truncated": "5-prime",
+            "nt": "TGACTTCGACGTTAGTGTGAG",
+            "contig": "contig_2"
+        },
+        {
+            "type": "ncRNA-region",
+            "start": 680,
+            "stop": 700,
+            "strand": "+",
+            "product": "region riboswitch",
+            "db_xrefs": [
+                "RFAM:RF00001",
+                "SO:0005836"
+            ],
+            "id": "SYN_R1",
+            "evalue": 2e-10,
+            "score": 20.0,
+            "class": [
+                "riboswitch",
+                "SO:0000035"
+            ],
+            "nt": "ATAGCCATTGTTTGGCCTGCC",
+            "contig": "contig_2"
+        },
+        {
+            "type": "ncRNA-region",
+            "start": 710,
+            "stop": 730,
+            "strand": "+",
+            "product": "region RNA_thermometer",
+            "db_xrefs": [
+                "RFAM:RF00002",
+                "SO:0005836"
+            ],
+            "id": "SYN_R2",
+            "evalue": 3e-10,
+            "score": 20.0,
+            "class": [
+                "RNA_thermometer",
+                "SO:0002168"
+            ],
+            "nt": "GCCCCAGATGCTGAGCCGAGA",
+            "contig": "contig_2"
+        },
+        {
+            "type": "ncRNA-region",
+            "start": 740,
+            "stop": 760,
+            "strand": "+",
+            "product": "region recoding_stimulatory_region",
+            "db_xrefs": [
+                "RFAM:RF00003",
+                "SO:0005836"
+            ],
+            "id": "SYN_R3",
+            "evalue": 4e-10,
+            "score": 20.0,
+            "class": [
+                "recoding_stimulatory_region",
+                "SO:1001268"
+            ],
+            "nt": "TGATAATATCGGGCCCGACCA",
+            "contig": "contig_2"
+        },
+        {
+            "type": "ncRNA-region",
+            "start": 770,
+            "stop": 790,
+            "strand": "+",
+            "product": "region cis_regulatory_frameshift_element",
+            "db_xrefs": [
+                "RFAM:RF00004",
+                "SO:0005836"
+            ],
+            "id": "SYN_R4",
+            "evalue": 5e-10,
+            "score": 20.0,
+            "class": [
+                "cis_regulatory_frameshift_element",
+                "SO:0001427"
+            ],
+            "nt": "TCAGGGATCTTTCGCATCGCA",
+            "contig": "contig_2"
+        },
+        {
+            "type": "ncRNA-region",
+            "start": 800,
+            "stop": 820,
+            "strand": "+",
+            "product": "region ribosome_entry_site",
+            "db_xrefs": [
+                "RFAM:RF00005",
+                "SO:0005836"
+            ],
+            "id": "SYN_R5",
+            "evalue": 6e-10,
+            "score": 20.0,
+            "class": [
+                "ribosome_entry_site",
+                "SO:0000139"
+            ],
+            "nt": "AGCTAGGCGGGAACGTATAGA",
+            "contig": "contig_2"
+        },
+        {
+            "type": "ncRNA-region",
+            "start": 830,
+            "stop": 850,
+            "strand": "+",
+            "product": "region response_element",
+            "db_xrefs": [
+                "RFAM:RF00006",
+                "SO:0005836"
+            ],
+            "id": "SYN_R6",
+            "evalue": 7.000000000000001e-10,
+            "score": 20.0,
+            "class": [
+                "response_element",
+                "SO:0002205"
+            ],
+            "nt": "AGTCGGACGTTCTCCAACTAA",
+            "contig": "contig_2"
+        },
+        {
+            "type": "ncRNA-region",
+            "start": 860,
+            "stop": 880,
+            "strand": "+",
+            "product": "region none",
+            "db_xrefs": [
+                "RFAM:RF00007",
+                "SO:0005836"
+            ],
+            "id": "SYN_R7",
+            "evalue": 8e-10,
+            "score": 20.0,
+            "class": null,
+            "nt": "CACCGTAACCTTTAATCTCTT",
+            "contig": "contig_2"
+        },
+        {
+            "type": "crispr",
+            "start": 2600,
+            "stop": 2760,
+            "strand": "?",
+            "product": "CRISPR array with 3 repeats of length 30, consensus sequence ACGT and spacer length 20",
+            "db_xrefs": [],
+            "id": "SYN_CRISPR1",
+            "repeat_consensus": "ACGTACGTACGTACGTACGTACGTACGTAC",
+            "repeats": [
+                {
+                    "start": 2600,
+                    "stop": 2629,
+                    "strand": "?"
+                },
+                {
+                    "start": 2650,
+                    "stop": 2679,
+                    "strand": "?"
+                },
+                {
+                    "start": 2700,
+                    "stop": 2729,
+                    "strand": "?"
+                }
+            ],
+            "spacers": [
+                {
+                    "start": 2630,
+                    "stop": 2649,
+                    "strand": "?",
+                    "sequence": "AAAACCCCGGGGTTTTAAAA"
+                },
+                {
+                    "start": 2680,
+                    "stop": 2699,
+                    "strand": "?",
+                    "sequence": "CCCCGGGGTTTTAAAACCCC"
+                }
+            ],
+            "nt": "GTTCTAAGGTGTCGGACCTACGTGCTTGACCCACGACGTCTCAATATCAATTCCTACGATCAGAACTGACTACAGCGGAGACGGTAGAGGAACGGCTATAATAAGCCGTCGGTAAGCTTAAACTTCTTCAGGCGCACCGTGTTGGAGTGCACTACCGTGAG",
+            "contig": "contig_1"
+        },
+        {
+            "type": "gap",
+            "start": 2770,
+            "stop": 2800,
+            "strand": "+",
+            "length": 31,
+            "id": "SYN_GAP1",
+            "contig": "contig_1"
+        },
+        {
+            "type": "oriC",
+            "start": 2810,
+            "stop": 2850,
+            "strand": "?",
+            "product": "origin of replication",
+            "id": "SYN_ORIC1",
+            "nt": "TGTATGCGGACGCACATTCGACCACAAAGCACGAGACGGAT",
+            "contig": "contig_1"
+        },
+        {
+            "type": "oriT",
+            "start": 900,
+            "stop": 950,
+            "strand": "?",
+            "product": "origin of transfer",
+            "id": "SYN_ORIT1",
+            "nt": "CCATGACTATAACCCGATAAAAAAGTTACACTCACTAAGAACAAGGGGGCT",
+            "contig": "contig_2"
+        },
+        {
+            "type": "oriV",
+            "start": 960,
+            "stop": 1000,
+            "strand": "?",
+            "product": "origin of replication",
+            "id": "SYN_ORIV1",
+            "nt": "TTCAAAACTACGTGCGGGAGTACTCTGGCATAGCGGACGAC",
+            "contig": "contig_2"
+        },
+        {
+            "type": "cds",
+            "start": 1150,
+            "stop": 60,
+            "strand": "+",
+            "frame": 1,
+            "gene": null,
+            "product": "Edge protein",
+            "db_xrefs": [
+                "UniRef:UniRef90_E"
+            ],
+            "locus": "SYN_00019",
+            "id": "SYN19",
+            "edge": true,
+            "nt": "TCGAACTCTAATACCGCAATGTTCATGACGGAATTGCAATACTCGCTGAGCAAGAAATCTACCCAGTAGCCAGCAGGAACATGGAGATGGTGTTGTTCTTTCACGTCCAAA",
+            "aa": "MNSNTAMFMTELQYSLSKKSTQ*PAGTWRWCCSFTSK",
+            "aa_hexdigest": "acd9fa872f76806428659a6589f006c4",
+            "start_type": "TCG",
+            "contig": "contig_2"
+        }
+    ],
+    "sequences": [
+        {
+            "id": "contig_1",
+            "description": "[gcode=11] [topology=linear]",
+            "length": 3000,
+            "complete": false,
+            "type": "contig",
+            "topology": "linear",
+            "orig_id": "1",
+            "orig_description": "",
+            "sequence": "GCTAAAGACAATTACATAACATACACGTCAGCACGAAACTTGTTGGCCCAGTGTGAATCGCTTAAGGGTTAAGTAAGTGTGATGCATACGCCTTTACTTGCTGTGTCCACCCCATCGGACTGGCATTTTTATTACACTCAGAAACAGAACTCGGGTAATTTTGACAGGTCACGCAGAGGCGCGCCCTCCTGAAGTGCGTGGACACTCGCTATGAATCTCTGATTTACCCACTCTGCCAAACTCCAGCGCGGTCAGTTCCATCACCCTAAGTAACCGAATAATGCGTTCGCTCTATTGACTACGACGCGCTCATTCCCTTGTCGGAGAGTTATGGAACAAGGACGCTGTCTGAGACTAGAAGACAGATAGTGCACACGACCGGCGTCGGAGAAACTCTATTTGCCGCCTGACAAGTCAATGCGATCCGTAGGGGCAGCGCAGTATGCCAAGACTATAGGCACTGTCGCATCACAAACGATTAACTGATAAATGAGCCCTTTATGACACGGGCATATGACTGGTTTACGATAGTATGTCCAACGGCGAGCTTTACATTTGCTGTGAGAGGTACAGGGATTAGTGAGAAGCCGTGCGTATCAATTCGTACCTTGGGGGTCGTTACCACTCTGTTCCCACGAGCGGCATTTCTGGATGGCCAGCTTTTGACATTTAATTTCACCCATAAACCAGCGTAAAGCTGCAAGTGGCTCCATGAACTTAGCTGCTAGTGTCAGACTCGCCTCGGATCCTTACTACACTAACTTGAACGCCTAGTGGTCAAAGAGTACTGGTAATCGTCGGTATCTATATAAGCAGGGGAGGGGAAACATTTGTTCTCAGCCGGTGACTCCTAATGCTAAGACATTTCCCTTCAGGGGGGGCTCCCCCGCGATGCCATAAATCTGAGCAACCAGCTGAAGCAGGCACGACAGTGCGACATTATATCACTGTGGTAGGTTAGCTTCATCTAATGTCCAACTAGCCGGCCAATTCGCATGATACCTCTCCATCTGACCCAAGATTGTGCTTGTTCAATTCTTCTTAACGTGATAACAGAATCAAACCTGCCAGGCGGTCGTCGCGGACCTCGGTCGAAGTAGTGGTGCGGATCCAGGGGAACCGTTGACTCAAAAGGAGCTGCCGTCCACCTAACGTGAAGTTCCAAAATCCCAAACCTCTCGAGATATTTATCCAGCAAGGAGTGGCAACGCCCGCTGCTTTAATCGCTACCAAAACGCAAACAAAAGCATACCCAAAAGTACACGGGTGAGGGAGGTGATATAGTACAGCTACGAAGTATCTGGCGCCTCAATAGGATTATAGCGGTCTCTCAGGCTGCTTGCCGTCCGGCCCGGCCGCGACACTCCGGTGCAAGCTTAATTCGTACGTACTTCCCATTGGATCTCGTTTATCGATTAAGCCCGATCTAGGTTCCTAGAGGTTAAATTGGACGTCTTCCCACTCCGTTGCTGCGTGTCTAGGCGGTTTAGCGTAAGCGAACAGGACCCTGCCTCAGCTCATAAGTCCTTATTCTCTCACGTTGTGTTACGAAAGATTCACTCGAGGTCGTGTGAGGGTTGGGCTAGCGGCAATTATGAAACTATCACATCACATAAGCGGGCTAGATATAATTTAATCTTAATCCATAAAACACTAGCTCAGCAGTTGAAAAAATGGCTAGGTTCCAGCTTTTGGGGAGACGTCTTTCTGAGGGTCAGCCGTGATTCCGATTCGATTAGACTGGTCCCCACGGGTCCATGAGTACGAGGAAACTCGGTATCGAGCCTAAAAGTTATAAGGCATCTCGCCCAGGAAAGTAACGACGTATGGGTAGTTCTCCATCACCAGCTATAATGGCTAGCGCACTCTCGTTCCAGGGCGTAGTTACACTGAGCGTGCCATGTCAGCATGCTAGCGTATCGCCCCCCAATGCCCCGCAATAGGGTAATTCGCCGACGAGTAAGCGTAGATTACACACCCAGGAAACGATCTAGACAGATTGAAATCCCCTTCATTATAGGTCGTGTAGCGCTAGACAGTCACCTTTAAAGGAAGAATCAGAGGCAAGATCTACGTGGCAGTCTCGTGTTGACGCCTTAGCCGGTGGCGAACAGTATTGACCTGGCCGATGCTAATATTCTGATTTGGGGTTGATTTGCGCTTCAGGCGCTAAAGTGGTTTTGAGTAACATGTCCTTTTGACGGGAGCAGGTCGCCTCAAGATAAGAGTAAACCTGCCTACCAAAACTTTAAGCCGGCAGAAGCTTAACTATACCCACCGATGTGTACTCTGTTACACCGTCAGTGAGTGTAATGCTCTGGCTAGAGCCCACGCTTCCGGCTTCGTCCTCGTGCTCCAAGTACGATACCGCAAGGCAGACGCTGGTTCGCAGGTATCTGACGAGCATACTCGCTAGCCTGTGAAGAACAAGCGATTCGAGTTGTACTCTCAGCCCGCACGGTACGCCTTCCATCGGCCCGATCCTTCAGAGTCAAGGCAGTACGTTGGCAAATTAGGATTTCGAGAGGCACAATCGGCCAGGTCGGCGCGGCAAATACTTTCGACCCCTTAATTCCGAATCGAATGATACCTGATGCTAGTTCTAAGGTGTCGGACCTACGTGCTTGACCCACGACGTCTCAATATCAATTCCTACGATCAGAACTGACTACAGCGGAGACGGTAGAGGAACGGCTATAATAAGCCGTCGGTAAGCTTAAACTTCTTCAGGCGCACCGTGTTGGAGTGCACTACCGTGAGGCAACTAGGCCAGGGCGTGAGGTGCCGCCCATTTTGCACGGGGACACGGTGTATGCGGACGCACATTCGACCACAAAGCACGAGACGGATTGCATAAGTTGTAAGGATGCAACCCAGGTGCGCGTAGTGGGCGATAGCCTAACAACCGGCCCAGCTTCGTTCGAAAATGACTTTCAGAGTCCGCGTGGTCCTGCGGAGATCCGTCACGATCTCGAACACGCGACTTATGTGACCAACCTA"
+        },
+        {
+            "id": "contig_2",
+            "description": "[gcode=11] [topology=circular]",
+            "length": 1200,
+            "complete": true,
+            "type": "plasmid",
+            "topology": "circular",
+            "orig_id": "2",
+            "orig_description": "",
+            "sequence": "AAGAAATCTACCCAGTAGCCAGCAGGAACATGGAGATGGTGTTGTTCTTTCACGTCCAAAATGTGTATTGTCTGATGGACGGTGTCCAGCCGCCCTCAGTGTATCGTAGGGTAGTGTATTCCACGTCGGTGACAGACGGGGCGTATACCTGGATTGAGTTGGCTCCGACGAATTTTTAATTTTTCATTTCACCTAGGTTAACAAATACTACGTATCTACGGCACGGAGTGGTTAGGCTTGGCCACGTTCGGCTAGAATGAGCTGCCTTTCCACTAACATCACTCGCCCCATACAATCGTTCACACTGCGCGGGCCCTAGTCGCACTCCTGTAAGACAGTGATACTGGACCTGCGAAAGCCGACGGTTCGGCAGATAACTTAAAATCTGAGCGCAGATGCGAACACTGAGTCCAGGCGTCCCCAAAATCCACCGATTAGAACCCACAGAACCGGATCAGTTAACCCCGCCCCGAATATGAACAGTAGCTTCGGATCTTGAAGCCCTCTATTGTTACGTGAGTAATTTGTCGCAGTTAGGAGCTTCACATCTGGCGCCGTGTGCCTAACACTGGATCGTAGTGGGGTATTGAAATTGCTAGTCAGCCATCGCGATTATTGGGCTAGCCACGCGAGTGCGGTCGTTAGGTGTTGACTTCGACGTTAGTGTGAGTAAGGGGCAATAGCCATTGTTTGGCCTGCCGATAACTTCGCCCCAGATGCTGAGCCGAGAGAAAGCATCTGATAATATCGGGCCCGACCAGTGAGAATTTCAGGGATCTTTCGCATCGCAATCCGCGAAAGCTAGGCGGGAACGTATAGACGTTAGGTCAGTCGGACGTTCTCCAACTAAATACAGGTTCACCGTAACCTTTAATCTCTTCATTACCATCACACAATATCCATGACTATAACCCGATAAAAAAGTTACACTCACTAAGAACAAGGGGGCTGCAAAAACTTTCAAAACTACGTGCGGGAGTACTCTGGCATAGCGGACGACAAGTGGAATCCACTACCGAGTACTCGTCGGAACGCAATGAAAAAGACATGTCAGGTTCTATGGCATCACGGGACAACGGCACTAATGACAAGAGCGGCCGGGGCACCGTACCCTGCTGAAATGCGATTTAATTATATTCCTTAACAGGTTCGAACTCTAATACCGCAATGTTCATGACGGAATTGCAATACTCGCTGAGC"
+        }
+    ],
+    "run": {
+        "start": "2026-01-01 00:00:00",
+        "end": "2026-01-01 00:10:00",
+        "duration": "10.00 min"
+    },
+    "version": {
+        "bakta": "1.9.4",
+        "db": {
+            "version": "6.0",
+            "type": "full"
+        }
+    }
+}

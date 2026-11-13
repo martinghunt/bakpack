@@ -162,4 +162,24 @@ out.mkdir(parents=True, exist_ok=True)
 (out / 'synthetic.bakta.json').write_text(json.dumps(data, indent=4))
 (out / 'synthetic.fa').write_text(f'>1\n{contig1}\n>2\n{contig2}\n')
 (out / 'synthetic.noncompliant.bakta.json').write_text(json.dumps(noncompliant, indent=4))
+
+# The annotation in the Bakta < 1.10 layout and fields: features name their
+# sequence with "contig", sequences hold nucleotides in "sequence", pseudogene
+# CDSs and tRNAs are flagged "pseudo", and 1.10-only fields are left out.
+old = copy.deepcopy(data)
+old['version']['bakta'] = '1.9.4'
+for seq in old['sequences']:
+    seq['sequence'] = seq.pop('nt')
+for f in old['features']:
+    f['contig'] = f.pop('sequence')
+    if f['type'] == 'cds' and 'pseudogene' in f:
+        f['pseudo'] = True
+    if f['type'] == 'tRNA' and 'pseudogene' in f:
+        del f['pseudogene']
+        f['pseudo'] = True
+    if f['type'] == 'tmRNA':
+        f.pop('tag', None)
+    if f.get('exception', {}).get('type') == 'ribosomal_slippage':
+        del f['exception']
+(out / 'synthetic.v1.9.bakta.json').write_text(json.dumps(old, indent=4))
 (out / 'synthetic.noncompliant.fa').write_text(f'>1\n{contig1}\n>2\n{contig2}\n>3\n{contig3}\n>4\n{contig4}\n')

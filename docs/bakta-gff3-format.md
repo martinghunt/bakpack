@@ -1,21 +1,18 @@
-# Bakta >= 1.10 GFF3 output format
+# Bakta GFF3 output format
 
-This describes the GFF3 that Bakta 1.10.0 to 1.12.2 writes for an annotation
-JSON, in its default mode and in `--compliant` mode, as observed from its
-output. bakpack reproduces it byte for byte for JSON from Bakta 1.10 or later.
-It is a description of the output only. The tests in `gff3_test.go` and
+This describes the GFF3 that current Bakta (1.10.0 to 1.12.2 write the same)
+writes for an annotation JSON, in its default mode and in `--compliant` mode,
+as observed from its output. bakpack reproduces it byte for byte. It is a
+description of the output only. The tests in `gff3_test.go` and
 `testdata/gff3/` compare bakpack with GFF3 written by Bakta itself.
 
-## Which JSON uses this format
+## Which JSON
 
-JSON is "Bakta 1.10 or later" when `version.bakta` is a string starting with
-an optional `v` then `MAJOR.MINOR` (digits) with MAJOR > 1, or MAJOR = 1 and
-MINOR >= 10, e.g. `1.12.0+pannotator.5`. When `version.bakta` is missing or
-does not start that way, the JSON layout decides: the Bakta 1.10 layout (see
-`usesCurrentBaktaLayout` in `bakta.go`) uses this format. Older JSON keeps
-bakpack's original renderer in `gff3.go`.
-
-Compliant mode is only available for this format.
+The format applies to all Bakta JSON. JSON from Bakta before 1.10 uses an
+older layout: features name their sequence with `contig` instead of
+`sequence`, and sequences hold their nucleotides in `sequence` instead of
+`nt`. It is written as current Bakta's `bakta_io` writes it, which can differ
+from the GFF3 the older Bakta version wrote itself.
 
 ## Value formatting
 
