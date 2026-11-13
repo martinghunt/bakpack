@@ -76,6 +76,13 @@ Omit the terminal FASTA section when only annotation rows are needed:
 bakpack gff3 sample.bakta.json sample.fa -o sample.gff3 --annotation-only
 ```
 
+Write GFF3 as Bakta's `--compliant` (Genbank/ENA/DDBJ) mode does, for JSON from
+Bakta 1.10 or later:
+
+```bash
+bakpack gff3 sample.bakta.json sample.fa -o sample.gff3 --compliant
+```
+
 Reduce, restore or render many samples at once, from and to directories or tar
 files:
 

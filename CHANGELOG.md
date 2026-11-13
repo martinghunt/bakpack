@@ -14,10 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reduced JSON named `SAMPLE.reduced.bakta.json` or `SAMPLE.reduced.json` is recognised as sample `SAMPLE`, so it pairs with that sample's genome.
 - `reduce` and `build` warn when a sample's sequences cannot be matched to its genome FASTA, since those sequences and their features are left unreduced.
 - `reduce` and `build` verify that each reduced JSON restores to the original before writing it.
+- `gff3 --compliant` and `extract --gff3-compliant` write GFF3 as Bakta's `--compliant` (Genbank/ENA/DDBJ) mode does, for samples annotated with Bakta 1.10 or later, also in batch mode. Bakta's own `bakta_io` cannot write compliant files from JSON. Library users can set `BaktaGFF3Options.Compliant`.
 
 ### Changed
 
 - `build` now reads each tar source once. Matching annotation and genome tars are no longer read twice, and a genome tar used with a non-tar annotation source or with `--order` is no longer rescanned for every sample, which made those builds slow down quadratically with sample count. Archives are byte-identical to before.
+- GFF3 for samples annotated with Bakta 1.10 or later now matches the GFF3 those Bakta versions write: Bakta 1.10.0 changed how it marks pseudogenes and truncated features, and also writes `Is_circular`, signal peptides, contig-edge coordinates and tmRNA tag peptides. Checked byte for byte against Bakta 1.12.2's own GFF3 writer. GFF3 for older Bakta JSON, including Bakta 1.9.4, is unchanged.
 
 ### Fixed
 

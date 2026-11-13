@@ -1,0 +1,65 @@
+##gff-version 3
+##feature-ontology https://github.com/The-Sequence-Ontology/SO-Ontologies/blob/v3.1/so.obo
+# organism Testus syntheticus
+# Annotated with Bakta
+# Software: v1.12.2
+# Database: v6.0, full
+# DOI: 10.1099/mgen.0.000685
+# URL: github.com/oschwengers/bakta
+##sequence-region contig_1 1 3000
+contig_1	Bakta	region	1	3000	.	+	.	ID=contig_1;Name=contig_1
+contig_1	Pyrodigal	gene	1	300	.	+	.	ID=SYN_00001_gene;locus_tag=SYN_00001;gene=abcD
+contig_1	Pyrodigal	CDS	1	300	.	+	0	ID=SYN_00001;Name=Widget%3B protein%3DA%2C %26 B %25;locus_tag=SYN_00001;product=Widget%3B protein%3DA%2C %26 B %25;Dbxref=GO:0005840,Pfam:PF00001,UniProtKB/TrEMBL:Q1;gene=abcD;Parent=SYN_00001_gene;inference=ab initio prediction:Pyrodigal:3.5;Note=UniRef:UniRef90_X,SO:0001217;ec_number=2.7.7.7
+contig_1	DeepSig	signal_peptide	1	60	0.88	+	.	ID=SYN_00001_sigpep;Name=signal peptide;product=signal peptide;score=0.875;Parent=SYN_00001
+contig_1	Pyrodigal	gene	310	600	.	-	.	ID=SYN_00002_gene;locus_tag=SYN_00002;pseudogene=unitary
+contig_1	Pyrodigal	CDS	310	600	.	-	0	ID=SYN_00002;Name=hypothetical protein;locus_tag=SYN_00002;product=hypothetical protein;pseudogene=unitary;Parent=SYN_00002_gene;inference=ab initio prediction:Pyrodigal:3.5;Note=SO:0001217
+contig_1	Pyrodigal	gene	610	900	.	+	.	ID=SYN_00003_gene;locus_tag=SYN_00003;gene=xyzA;pseudogene=unprocessed
+contig_1	Pyrodigal	CDS	610	900	.	+	0	ID=SYN_00003;Name=Paralog protein;locus_tag=SYN_00003;product=Paralog protein;pseudogene=unprocessed;gene=xyzA;Parent=SYN_00003_gene;inference=ab initio prediction:Pyrodigal:3.5
+contig_1	?	gene	910	1200	.	-	.	ID=SYN_00004_gene;locus_tag=SYN_00004;gene=fdhF
+contig_1	?	CDS	910	1200	.	-	0	ID=SYN_00004;Name=Formate dehydrogenase;locus_tag=SYN_00004;product=Formate dehydrogenase;pseudo=True;gene=fdhF;Parent=SYN_00004_gene;inference=EXISTENCE:non-experimental evidence%2C no additional details recorded;Note=codon on position 31 is a selenocysteine codon;ec_number=1.17.1.9;transl_except=(pos:complement(1000..1002)%2Caa:Sec)
+contig_1	Pyrodigal	gene	1210	1500	.	+	.	ID=SYN_00005_gene;locus_tag=SYN_00005;gene=prfB
+contig_1	Pyrodigal	CDS	1210	1500	.	+	0	ID=SYN_00005;Name=Peptide chain release factor 2;locus_tag=SYN_00005;product=Peptide chain release factor 2;gene=prfB;Parent=SYN_00005_gene;inference=ab initio prediction:Pyrodigal:3.5;Note=UniRef:UniRef50_P;ribosomal_slippage=True
+contig_1	Bakta	gene	1510	1560	.	+	.	ID=SYN_00006_gene;locus_tag=SYN_00006;inference=ab initio prediction:Bakta;gene=smlA
+contig_1	Bakta	CDS	1510	1560	.	+	0	ID=SYN_00006;Name=Small protein;locus_tag=SYN_00006;product=Small protein;gene=smlA;Parent=SYN_00006_gene;Note=UniRef:UniRef90_S;ec_number=3.1.1.1
+contig_1	DeepSig	signal_peptide	1510	1530	0.50	+	.	ID=SYN_00006_sigpep;Name=signal peptide;product=signal peptide;score=0.5;Parent=SYN_00006
+contig_1	Bakta	gene	1570	1620	.	-	.	ID=SYN_00007_gene;locus_tag=SYN_00007;inference=ab initio prediction:Bakta
+contig_1	Bakta	CDS	1570	1620	.	-	0	ID=SYN_00007;Name=hypothetical protein;locus_tag=SYN_00007;product=hypothetical protein;Parent=SYN_00007_gene
+contig_1	tRNAscan-SE	gene	1630	1702	.	+	.	ID=SYN_00008_gene;locus_tag=SYN_00008;gene=trnA
+contig_1	tRNAscan-SE	tRNA	1630	1702	.	+	.	ID=SYN_00008;Name=tRNA-Ala;locus_tag=SYN_00008;product=tRNA-Ala;gene=trnA;anti_codon=tgc;amino_acid=Ala;Parent=SYN_00008_gene;inference=profile:tRNAscan:2.0;Note=SO:0000254
+contig_1	tRNAscan-SE	gene	1710	1782	.	-	.	ID=SYN_00009_gene;locus_tag=SYN_00009;gene=trnR;pseudogene=unknown
+contig_1	tRNAscan-SE	tRNA	1710	1782	.	-	.	ID=SYN_00009;Name=tRNA-Arg;locus_tag=SYN_00009;product=tRNA-Arg;gene=trnR;pseudogene=unknown;anti_codon=ccg;amino_acid=Arg;Parent=SYN_00009_gene;inference=profile:tRNAscan:2.0;Note=SO:0001036
+contig_1	tRNAscan-SE	gene	1790	1850	.	+	.	ID=SYN_00010_gene;locus_tag=SYN_00010
+contig_1	tRNAscan-SE	tRNA	1790	1850	.	+	.	ID=SYN_00010;Name=tRNA-Xxx;locus_tag=SYN_00010;product=tRNA-Xxx;pseudo=True;Parent=SYN_00010_gene;inference=profile:tRNAscan:2.0
+contig_1	Aragorn	gene	1860	2200	.	+	.	ID=SYN_00011_gene;locus_tag=SYN_00011;gene=ssrA
+contig_1	Aragorn	tmRNA	1860	2200	.	+	.	ID=SYN_00011;Name=transfer-messenger RNA%2C SsrA;locus_tag=SYN_00011;gene=ssrA;product=transfer-messenger RNA%2C SsrA;tag_peptide=1950..1985;Parent=SYN_00011_gene;inference=profile:aragorn:1.2;Note=SO:0000584
+contig_1	Infernal	gene	2210	2330	.	+	.	ID=SYN_00013_gene;locus_tag=SYN_00013;gene=rrf
+contig_1	Infernal	rRNA	2210	2330	1.2e-15	+	.	ID=SYN_00013;Name=5S ribosomal RNA;locus_tag=SYN_00013;gene=rrf;product=5S ribosomal RNA;Dbxref=RFAM:RF00001,GO:0005840;Parent=SYN_00013_gene;Note=SO:0000652;inference=profile:Rfam:RF00001
+contig_1	Infernal	gene	2340	2400	.	+	.	ID=SYN_00015_gene;locus_tag=SYN_00015;gene=rnpB
+contig_1	Infernal	ncRNA	2340	2400	3.4e-20	+	.	ID=SYN_00015;Name=RNase P RNA;locus_tag=SYN_00015;gene=rnpB;product=RNase P RNA;Dbxref=RFAM:RF00010;Parent=SYN_00015_gene;Note=SO:0000386;ncRNA_class=RNase_P_RNA;inference=profile:Rfam:RF00010
+contig_1	Infernal	gene	2410	2460	.	-	.	ID=SYN_00016_gene;locus_tag=SYN_00016;gene=isrA
+contig_1	Infernal	ncRNA	2410	2460	2e-05	-	.	ID=SYN_00016;Name=antisense RNA;locus_tag=SYN_00016;gene=isrA;product=antisense RNA;Dbxref=RFAM:RF00100;Parent=SYN_00016_gene;ncRNA_class=antisense_RNA;inference=profile:Rfam:RF00100
+contig_1	Infernal	gene	2470	2520	.	+	.	ID=SYN_00017_gene;locus_tag=SYN_00017;gene=glmS_ribozyme;pseudo=True
+contig_1	Infernal	ncRNA	2470	2520	1.2345678901234568e+17	+	.	ID=SYN_00017;Name=glmS ribozyme;locus_tag=SYN_00017;product=glmS ribozyme;Dbxref=RFAM:RF00234;pseudo=True;Parent=SYN_00017_gene;ncRNA_class=ribozyme;inference=profile:Rfam:RF00234
+contig_1	Infernal	gene	2530	2580	.	+	.	ID=SYN_00018_gene;locus_tag=SYN_00018;gene=ffs
+contig_1	Infernal	ncRNA	2530	2580	0.0001	+	.	ID=SYN_00018;Name=4.5S RNA;locus_tag=SYN_00018;product=4.5S RNA;Dbxref=RFAM:RF00169;Parent=SYN_00018_gene;ncRNA_class=other;inference=profile:Rfam:RF00169
+contig_1	PILER-CR	repeat_region	2600	2760	.	?	.	ID=SYN_CRISPR1;Name=CRISPR array with 3 repeats of length 30%2C consensus sequence ACGT and spacer length 20;product=CRISPR array with 3 repeats of length 30%2C consensus sequence ACGT and spacer length 20;inference=COORDINATES:alignment:pilercr:1.02;rpt_family=CRISPR;rpt_type=direct;rpt_unit_seq=ACGTACGTACGTACGTACGTACGTACGTAC
+contig_1	Bakta	gap	2770	2800	.	+	.	ID=SYN_GAP1;Name=gap (31 bp);product=gap (31 bp)
+contig_1	BLAST+	rep_origin	2810	2850	.	?	.	ID=SYN_ORIC1;Name=origin of replication;Note=origin of replication
+##sequence-region contig_2 1 1200
+contig_2	Bakta	region	1	1200	.	+	.	ID=contig_2;Name=contig_2;Is_circular=true
+contig_2	Aragorn	gene	100	440	.	-	.	ID=SYN_00012_gene;locus_tag=SYN_00012;gene=ssrA;pseudo=True
+contig_2	Aragorn	tmRNA	100	440	.	-	.	ID=SYN_00012;Name=transfer-messenger RNA%2C SsrA;locus_tag=SYN_00012;gene=ssrA;product=transfer-messenger RNA%2C SsrA;tag_peptide=complement(200..235);pseudo=True;Parent=SYN_00012_gene;inference=profile:aragorn:1.2;Note=SO:0000584
+contig_2	Infernal	gene	500	620	.	-	.	ID=SYN_00014_gene;locus_tag=SYN_00014;gene=None;pseudo=True
+contig_2	Infernal	rRNA	500	620	0.0	-	.	ID=SYN_00014;Name=5S ribosomal RNA;locus_tag=SYN_00014;gene=None;product=5S ribosomal RNA;Dbxref=RFAM:RF00001;pseudo=True;Parent=SYN_00014_gene;inference=profile:Rfam:RF00001
+contig_2	Infernal	regulatory_region	650	670	1e-10	+	.	ID=SYN_R0;Name=region attenuator;product=region attenuator;Dbxref=RFAM:RF00000;pseudo=True;inference=profile:Rfam:RF00000;Note=SO:0005836;regulatory_class=attenuator
+contig_2	Infernal	regulatory_region	680	700	2e-10	+	.	ID=SYN_R1;Name=region riboswitch;product=region riboswitch;Dbxref=RFAM:RF00001;inference=profile:Rfam:RF00001;Note=SO:0005836;regulatory_class=riboswitch
+contig_2	Infernal	regulatory_region	710	730	3e-10	+	.	ID=SYN_R2;Name=region RNA_thermometer;product=region RNA_thermometer;Dbxref=RFAM:RF00002;inference=profile:Rfam:RF00002;Note=SO:0005836;regulatory_class=response_element
+contig_2	Infernal	regulatory_region	740	760	4e-10	+	.	ID=SYN_R3;Name=region recoding_stimulatory_region;product=region recoding_stimulatory_region;Dbxref=RFAM:RF00003;inference=profile:Rfam:RF00003;Note=SO:0005836;regulatory_class=recoding_stimulatory_region
+contig_2	Infernal	regulatory_region	770	790	5e-10	+	.	ID=SYN_R4;Name=region cis_regulatory_frameshift_element;product=region cis_regulatory_frameshift_element;Dbxref=RFAM:RF00004;inference=profile:Rfam:RF00004;Note=SO:0005836;regulatory_class=recoding_stimulatory_region
+contig_2	Infernal	regulatory_region	800	820	6e-10	+	.	ID=SYN_R5;Name=region ribosome_entry_site;product=region ribosome_entry_site;Dbxref=RFAM:RF00005;inference=profile:Rfam:RF00005;Note=SO:0005836;regulatory_class=ribosome_binding_site
+contig_2	Infernal	regulatory_region	830	850	7.000000000000001e-10	+	.	ID=SYN_R6;Name=region response_element;product=region response_element;Dbxref=RFAM:RF00006;inference=profile:Rfam:RF00006;Note=SO:0005836;regulatory_class=other
+contig_2	Infernal	regulatory_region	860	880	8e-10	+	.	ID=SYN_R7;Name=region none;product=region none;Dbxref=RFAM:RF00007;inference=profile:Rfam:RF00007;Note=SO:0005836;regulatory_class=other
+contig_2	BLAST+	oriT	900	950	.	?	.	ID=SYN_ORIT1;Name=origin of transfer;Note=origin of transfer
+contig_2	BLAST+	rep_origin	960	1000	.	?	.	ID=SYN_ORIV1;Name=origin of replication;Note=origin of replication
+contig_2	Pyrodigal	gene	1150	1260	.	+	.	ID=SYN_00019_gene;locus_tag=SYN_00019
+contig_2	Pyrodigal	CDS	1150	1260	.	+	0	ID=SYN_00019;Name=Edge protein;locus_tag=SYN_00019;product=Edge protein;Parent=SYN_00019_gene;inference=ab initio prediction:Pyrodigal:3.5;Note=UniRef:UniRef90_E

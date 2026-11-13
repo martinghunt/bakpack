@@ -142,7 +142,7 @@ named SAMPLE.reduced.bakta.json pairs with genome SAMPLE.fa.`,
 
 func newGFF3Command() *cobra.Command {
 	var output string
-	var annotationOnly bool
+	var annotationOnly, compliant bool
 	var batch batchFlags
 	cmd := &cobra.Command{
 		Use:   "gff3 [BAKTA_JSON GENOME_FASTA]",
@@ -164,6 +164,7 @@ tar file (.tar, .tar.gz, .tar.bz2, .tar.xz, .tar.zst).`,
 					return err
 				}
 				opts.GFF3AnnotationOnly = annotationOnly
+				opts.GFF3Compliant = compliant
 				return bakpack.GFF3Batch(cmd.Context(), opts)
 			}
 			if err := batch.requireUnset(); err != nil {
@@ -175,6 +176,7 @@ tar file (.tar, .tar.gz, .tar.bz2, .tar.xz, .tar.zst).`,
 			}
 			gff3, err := bakpack.BaktaGFF3WithOptions(annotation, genome, bakpack.BaktaGFF3Options{
 				AnnotationOnly: annotationOnly,
+				Compliant:      compliant,
 			})
 			if err != nil {
 				return err
@@ -184,6 +186,7 @@ tar file (.tar, .tar.gz, .tar.bz2, .tar.xz, .tar.zst).`,
 	}
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output GFF3 file, or in batch mode a directory or tar file")
 	cmd.Flags().BoolVar(&annotationOnly, "annotation-only", false, "Omit the terminal FASTA section")
+	cmd.Flags().BoolVar(&compliant, "compliant", false, "Write GFF3 as Bakta --compliant (Genbank/ENA/DDBJ) mode does; needs JSON from Bakta 1.10 or later")
 	batch.add(cmd)
 	return cmd
 }
@@ -346,7 +349,7 @@ func newExtractCommand() *cobra.Command {
 	var genomesPath, genomesFormat string
 	var outputDir string
 	var samplesFile string
-	var reduced, original, genome, gff3, gff3AnnotationOnly bool
+	var reduced, original, genome, gff3, gff3AnnotationOnly, gff3Compliant bool
 	cmd := &cobra.Command{
 		Use:   "extract ARCHIVE SAMPLE...",
 		Short: "Extract one or more annotations from a .bakpack archive",
@@ -378,6 +381,7 @@ func newExtractCommand() *cobra.Command {
 				Genome:             genome,
 				GFF3:               gff3,
 				GFF3AnnotationOnly: gff3AnnotationOnly,
+				GFF3Compliant:      gff3Compliant,
 			})
 		},
 	}
@@ -390,6 +394,7 @@ func newExtractCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&genome, "genome", false, "Write matching genome FASTA")
 	cmd.Flags().BoolVar(&gff3, "gff3", false, "Write rendered GFF3 annotation")
 	cmd.Flags().BoolVar(&gff3AnnotationOnly, "gff3-annotation-only", false, "Write GFF3 without the terminal FASTA section")
+	cmd.Flags().BoolVar(&gff3Compliant, "gff3-compliant", false, "Write GFF3 as Bakta --compliant (Genbank/ENA/DDBJ) mode does; needs JSON from Bakta 1.10 or later")
 	return cmd
 }
 

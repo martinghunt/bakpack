@@ -89,7 +89,7 @@ type archiveExtractPlan struct {
 }
 
 func normalizeExtractRequest(ctx context.Context, req ExtractRequest) (context.Context, ExtractRequest, error) {
-	if req.GFF3AnnotationOnly {
+	if req.GFF3AnnotationOnly || req.GFF3Compliant {
 		req.GFF3 = true
 	}
 	if !req.Reduced && !req.Original && !req.Genome && !req.GFF3 {
@@ -200,6 +200,7 @@ func buildExtractedSample(ctx context.Context, req ExtractRequest, genomes genom
 	if req.GFF3 {
 		gff3, err := BaktaGFF3WithOptions(reducedJSON, genome, BaktaGFF3Options{
 			AnnotationOnly: req.GFF3AnnotationOnly,
+			Compliant:      req.GFF3Compliant,
 		})
 		if err != nil {
 			return ExtractedSample{}, err
@@ -236,6 +237,7 @@ func extractRequestFromOptions(opts ExtractOptions) ExtractRequest {
 		Genome:             opts.Genome,
 		GFF3:               opts.GFF3,
 		GFF3AnnotationOnly: opts.GFF3AnnotationOnly,
+		GFF3Compliant:      opts.GFF3Compliant,
 	}
 }
 

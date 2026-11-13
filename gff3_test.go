@@ -115,21 +115,104 @@ func TestBaktaGFF3WritesOriVAsOriC(t *testing.T) {
 	}
 }
 
-func TestBaktaGFF3SameForLegacyAndV110Layouts(t *testing.T) {
+// TestBaktaGFF3MatchesBakta112 compares bakpack's GFF3 with GFF3 written by
+// Bakta 1.12.2's own writer; see testdata/gff3/README.md.
+func TestBaktaGFF3MatchesBakta112(t *testing.T) {
+	annotation, err := os.ReadFile(filepath.Join("testdata", "gff3", "synthetic.bakta.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fasta, err := os.ReadFile(filepath.Join("testdata", "gff3", "synthetic.fa"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	genome := mustGenome(t, "synthetic", fasta)
+	reduced, err := ReduceBaktaJSON(annotation, genome)
+	if err != nil {
+		t.Fatalf("ReduceBaktaJSON() error = %v", err)
+	}
+	for _, tt := range []struct {
+		name      string
+		compliant bool
+		want      string
+	}{
+		{name: "default", want: "synthetic.bakta-1.12.2.gff3"},
+		{name: "compliant", compliant: true, want: "synthetic.bakta-1.12.2.compliant.gff3"},
+	} {
+		want, err := os.ReadFile(filepath.Join("testdata", "gff3", tt.want))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for input, json := range map[string][]byte{"original": annotation, "reduced": reduced.ReducedJSON} {
+			t.Run(tt.name+" from "+input+" JSON", func(t *testing.T) {
+				got, err := BaktaGFF3WithOptions(json, genome, BaktaGFF3Options{Compliant: tt.compliant})
+				if err != nil {
+					t.Fatalf("BaktaGFF3WithOptions() error = %v", err)
+				}
+				got = stripBakpackGFF3Header(got)
+				if !bytes.Equal(got, want) {
+					t.Fatalf("GFF3 differs from Bakta 1.12.2 output: %s", firstDiff(got, want))
+				}
+			})
+		}
+	}
+}
+
+func TestPyFloatRepr(t *testing.T) {
+	for value, want := range map[float64]string{
+		0:                   "0.0",
+		1:                   "1.0",
+		0.875:               "0.875",
+		1.2e-15:             "1.2e-15",
+		2e-05:               "2e-05",
+		0.0001:              "0.0001",
+		123456789012345.0:   "123456789012345.0",
+		1234567890123456.0:  "1234567890123456.0",
+		12345678901234567.0: "1.2345678901234568e+16",
+		-3.5e-300:           "-3.5e-300",
+		1e16:                "1e+16",
+	} {
+		if got := pyFloatRepr(value); got != want {
+			t.Errorf("pyFloatRepr(%v) = %q, want %q", value, got, want)
+		}
+	}
+}
+
+func TestBaktaGFF3StyleFollowsBaktaVersion(t *testing.T) {
+	// A truncated CDS is marked pseudo=True from Bakta 1.10, but not before.
+	withVersion := func(json []byte, version string) []byte {
+		out := strings.Replace(string(json), `"translation_table": 11`, `"translation_table": 11`+"\n  },\n  \"version\": {\n    \"bakta\": \""+version+`"`, 1)
+		return []byte(strings.Replace(out, `"start_type": "ATG",`, `"start_type": "ATG", "truncated": "3-prime",`, 1))
+	}
 	genome := mustGenome(t, "sample1", toyFASTA("sample1"))
-	legacy, err := BaktaGFF3(toyBaktaJSON("sample1", "gene one"), genome)
-	if err != nil {
-		t.Fatalf("BaktaGFF3() legacy layout error = %v", err)
+	for _, tt := range []struct {
+		name       string
+		annotation []byte
+		wantPseudo bool
+	}{
+		{name: "Bakta 1.9.4", annotation: withVersion(toyBaktaJSON("sample1", "gene one"), "1.9.4"), wantPseudo: false},
+		{name: "Bakta 1.10.0", annotation: withVersion(toyBaktaJSONv110("sample1", "gene one"), "1.10.0"), wantPseudo: true},
+		{name: "Bakta 1.12.0 fork", annotation: withVersion(toyBaktaJSONv110("sample1", "gene one"), "1.12.0+pannotator.5"), wantPseudo: true},
+		{name: "no version, older layout", annotation: toyBaktaJSON("sample1", "gene one"), wantPseudo: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			annotation := tt.annotation
+			if tt.name == "no version, older layout" {
+				annotation = []byte(strings.Replace(string(annotation), `"start_type": "ATG",`, `"start_type": "ATG", "truncated": "3-prime",`, 1))
+			}
+			gff, err := BaktaGFF3(annotation, genome)
+			if err != nil {
+				t.Fatalf("BaktaGFF3() error = %v", err)
+			}
+			if got := bytes.Contains(gff, []byte(";pseudo=True")); got != tt.wantPseudo {
+				t.Fatalf("pseudo=True present = %v, want %v:\n%s", got, tt.wantPseudo, gff)
+			}
+		})
 	}
-	current, err := BaktaGFF3(toyBaktaJSONv110("sample1", "gene one"), genome)
-	if err != nil {
-		t.Fatalf("BaktaGFF3() v1.10 layout error = %v", err)
-	}
-	if !bytes.Equal(legacy, current) {
-		t.Fatalf("BaktaGFF3() differs between layouts:\nlegacy:\n%s\nv1.10:\n%s", legacy, current)
-	}
-	if !bytes.Contains(current, []byte("contig1\tPyrodigal\tCDS\t1\t9\t")) {
-		t.Fatalf("BaktaGFF3() missing CDS line:\n%s", current)
+
+	_, err := BaktaGFF3WithOptions(withVersion(toyBaktaJSON("sample1", "gene one"), "1.9.4"), genome, BaktaGFF3Options{Compliant: true})
+	if err == nil || !strings.Contains(err.Error(), "Bakta 1.10 or later") {
+		t.Fatalf("compliant GFF3 for Bakta 1.9.4 JSON error = %v, want Bakta 1.10 or later", err)
 	}
 }
 

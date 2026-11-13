@@ -37,6 +37,9 @@ type BatchOptions struct {
 	Warnings io.Writer
 	// GFF3AnnotationOnly makes GFF3Batch omit the ##FASTA section.
 	GFF3AnnotationOnly bool
+	// GFF3Compliant makes GFF3Batch write GFF3 as Bakta's --compliant mode
+	// does, for samples annotated with Bakta 1.10 or later.
+	GFF3Compliant bool
 }
 
 // ReduceBatch writes reduced JSON for each sample, named
@@ -70,7 +73,7 @@ func RestoreBatch(ctx context.Context, opts BatchOptions) error {
 // named SAMPLE.gff3.
 func GFF3Batch(ctx context.Context, opts BatchOptions) error {
 	return runBatch(ctx, opts, func(sample string, annotation []byte, genome Genome) (string, []byte, error) {
-		gff3, err := BaktaGFF3WithOptions(annotation, genome, BaktaGFF3Options{AnnotationOnly: opts.GFF3AnnotationOnly})
+		gff3, err := BaktaGFF3WithOptions(annotation, genome, BaktaGFF3Options{AnnotationOnly: opts.GFF3AnnotationOnly, Compliant: opts.GFF3Compliant})
 		if err != nil {
 			return "", nil, err
 		}
