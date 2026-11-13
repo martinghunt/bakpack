@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `gff3 --compliant` and `extract --gff3-compliant` write GFF3 as Bakta's `--compliant` (Genbank/ENA/DDBJ) mode does, also in batch mode. Bakta's own `bakta_io` cannot write compliant files from JSON. Compliant output also applies the changes Bakta's `--compliant` mode makes while annotating (revised CDS/sORF product names, contigs under 200 bp left out, warnings for contig IDs and locus tags INSDC would reject), so it is compliant even when Bakta was run without `--compliant`. Library users can set `BaktaGFF3Options.Compliant` and `Warn`.
 
 ### Changed
-
+- Upgrade `github.com/martinghunt/faqt` to v0.13.0.
 - `build` now reads each tar source once. Matching annotation and genome tars are no longer read twice, and a genome tar used with a non-tar annotation source or with `--order` is no longer rescanned for every sample, which made those builds slow down quadratically with sample count. Archives are byte-identical to before.
 - GFF3 is now what current Bakta writes for the JSON (as its `bakta_io` does), checked byte for byte against Bakta 1.12.2's own GFF3 writer for JSON in both the current and the pre-1.10 layout. bakpack's GFF3 differed from Bakta's in several cases, now fixed: pseudogenes and truncated features (`pseudogene=unitary`/`unprocessed`/`unknown`, `pseudo=True`), `Is_circular` on circular sequences, signal peptides, contig-edge coordinates, tmRNA tag peptides, user-provided CDSs and CDS exceptions, the last CRISPR repeat, e-values of `0.0`, null rRNA/ncRNA genes, and the `# organism` line. GFF3 for features without these is unchanged.
 
