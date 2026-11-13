@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Accept uncompressed `.tar` archives as annotation and genome sources for `build` and `extract`, alongside `.tar.xz`. A `.tar` suffix is detected automatically, or use `--annotations-format tar` / `--genomes-format tar`. Library users can use the new `TarSource`.
 - `reduce` and `build` warn when a sample's sequences cannot be matched to its genome FASTA, since those sequences and their features are left unreduced.
 - `reduce` and `build` verify that each reduced JSON restores to the original before writing it.
 

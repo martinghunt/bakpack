@@ -27,16 +27,16 @@ func BuildArchive(ctx context.Context, opts BuildOptions) error {
 	if chunkSize <= 0 {
 		chunkSize = 25
 	}
-	annotationsTar, annotationsOK := asTarXZSource(opts.Annotations)
-	genomesTar, genomesOK := asTarXZSource(opts.Genomes)
+	annotationsTar, annotationsOK := asTarSource(opts.Annotations)
+	genomesTar, genomesOK := asTarSource(opts.Genomes)
 	if len(opts.Order) == 0 {
 		if annotationsOK && genomesOK {
-			sameOrder, err := tarXZSourcesHaveSameOrder(ctx, annotationsTar, genomesTar)
+			sameOrder, err := tarSourcesHaveSameOrder(ctx, annotationsTar, genomesTar)
 			if err != nil {
 				return err
 			}
 			if sameOrder {
-				return buildArchiveFromPairedTarXZ(ctx, opts, annotationsTar, genomesTar, chunkSize)
+				return buildArchiveFromPairedTar(ctx, opts, annotationsTar, genomesTar, chunkSize)
 			}
 		}
 	}
@@ -175,17 +175,17 @@ func makeArchiveChunksFromIndexedSources(ctx context.Context, opts BuildOptions,
 	return chunks, samples, nil
 }
 
-func buildArchiveFromPairedTarXZ(ctx context.Context, opts BuildOptions, annotationsTar, genomesTar TarXZSource, chunkSize int) error {
+func buildArchiveFromPairedTar(ctx context.Context, opts BuildOptions, annotationsTar, genomesTar tarSource, chunkSize int) error {
 	return buildArchiveFromChunks(ctx, opts, chunkSize, func(chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
-		return makeArchiveChunksFromPairedTarXZ(ctx, opts, annotationsTar, genomesTar, chunkSize, chunkWriter)
+		return makeArchiveChunksFromPairedTar(ctx, opts, annotationsTar, genomesTar, chunkSize, chunkWriter)
 	})
 }
 
-func makeArchiveChunksFromPairedTarXZ(ctx context.Context, opts BuildOptions, annotationsTar, genomesTar TarXZSource, chunkSize int, chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
+func makeArchiveChunksFromPairedTar(ctx context.Context, opts BuildOptions, annotationsTar, genomesTar tarSource, chunkSize int, chunkWriter io.Writer) ([]ChunkIndex, []SampleIndex, error) {
 	batcher := newArchiveChunkBatcher(ctx, opts, chunkSize, chunkWriter)
 
 	count := 0
-	if err := streamPairedTarXZRecords(ctx, annotationsTar, genomesTar, func(annotation, genomeRecord FileRecord) error {
+	if err := streamPairedTarRecords(ctx, annotationsTar, genomesTar, func(annotation, genomeRecord FileRecord) error {
 		packed, err := packReducedSample(opts, annotation.SampleID, annotation, genomeRecord)
 		if err != nil {
 			return err
@@ -211,7 +211,7 @@ type spooledAnnotation struct {
 	Path     string
 }
 
-func buildArchiveFromSpooledAnnotationTar(ctx context.Context, opts BuildOptions, annotationsTar TarXZSource, chunkSize int) error {
+func buildArchiveFromSpooledAnnotationTar(ctx context.Context, opts BuildOptions, annotationsTar tarSource, chunkSize int) error {
 	spoolCompression, err := normalizeSpoolCompression(opts.AnnotationSpoolCompression)
 	if err != nil {
 		return err
@@ -236,10 +236,10 @@ func buildArchiveFromSpooledAnnotationTar(ctx context.Context, opts BuildOptions
 	})
 }
 
-func spoolAnnotationTar(ctx context.Context, annotationsTar TarXZSource, spoolDir, spoolCompression string) (map[string]spooledAnnotation, error) {
+func spoolAnnotationTar(ctx context.Context, annotationsTar tarSource, spoolDir, spoolCompression string) (map[string]spooledAnnotation, error) {
 	annotations := map[string]spooledAnnotation{}
 	count := 0
-	err := streamTarXZRecords(ctx, annotationsTar, func(record FileRecord) error {
+	err := streamTarRecords(ctx, annotationsTar, func(record FileRecord) error {
 		if _, exists := annotations[record.SampleID]; exists {
 			return fmt.Errorf("duplicate annotation sample %q", record.SampleID)
 		}
@@ -292,13 +292,13 @@ func makeArchiveChunksFromSpooledAnnotations(ctx context.Context, opts BuildOpti
 }
 
 func forEachSpooledAnnotationSample(ctx context.Context, opts BuildOptions, annotations map[string]spooledAnnotation, order []string, fn func(packedSampleForArchive) error) error {
-	if genomesTar, ok := asTarXZSource(opts.Genomes); ok && len(opts.Order) == 0 {
+	if genomesTar, ok := asTarSource(opts.Genomes); ok && len(opts.Order) == 0 {
 		wanted := map[string]bool{}
 		for _, sample := range order {
 			wanted[sample] = true
 		}
 		seen := map[string]bool{}
-		err := streamTarXZRecords(ctx, genomesTar, func(genomeRecord FileRecord) error {
+		err := streamTarRecords(ctx, genomesTar, func(genomeRecord FileRecord) error {
 			if !wanted[genomeRecord.SampleID] {
 				return nil
 			}
@@ -412,13 +412,13 @@ func readSpoolFile(path string) ([]byte, error) {
 	return io.ReadAll(reader)
 }
 
-func streamPairedTarXZRecords(ctx context.Context, annotationsTar, genomesTar TarXZSource, fn func(annotation, genome FileRecord) error) error {
-	annotationStream, err := newTarXZRecordStream(annotationsTar)
+func streamPairedTarRecords(ctx context.Context, annotationsTar, genomesTar tarSource, fn func(annotation, genome FileRecord) error) error {
+	annotationStream, err := newTarRecordStream(annotationsTar)
 	if err != nil {
 		return err
 	}
 	defer annotationStream.Close()
-	genomeStream, err := newTarXZRecordStream(genomesTar)
+	genomeStream, err := newTarRecordStream(genomesTar)
 	if err != nil {
 		return err
 	}
@@ -437,10 +437,10 @@ func streamPairedTarXZRecords(ctx context.Context, annotationsTar, genomesTar Ta
 			return nil
 		}
 		if annotationOK != genomeOK {
-			return fmt.Errorf("annotation and genome tar.xz sources have different sample counts")
+			return fmt.Errorf("annotation and genome tar sources have different sample counts")
 		}
 		if annotation.SampleID != genome.SampleID {
-			return fmt.Errorf("annotation sample %q does not match genome sample %q in tar.xz stream", annotation.SampleID, genome.SampleID)
+			return fmt.Errorf("annotation sample %q does not match genome sample %q in tar stream", annotation.SampleID, genome.SampleID)
 		}
 		if err := fn(annotation, genome); err != nil {
 			return err
@@ -473,24 +473,28 @@ func packReducedSample(opts BuildOptions, sample string, annotation, genomeRecor
 	}, nil
 }
 
-func asTarXZSource(source FileSource) (TarXZSource, bool) {
+func asTarSource(source FileSource) (tarSource, bool) {
 	switch source := source.(type) {
 	case TarXZSource:
-		return source, true
+		return source.tar(), true
 	case *TarXZSource:
-		return *source, true
+		return source.tar(), true
+	case TarSource:
+		return source.tar(), true
+	case *TarSource:
+		return source.tar(), true
 	default:
-		return TarXZSource{}, false
+		return tarSource{}, false
 	}
 }
 
-func tarXZSourcesHaveSameOrder(ctx context.Context, annotationsTar, genomesTar TarXZSource) (bool, error) {
-	annotationStream, err := newTarXZRecordStream(annotationsTar)
+func tarSourcesHaveSameOrder(ctx context.Context, annotationsTar, genomesTar tarSource) (bool, error) {
+	annotationStream, err := newTarRecordStream(annotationsTar)
 	if err != nil {
 		return false, err
 	}
 	defer annotationStream.Close()
-	genomeStream, err := newTarXZRecordStream(genomesTar)
+	genomeStream, err := newTarRecordStream(genomesTar)
 	if err != nil {
 		return false, err
 	}

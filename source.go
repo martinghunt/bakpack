@@ -134,6 +134,8 @@ func OpenSource(path, kind, role string) (FileSource, error) {
 			kind = "dir"
 		case strings.HasSuffix(path, ".tar.xz") || strings.HasSuffix(path, ".txz"):
 			kind = "tar.xz"
+		case strings.HasSuffix(path, ".tar"):
+			kind = "tar"
 		case strings.HasSuffix(path, ".agc"):
 			kind = "agc"
 		case role == "genome" && isGenomeFilename(filepath.Base(path)):
@@ -168,6 +170,8 @@ func OpenSource(path, kind, role string) (FileSource, error) {
 		return ManifestSource{Manifest: manifest, Role: role}, nil
 	case "tar.xz", "txz":
 		return TarXZSource{Path: path, Role: role}, nil
+	case "tar":
+		return TarSource{Path: path, Role: role}, nil
 	case "agc":
 		if role != "genome" {
 			return nil, fmt.Errorf("agc source is only supported for genomes")
@@ -477,16 +481,61 @@ type TarXZSource struct {
 }
 
 func (s TarXZSource) Records(ctx context.Context) ([]FileRecord, error) {
+	return s.tar().Records(ctx)
+}
+
+func (s TarXZSource) Get(ctx context.Context, sample string) (FileRecord, error) {
+	return s.tar().Get(ctx, sample)
+}
+
+func (s TarXZSource) Order(ctx context.Context) ([]string, error) {
+	return s.tar().Order(ctx)
+}
+
+func (s TarXZSource) tar() tarSource {
+	return tarSource{Path: s.Path, Role: s.Role, XZ: true}
+}
+
+// TarSource reads members of an uncompressed tar archive.
+type TarSource struct {
+	Path string
+	Role string
+}
+
+func (s TarSource) Records(ctx context.Context) ([]FileRecord, error) {
+	return s.tar().Records(ctx)
+}
+
+func (s TarSource) Get(ctx context.Context, sample string) (FileRecord, error) {
+	return s.tar().Get(ctx, sample)
+}
+
+func (s TarSource) Order(ctx context.Context) ([]string, error) {
+	return s.tar().Order(ctx)
+}
+
+func (s TarSource) tar() tarSource {
+	return tarSource{Path: s.Path, Role: s.Role}
+}
+
+// tarSource is the shared implementation of TarSource and TarXZSource.
+type tarSource struct {
+	Path string
+	Role string
+	XZ   bool
+}
+
+func (s tarSource) Records(ctx context.Context) ([]FileRecord, error) {
 	var records []FileRecord
-	err := streamTarXZRecords(ctx, s, func(record FileRecord) error {
+	err := streamTarRecords(ctx, s, func(record FileRecord) error {
 		records = append(records, record)
 		return nil
 	})
 	return records, err
 }
 
-func (s TarXZSource) Get(ctx context.Context, sample string) (FileRecord, error) {
-	stream, err := newTarXZRecordStream(s)
+func (s tarSource) Get(ctx context.Context, sample string) (FileRecord, error) {
+	stream, err := newTarRecordStream(s)
 	if err != nil {
 		return FileRecord{}, err
 	}
@@ -506,8 +555,8 @@ func (s TarXZSource) Get(ctx context.Context, sample string) (FileRecord, error)
 	return FileRecord{}, fmt.Errorf("sample %q not found", sample)
 }
 
-func (s TarXZSource) Order(ctx context.Context) ([]string, error) {
-	stream, err := newTarXZRecordStream(s)
+func (s tarSource) Order(ctx context.Context) ([]string, error) {
+	stream, err := newTarRecordStream(s)
 	if err != nil {
 		return nil, err
 	}
@@ -526,8 +575,8 @@ func (s TarXZSource) Order(ctx context.Context) ([]string, error) {
 	return order, nil
 }
 
-func streamTarXZRecords(ctx context.Context, s TarXZSource, fn func(FileRecord) error) error {
-	stream, err := newTarXZRecordStream(s)
+func streamTarRecords(ctx context.Context, s tarSource, fn func(FileRecord) error) error {
+	stream, err := newTarRecordStream(s)
 	if err != nil {
 		return err
 	}
@@ -546,35 +595,37 @@ func streamTarXZRecords(ctx context.Context, s TarXZSource, fn func(FileRecord) 
 	}
 }
 
-type tarXZRecordStream struct {
-	source TarXZSource
+type tarRecordStream struct {
+	source tarSource
 	file   *os.File
-	xzr    *xz.Reader
 	tr     *tar.Reader
 }
 
-func newTarXZRecordStream(source TarXZSource) (*tarXZRecordStream, error) {
+func newTarRecordStream(source tarSource) (*tarRecordStream, error) {
 	file, err := os.Open(source.Path)
 	if err != nil {
 		return nil, err
 	}
-	xzr, err := xz.NewReader(file)
-	if err != nil {
-		file.Close()
-		return nil, err
+	var r io.Reader = file
+	if source.XZ {
+		xzr, err := xz.NewReader(file)
+		if err != nil {
+			file.Close()
+			return nil, err
+		}
+		r = xzr
 	}
-	tr := tar.NewReader(xzr)
-	return &tarXZRecordStream{source: source, file: file, xzr: xzr, tr: tr}, nil
+	return &tarRecordStream{source: source, file: file, tr: tar.NewReader(r)}, nil
 }
 
-func (s *tarXZRecordStream) Close() error {
+func (s *tarRecordStream) Close() error {
 	if s.file == nil {
 		return nil
 	}
 	return s.file.Close()
 }
 
-func (s *tarXZRecordStream) Next(ctx context.Context) (FileRecord, bool, error) {
+func (s *tarRecordStream) Next(ctx context.Context) (FileRecord, bool, error) {
 	header, sampleID, ok, err := s.nextHeader(ctx)
 	if err != nil || !ok {
 		return FileRecord{}, ok, err
@@ -589,12 +640,12 @@ func (s *tarXZRecordStream) Next(ctx context.Context) (FileRecord, bool, error) 
 	return FileRecord{SampleID: sampleID, Name: header.Name, Bytes: data}, true, nil
 }
 
-func (s *tarXZRecordStream) NextSampleID(ctx context.Context) (string, bool, error) {
+func (s *tarRecordStream) NextSampleID(ctx context.Context) (string, bool, error) {
 	_, sampleID, ok, err := s.nextHeader(ctx)
 	return sampleID, ok, err
 }
 
-func (s *tarXZRecordStream) nextHeader(ctx context.Context) (*tar.Header, string, bool, error) {
+func (s *tarRecordStream) nextHeader(ctx context.Context) (*tar.Header, string, bool, error) {
 	for {
 		select {
 		case <-ctx.Done():

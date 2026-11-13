@@ -49,7 +49,7 @@ type BuildOptions struct {
 	XZThreads   int
 
 	// AnnotationSpoolCompression controls temporary files made when building
-	// from annotation tar.xz sources whose order differs from genome order.
+	// from annotation tar or tar.xz sources whose order differs from genome order.
 	// Supported values are "", "gzip", "none", and "raw"; "" defaults to gzip.
 	AnnotationSpoolCompression string
 

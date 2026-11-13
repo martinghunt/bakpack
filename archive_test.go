@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -485,6 +486,92 @@ func TestBuildArchiveWarnsOnUnmatchedSequences(t *testing.T) {
 	}
 	if !strings.Contains(warnings.String(), "warning: sampleA: 1 sequence(s) not found") {
 		t.Fatalf("BuildArchive() warnings = %q, want unmatched sequence warning", warnings.String())
+	}
+}
+
+func TestBuildAndExtractArchiveFromPlainTar(t *testing.T) {
+	// Same-order sources take the paired streaming path; a differently
+	// ordered genome archive makes the build spool the annotation tar.
+	for _, tt := range []struct {
+		name         string
+		genomesName  string
+		writeGenomes func(*testing.T, string, []tarEntry)
+		genomeOrder  []string
+	}{
+		{name: "both tar same order", genomesName: "genomes.tar", writeGenomes: writeTar, genomeOrder: []string{"sampleA", "sampleB"}},
+		{name: "tar annotations with tar.xz genomes in other order", genomesName: "genomes.tar.xz", writeGenomes: writeTarXZ, genomeOrder: []string{"sampleB", "sampleA"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			dir := t.TempDir()
+			annotationsPath := filepath.Join(dir, "annotations.tar")
+			genomesPath := filepath.Join(dir, tt.genomesName)
+			archivePath := filepath.Join(dir, "toy.bakpack")
+			outDir := filepath.Join(dir, "out")
+
+			originals := map[string][]byte{
+				"sampleA": toyBaktaJSON("sampleA", "gene A"),
+				"sampleB": toyBaktaJSONv110("sampleB", "gene B"),
+			}
+			writeTar(t, annotationsPath, []tarEntry{
+				{Name: "bakta/sampleA.bakta.json", Data: originals["sampleA"]},
+				{Name: "bakta/sampleB.bakta.json", Data: originals["sampleB"]},
+			})
+			var genomeEntries []tarEntry
+			for _, sample := range tt.genomeOrder {
+				genomeEntries = append(genomeEntries, tarEntry{Name: "genomes/" + sample + ".fa", Data: toyFASTA(sample)})
+			}
+			tt.writeGenomes(t, genomesPath, genomeEntries)
+
+			annotations, err := OpenSource(annotationsPath, "auto", "annotation")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, ok := annotations.(TarSource); !ok {
+				t.Fatalf("OpenSource(%q) = %T, want TarSource", annotationsPath, annotations)
+			}
+			genomes, err := OpenSource(genomesPath, "auto", "genome")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := BuildArchive(ctx, BuildOptions{
+				Annotations: annotations,
+				Genomes:     genomes,
+				OutputPath:  archivePath,
+			}); err != nil {
+				t.Fatalf("BuildArchive() error = %v", err)
+			}
+			if err := ExtractArchive(ctx, ExtractOptions{
+				ArchivePath: archivePath,
+				Genomes:     genomes,
+				Samples:     []string{"sampleA", "sampleB"},
+				OutputDir:   outDir,
+				Original:    true,
+				GFF3:        true,
+			}); err != nil {
+				t.Fatalf("ExtractArchive() error = %v", err)
+			}
+			for sample, original := range originals {
+				got, err := os.ReadFile(filepath.Join(outDir, sample+".bakta.json"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				gotCanonical, err := JSONBytesCanonicalSHA256(got)
+				if err != nil {
+					t.Fatal(err)
+				}
+				wantCanonical, err := JSONBytesCanonicalSHA256(original)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if gotCanonical != wantCanonical {
+					t.Fatalf("%s original canonical SHA = %s, want %s", sample, gotCanonical, wantCanonical)
+				}
+				if _, err := os.Stat(filepath.Join(outDir, sample+".gff3")); err != nil {
+					t.Fatalf("%s GFF3 not written: %v", sample, err)
+				}
+			}
+		})
 	}
 }
 
@@ -1072,14 +1159,14 @@ func TestTarXZRecordStreamRejectsEntryOverLimit(t *testing.T) {
 		{Name: "sampleA.fa", Data: bytes.Repeat([]byte("A"), int(maxDecompressedComponentSize)+1)},
 	})
 
-	stream, err := newTarXZRecordStream(TarXZSource{Path: path})
+	stream, err := newTarRecordStream(TarXZSource{Path: path}.tar())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer stream.Close()
 
 	if _, _, err := stream.Next(context.Background()); err == nil {
-		t.Fatal("tarXZRecordStream.Next() with oversized entry = nil error, want error")
+		t.Fatal("tarRecordStream.Next() with oversized entry = nil error, want error")
 	}
 }
 
@@ -1227,15 +1314,29 @@ func TestOpenArchiveRejectsDuplicateChunkID(t *testing.T) {
 
 func writeTarXZ(t *testing.T, path string, entries []tarEntry) {
 	t.Helper()
+	writeTarArchive(t, path, entries, true)
+}
+
+func writeTar(t *testing.T, path string, entries []tarEntry) {
+	t.Helper()
+	writeTarArchive(t, path, entries, false)
+}
+
+func writeTarArchive(t *testing.T, path string, entries []tarEntry, compress bool) {
+	t.Helper()
 	file, err := os.Create(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	xzw, err := xz.NewWriter(file)
-	if err != nil {
-		t.Fatal(err)
+	var out io.WriteCloser = file
+	if compress {
+		xzw, err := xz.NewWriter(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out = xzw
 	}
-	tw := tar.NewWriter(xzw)
+	tw := tar.NewWriter(out)
 	for _, entry := range entries {
 		header := &tar.Header{Name: entry.Name, Mode: 0o644, Size: int64(len(entry.Data))}
 		if err := tw.WriteHeader(header); err != nil {
@@ -1248,8 +1349,10 @@ func writeTarXZ(t *testing.T, path string, entries []tarEntry) {
 	if err := tw.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if err := xzw.Close(); err != nil {
-		t.Fatal(err)
+	if compress {
+		if err := out.Close(); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if err := file.Close(); err != nil {
 		t.Fatal(err)

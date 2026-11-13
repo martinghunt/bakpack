@@ -99,6 +99,59 @@ func TestOpenSourceGenomeFASTAFileSupportsFAQTCompression(t *testing.T) {
 	}
 }
 
+func TestOpenSourceReadsPlainTar(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	annotationsPath := filepath.Join(dir, "annotations.tar")
+	genomesPath := filepath.Join(dir, "genomes.tar")
+	writeTar(t, annotationsPath, []tarEntry{
+		{Name: "bakta/sampleB.bakta.json", Data: toyBaktaJSON("sampleB", "gene B")},
+		{Name: "bakta/README.txt", Data: []byte("not a sample")},
+		{Name: "bakta/sampleA.bakta.json", Data: toyBaktaJSON("sampleA", "gene A")},
+	})
+	writeTar(t, genomesPath, []tarEntry{
+		{Name: "genomes/sampleA.fa.gz", Data: gzipBytes(t, toyFASTA("sampleA"))},
+	})
+
+	annotations, err := OpenSource(annotationsPath, "auto", "annotation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := annotations.(TarSource); !ok {
+		t.Fatalf("OpenSource(.tar) = %T, want TarSource", annotations)
+	}
+	order, err := annotations.Order(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(order, ",") != "sampleB,sampleA" {
+		t.Fatalf("Order() = %v, want tar order [sampleB sampleA]", order)
+	}
+	record, err := annotations.Get(ctx, "sampleA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if record.Name != "bakta/sampleA.bakta.json" || !bytes.Equal(record.Bytes, toyBaktaJSON("sampleA", "gene A")) {
+		t.Fatalf("Get(sampleA) = %q with %d bytes", record.Name, len(record.Bytes))
+	}
+
+	genomes, err := OpenSource(genomesPath, "tar", "genome")
+	if err != nil {
+		t.Fatal(err)
+	}
+	genomeRecord, err := genomes.Get(ctx, "sampleA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	genome, err := ReadGenome(genomeRecord.SampleID, genomeRecord.Name, genomeRecord.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(genome.Contigs[0].Seq); got != "ATGAAATAA" {
+		t.Fatalf("genome sequence from compressed tar member = %q", got)
+	}
+}
+
 func TestDirSourceGenomeFASTARecognisesCompressedNames(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()

@@ -14,8 +14,8 @@ Common options:
 
 ```text
 --manifest           tab-delimited manifest with sample, annotation, and genome paths
---annotations-format auto|dir|list|manifest|tar.xz
---genomes-format     auto|dir|list|manifest|tar.xz|agc
+--annotations-format auto|dir|list|manifest|tar|tar.xz
+--genomes-format     auto|dir|list|manifest|tar|tar.xz|agc
 --chunk-size         samples per compressed chunk, default 25
 --order              file of sample IDs defining archive order
 --xz-threads         threads passed as xz -T, default 1

@@ -5,14 +5,14 @@ Annotation sources support:
 - directory
 - file list
 - combined manifest
-- `.tar.xz`
+- `.tar` or `.tar.xz`
 
 Genome sources support:
 
 - directory
 - file list
 - combined manifest
-- `.tar.xz`
+- `.tar` or `.tar.xz`
 - `.agc`
 
 ## Sample IDs
@@ -33,9 +33,12 @@ sample.fa.zst     -> sample
 
 Genome FASTA sources can use faqt-supported gzip, bzip2, xz, or zstd
 compression. This applies to a standalone genome passed to `--genomes`, as
-well as genome files discovered in a directory or listed in a file list.
+well as genome files discovered in a directory or listed in a file list, or
+stored as members of a `.tar` or `.tar.xz` source.
 
-For `.tar.xz` sources, `bakpack` uses regular tar member basenames in tar order.
+For `.tar` and `.tar.xz` sources, `bakpack` uses regular tar member basenames in
+tar order. In auto mode, a `.tar` suffix selects an uncompressed tar source and
+`.tar.xz` or `.txz` an xz-compressed one.
 For directories, it uses lexicographic file path order. For AGC genome sources,
 sample names come from `agc listset`, and genome extraction uses `agc getset -t 1`.
 

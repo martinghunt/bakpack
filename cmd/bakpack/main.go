@@ -191,10 +191,10 @@ func newBuildCommand() *cobra.Command {
 			})
 		},
 	}
-	cmd.Flags().StringVar(&annotationsPath, "annotations", "", "Annotation source: directory, file list, or .tar.xz")
-	cmd.Flags().StringVar(&annotationsFormat, "annotations-format", "auto", "Annotation source format: auto, dir, list, manifest, tar.xz")
-	cmd.Flags().StringVar(&genomesPath, "genomes", "", "Genome source: directory, file list, .tar.xz, or .agc")
-	cmd.Flags().StringVar(&genomesFormat, "genomes-format", "auto", "Genome source format: auto, dir, list, manifest, tar.xz, agc")
+	cmd.Flags().StringVar(&annotationsPath, "annotations", "", "Annotation source: directory, file list, .tar, or .tar.xz")
+	cmd.Flags().StringVar(&annotationsFormat, "annotations-format", "auto", "Annotation source format: auto, dir, list, manifest, tar, tar.xz")
+	cmd.Flags().StringVar(&genomesPath, "genomes", "", "Genome source: directory, file list, .tar, .tar.xz, or .agc")
+	cmd.Flags().StringVar(&genomesFormat, "genomes-format", "auto", "Genome source format: auto, dir, list, manifest, tar, tar.xz, agc")
 	cmd.Flags().StringVar(&manifestPath, "manifest", "", "Tab-delimited manifest with columns: sample_id, annotation_json, genome_fasta")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output archive path, default annotations.bakpack")
 	cmd.Flags().StringVar(&orderPath, "order", "", "Optional file of sample IDs defining archive order")
@@ -268,7 +268,7 @@ func newExtractCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&genomesPath, "genomes", "", "Genome source for original JSON/FASTA/GFF3 extraction")
-	cmd.Flags().StringVar(&genomesFormat, "genomes-format", "auto", "Genome source format: auto, dir, list, manifest, tar.xz, agc")
+	cmd.Flags().StringVar(&genomesFormat, "genomes-format", "auto", "Genome source format: auto, dir, list, manifest, tar, tar.xz, agc")
 	cmd.Flags().StringVarP(&outputDir, "output-dir", "o", ".", "Output directory")
 	cmd.Flags().StringVar(&samplesFile, "samples-file", "", "File of sample IDs to extract")
 	cmd.Flags().BoolVar(&reduced, "reduced", false, "Write reduced JSON")
